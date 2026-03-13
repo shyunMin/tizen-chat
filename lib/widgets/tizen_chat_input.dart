@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import '../theme/tizen_styles.dart';
@@ -16,8 +17,9 @@ class TizenChatInput extends StatelessWidget {
   });
 
   void _handleSend() {
-    if (controller.text.trim().isNotEmpty) {
-      onSend(controller.text.trim());
+    final text = controller.text.trim();
+    if (text.isNotEmpty) {
+      onSend(text);
       controller.clear();
       focusNode.requestFocus();
     }
@@ -52,6 +54,8 @@ class TizenChatInput extends StatelessWidget {
                             focusNode: focusNode,
                             onSubmitted: (_) => _handleSend(),
                             autofocus: true,
+                            keyboardType: TextInputType.none, // Hide virtual keyboard
+                            showCursor: true, // Keep cursor visible for hardware keyboard
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: TizenStyles.baseFontSize,
@@ -77,7 +81,6 @@ class TizenChatInput extends StatelessWidget {
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: _handleSend,
-                onTapDown: (_) {},
                 child: Container(
                   width: 48,
                   height: 48,
