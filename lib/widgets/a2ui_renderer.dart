@@ -139,6 +139,12 @@ class _A2uiRendererState extends State<A2uiRenderer> {
           _flattenComponent(rootData, collector);
         }
 
+        if (data.containsKey('rootComponent')) {
+          final rootData = Map<String, dynamic>.from(data['rootComponent'] as Map<String, dynamic>);
+          rootData['id'] = rootData['id'] ?? '${sid}_root';
+          _flattenComponent(rootData, collector);
+        }
+
         if (data.containsKey('layout') && data['layout'] is Map) {
           final layoutData = Map<String, dynamic>.from(data['layout'] as Map<String, dynamic>);
           final String rid = (layoutData['id'] ?? layoutData['componentId'] ?? '${sid}_root').toString();
@@ -212,20 +218,22 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     
     final Map<String, dynamic> props = Map<String, dynamic>.from(raw);
     
-    // Merge 'props' or 'style' object wrappers into top-level
+    // Merge 'props', 'style', or 'styles' object wrappers into top-level
     if (props.containsKey('props') && props['props'] is Map) {
       props.addAll(Map<String, dynamic>.from(props['props'] as Map));
       props.remove('props');
     }
     if (props.containsKey('style') && props['style'] is Map) {
       props.addAll(Map<String, dynamic>.from(props['style'] as Map));
-      // We don't necessarily remove 'style' as some widgets might use it, but common props are now top-level
+    }
+    if (props.containsKey('styles') && props['styles'] is Map) {
+      props.addAll(Map<String, dynamic>.from(props['styles'] as Map));
     }
 
     if (type == 'Group' || type == 'Stack' || type == 'Container' || type == 'VStack' || type == 'HStack') {
-      final String dir = (props['direction'] ?? props['layout'] ?? 
+      final String dir = (props['direction'] ?? props['layout'] ?? props['flexDirection'] ??
                          (type == 'HStack' ? 'horizontal' : 'vertical')).toString().toLowerCase();
-      type = (dir == 'horizontal' || type == 'HStack') ? 'Row' : 'Column';
+      type = (dir == 'horizontal' || dir == 'row' || type == 'HStack') ? 'Row' : 'Column';
     }
 
     props.remove('id');
@@ -248,7 +256,10 @@ class _A2uiRendererState extends State<A2uiRenderer> {
        if (borderMap.containsKey('color')) props['borderColor'] = borderMap['color'];
     }
 
-    // Handle 'label' as an object for Buttons
+    // Handle 'label' or 'value' for Text/Button
+    if (props.containsKey('value') && !props.containsKey('text')) {
+      props['text'] = props['value'];
+    }
     if (type == 'Button' && props.containsKey('label') && props['label'] is Map) {
       final labelMap = props['label'] as Map;
       if (labelMap.containsKey('text')) props['label'] = labelMap['text'];
@@ -306,7 +317,16 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     if (type == 'Image' || type == 'Icon') {
       if (props.containsKey('icon')) props['src'] = props['icon'].toString();
       if (props.containsKey('iconName')) props['src'] = props['iconName'].toString();
-      if (props.containsKey('source')) props['src'] = props['source'].toString();
+      if (props.containsKey('name')) props['src'] = props['name'].toString();
+      
+      if (props.containsKey('source')) {
+        final src = props['source'];
+        if (src is Map && src.containsKey('uri')) {
+          props['src'] = src['uri'].toString();
+        } else {
+          props['src'] = src.toString();
+        }
+      }
     }
 
     // Convert CSS-like units to numbers
