@@ -236,17 +236,21 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}').toString();
     String type = (raw['component'] ?? raw['componentType'] ?? raw['type'] ?? 'Column').toString();
     
-    if (type == 'Group' || type == 'Stack') {
-      final String dir = (raw['direction'] ?? raw['layout'] ?? (raw['props'] is Map ? raw['props']['direction'] : null))?.toString() ?? 'vertical';
-      type = (dir == 'horizontal') ? 'Row' : 'Column';
-    }
-
     final Map<String, dynamic> props = Map<String, dynamic>.from(raw);
     
-    // Handle 'props' object wrapper
+    // Merge 'props' or 'style' object wrappers into top-level
     if (props.containsKey('props') && props['props'] is Map) {
       props.addAll(Map<String, dynamic>.from(props['props'] as Map));
       props.remove('props');
+    }
+    if (props.containsKey('style') && props['style'] is Map) {
+      props.addAll(Map<String, dynamic>.from(props['style'] as Map));
+      // We don't necessarily remove 'style' as some widgets might use it, but common props are now top-level
+    }
+
+    if (type == 'Group' || type == 'Stack' || type == 'Container') {
+      final String dir = (props['direction'] ?? props['layout'] ?? 'vertical').toString().toLowerCase();
+      type = (dir == 'horizontal') ? 'Row' : 'Column';
     }
 
     props.remove('id');
@@ -257,7 +261,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
     _normalizeProperties(type, props);
 
-    // Recursively flatten children if they are objects
+    // Recursively flatten children
     if (props.containsKey('children') && props['children'] is List) {
       final List<dynamic> rawChildren = props['children'] as List<dynamic>;
       final List<String> childIds = [];
@@ -310,6 +314,18 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       if (props.containsKey('source')) props['src'] = props['source'].toString();
     }
 
+    // Convert CSS-like units to numbers
+    final List<String> numericKeys = ['padding', 'borderRadius', 'gap', 'spacing', 'width', 'height', 'fontSize'];
+    for (var key in numericKeys) {
+      if (props.containsKey(key)) {
+        final val = props[key].toString().toLowerCase();
+        final parsed = double.tryParse(val.replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (parsed != null) {
+          props[key] = parsed;
+        }
+      }
+    }
+
     if (props.containsKey('fontWeight')) {
       final fw = props['fontWeight'].toString().toLowerCase();
       int weight = 400;
@@ -322,23 +338,18 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       props['fontWeight'] = weight;
     }
 
-    if (props.containsKey('fontSize')) {
+    // Specific mapping for fontSize if not already a double
+    if (props.containsKey('fontSize') && props['fontSize'] is! double) {
       final fs = props['fontSize'].toString().toLowerCase();
-      double size = 16.0;
-      if (fs == 'xs') size = 12.0;
-      else if (fs == 'sm') size = 14.0;
-      else if (fs == 'md' || fs == 'base') size = 16.0;
-      else if (fs == 'lg') size = 18.0;
-      else if (fs == 'xl') size = 20.0;
-      else if (fs == '2xl') size = 24.0;
-      else if (fs == '3xl') size = 30.0;
-      else if (fs == '4xl') size = 36.0;
-      else if (fs == '5xl') size = 48.0;
-      else {
-        final parsed = double.tryParse(fs.replaceAll(RegExp(r'[^0-9.]'), ''));
-        if (parsed != null) size = parsed;
-      }
-      props['fontSize'] = size;
+      if (fs == 'xs') props['fontSize'] = 12.0;
+      else if (fs == 'sm') props['fontSize'] = 14.0;
+      else if (fs == 'md' || fs == 'base') props['fontSize'] = 16.0;
+      else if (fs == 'lg') props['fontSize'] = 18.0;
+      else if (fs == 'xl') props['fontSize'] = 20.0;
+      else if (fs == '2xl') props['fontSize'] = 24.0;
+      else if (fs == '3xl') props['fontSize'] = 30.0;
+      else if (fs == '4xl') props['fontSize'] = 36.0;
+      else if (fs == '5xl') props['fontSize'] = 48.0;
     }
   }
 
