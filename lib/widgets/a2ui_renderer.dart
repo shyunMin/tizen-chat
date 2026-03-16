@@ -214,7 +214,22 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   void _flattenComponent(Map<String, dynamic> raw, List<Component> collector) {
     final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}').toString();
-    String type = (raw['component'] ?? raw['componentType'] ?? raw['type'] ?? 'Column').toString();
+    
+    // Normalize type (lowercase to PascalCase)
+    String typeRaw = (raw['component'] ?? raw['componentType'] ?? raw['type'] ?? 'Column').toString();
+    String type = 'Column';
+    if (typeRaw.toLowerCase() == 'text') type = 'Text';
+    else if (typeRaw.toLowerCase() == 'image') type = 'Image';
+    else if (typeRaw.toLowerCase() == 'icon') type = 'Icon';
+    else if (typeRaw.toLowerCase() == 'button') type = 'Button';
+    else if (typeRaw.toLowerCase() == 'card') type = 'Card';
+    else if (typeRaw.toLowerCase() == 'divider') type = 'Divider';
+    else if (typeRaw.toLowerCase() == 'container' || typeRaw.toLowerCase() == 'group' || typeRaw.toLowerCase() == 'stack' || typeRaw.toLowerCase() == 'vstack' || typeRaw.toLowerCase() == 'hstack') {
+      type = 'Container';
+    } else {
+      // Fallback: capitalize first letter
+      type = typeRaw[0].toUpperCase() + typeRaw.substring(1);
+    }
     
     final Map<String, dynamic> props = Map<String, dynamic>.from(raw);
     
@@ -230,10 +245,21 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       props.addAll(Map<String, dynamic>.from(props['styles'] as Map));
     }
 
-    if (type == 'Group' || type == 'Stack' || type == 'Container' || type == 'VStack' || type == 'HStack') {
-      final String dir = (props['direction'] ?? props['layout'] ?? props['flexDirection'] ??
-                         (type == 'HStack' ? 'horizontal' : 'vertical')).toString().toLowerCase();
-      type = (dir == 'horizontal' || dir == 'row' || type == 'HStack') ? 'Row' : 'Column';
+    if (type == 'Container' || type == 'Group' || type == 'Stack' || typeRaw.toLowerCase() == 'vstack' || typeRaw.toLowerCase() == 'hstack') {
+      final String dir = (props['direction'] ?? props['layout'] ?? props['flexDirection'] ?? props['orientation'] ??
+                         (typeRaw.toLowerCase() == 'hstack' ? 'horizontal' : 'vertical')).toString().toLowerCase();
+      type = (dir == 'horizontal' || dir == 'row' || typeRaw.toLowerCase() == 'hstack') ? 'Row' : 'Column';
+    }
+
+    // Alignment mapping
+    if (props.containsKey('justifyContent')) {
+      props['mainAxisAlignment'] = props['justifyContent'];
+    }
+    if (props.containsKey('alignItems')) {
+      props['crossAxisAlignment'] = props['alignItems'];
+    }
+    if (props.containsKey('alignment') && !props.containsKey('crossAxisAlignment')) {
+      props['crossAxisAlignment'] = props['alignment'];
     }
 
     props.remove('id');
@@ -241,6 +267,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     props.remove('component');
     props.remove('componentType');
     props.remove('type');
+    props.remove('orientation'); // Mapped to layout/type
 
     // Handle nested 'size' object: {width: X, height: Y}
     if (props.containsKey('size') && props['size'] is Map) {
@@ -334,7 +361,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     for (var key in numericKeys) {
       if (props.containsKey(key)) {
         final val = props[key].toString().toLowerCase();
-        if (val == 'full') {
+        if (val == 'full' || val == 'circle') {
             props[key] = 999.0;
             continue;
         }
