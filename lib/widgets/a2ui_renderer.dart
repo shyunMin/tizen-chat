@@ -128,7 +128,8 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
         if (msg.containsKey('layout') && msg['layout'] is Map) {
           final layoutData = Map<String, dynamic>.from(msg['layout'] as Map<String, dynamic>);
-          layoutData['id'] = layoutData['id'] ?? '${sid}_root';
+          final String rid = (layoutData['id'] ?? layoutData['componentId'] ?? '${sid}_root').toString();
+          layoutData['id'] = rid;
           _flattenComponent(layoutData, collector);
         }
 
@@ -248,9 +249,10 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       // We don't necessarily remove 'style' as some widgets might use it, but common props are now top-level
     }
 
-    if (type == 'Group' || type == 'Stack' || type == 'Container') {
-      final String dir = (props['direction'] ?? props['layout'] ?? 'vertical').toString().toLowerCase();
-      type = (dir == 'horizontal') ? 'Row' : 'Column';
+    if (type == 'Group' || type == 'Stack' || type == 'Container' || type == 'VStack' || type == 'HStack') {
+      final String dir = (props['direction'] ?? props['layout'] ?? 
+                         (type == 'HStack' ? 'horizontal' : 'vertical')).toString().toLowerCase();
+      type = (dir == 'horizontal' || type == 'HStack') ? 'Row' : 'Column';
     }
 
     props.remove('id');
@@ -258,6 +260,26 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     props.remove('component');
     props.remove('componentType');
     props.remove('type');
+
+    // Handle nested 'size' object: {width: X, height: Y}
+    if (props.containsKey('size') && props['size'] is Map) {
+      final sizeMap = props['size'] as Map;
+      if (sizeMap.containsKey('width')) props['width'] = sizeMap['width'];
+      if (sizeMap.containsKey('height')) props['height'] = sizeMap['height'];
+    }
+
+    // Handle nested 'border' object
+    if (props.containsKey('border') && props['border'] is Map) {
+       final borderMap = props['border'] as Map;
+       if (borderMap.containsKey('width')) props['borderWidth'] = borderMap['width'];
+       if (borderMap.containsKey('color')) props['borderColor'] = borderMap['color'];
+    }
+
+    // Handle 'label' as an object for Buttons
+    if (type == 'Button' && props.containsKey('label') && props['label'] is Map) {
+      final labelMap = props['label'] as Map;
+      if (labelMap.containsKey('text')) props['label'] = labelMap['text'];
+    }
 
     _normalizeProperties(type, props);
 
@@ -315,10 +337,14 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     }
 
     // Convert CSS-like units to numbers
-    final List<String> numericKeys = ['padding', 'borderRadius', 'gap', 'spacing', 'width', 'height', 'fontSize'];
+    final List<String> numericKeys = ['padding', 'borderRadius', 'gap', 'spacing', 'width', 'height', 'fontSize', 'marginBottom', 'marginTop', 'marginLeft', 'marginRight'];
     for (var key in numericKeys) {
       if (props.containsKey(key)) {
         final val = props[key].toString().toLowerCase();
+        if (val == 'full') {
+            props[key] = 999.0;
+            continue;
+        }
         final parsed = double.tryParse(val.replaceAll(RegExp(r'[^0-9.]'), ''));
         if (parsed != null) {
           props[key] = parsed;
