@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
 import 'a2ui_renderer.dart';
 
@@ -17,9 +17,6 @@ class ReceivedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (uiCode != null) {
-        print('DEBUG: ReceivedMessage uiCode: ${uiCode!.length > 1000 ? uiCode!.substring(0, 1000) + "..." : uiCode}');
-    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -46,10 +43,10 @@ class ReceivedMessage extends StatelessWidget {
                   listBullet: TizenStyles.bodyText,
                   code: TizenStyles.bodyText.copyWith(
                     fontFamily: 'monospace',
-                    backgroundColor: Colors.black.withValues(alpha: 0.3),
+                    backgroundColor: Colors.black.withOpacity(0.3),
                   ),
                   codeblockDecoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
+                    color: Colors.black.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   h1: TizenStyles.headerText,

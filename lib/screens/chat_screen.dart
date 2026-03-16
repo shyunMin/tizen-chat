@@ -52,8 +52,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         _addMessage(ChatMessage(
           text: '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
               'Please verify:\n'
-              '1. tizen-home-agent server is running on localhost:8080\n'
-              '2. Run: "sdb reverse tcp:8080 tcp:8080"',
+              '1. The chat server is running on the host PC.\n'
+              '2. Port forwarding exists: "sdb reverse tcp:9090 tcp:9090"',
           type: MessageType.received,
         ));
       }

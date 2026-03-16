@@ -1,49 +1,48 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import '../theme/tizen_styles.dart';
 
 class A2uiRenderer extends StatefulWidget {
   final String uiCode;
 
   const A2uiRenderer({super.key, required this.uiCode});
 
-  /// Validates if the given string is a potentially valid A2UI JSON.
   static bool isValidJson(String? code) {
     if (code == null || code.isEmpty) return false;
     try {
       final decoded = jsonDecode(code);
-      bool isValid = false;
       if (decoded is List) {
-        if (decoded.isNotEmpty) {
-          final first = decoded.first;
-          if (first is Map) isValid = _isA2uiMap(first as Map<String, dynamic>);
-        }
-      } else if (decoded is Map<String, dynamic>) {
-        if (decoded.containsKey('messages') && decoded['messages'] is List) {
-           isValid = (decoded['messages'] as List).isNotEmpty;
-        } else {
-          isValid = _isA2uiMap(decoded);
-        }
+        if (decoded.isEmpty) return false;
+        final first = decoded.first;
+        if (first is Map) return _isA2uiMap(first);
+      } else if (decoded is Map) {
+        if (decoded.containsKey('messages')) return true;
+        return _isA2uiMap(decoded);
       }
-      
-      if (!isValid) {
-        print('DEBUG: Invalid A2UI JSON detected: $code');
-      }
-      return isValid;
+      return false;
     } catch (e) {
-      print('DEBUG: A2UI JSON Decode Error: $e, Payload: $code');
       return false;
     }
   }
 
-  static bool _isA2uiMap(Map<String, dynamic> map) {
-    final List<String> a2uiKeys = [
+  static bool _isA2uiMap(Map map) {
+    // Unique A2UI keys that are unlikely to appear in random JSON
+    const List<String> uniqueA2uiKeys = [
       'createSurface', 'updateComponents', 'beginRendering', 'surfaceUpdate',
-      'messageType', 'type', 'surfaceId', 'id', 'components', 'root', 
-      'layout', 'concept', 'child', 'children', 'surfaceType', 'messages', 'version'
+      'rootComponent', 'surfaceType'
     ];
-    return map.keys.any((key) => a2uiKeys.any((aKey) => map.containsKey(aKey)));
+    // Common A2UI keys
+    const List<String> commonA2uiKeys = [
+      'messageType', 'type', 'components', 'root', 'layout', 'concept', 
+      'child', 'children', 'component'
+    ];
+    
+    final keys = map.keys.map((k) => k.toString()).toList();
+    if (keys.any((key) => uniqueA2uiKeys.contains(key))) return true;
+    
+    // If it has at least two common keys, it's likely A2UI
+    int matches = keys.where((key) => commonA2uiKeys.contains(key)).length;
+    return matches >= 2;
   }
 
   @override
@@ -54,11 +53,11 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   late A2uiMessageProcessor _processor;
   final List<String> _surfaceIds = [];
   bool _hasError = false;
+  static int _idCounter = 0;
 
   @override
   void initState() {
     super.initState();
-    // Use CoreCatalogItems from genui package
     _processor = A2uiMessageProcessor(catalogs: [CoreCatalogItems.asCatalog()]);
     _parseAndProcess();
   }
@@ -66,49 +65,67 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   @override
   void didUpdateWidget(A2uiRenderer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.uiCode != oldWidget.uiCode) {
+    if (oldWidget.uiCode != widget.uiCode) {
       _parseAndProcess();
     }
   }
 
   void _parseAndProcess() {
     try {
+      _surfaceIds.clear();
+      _hasError = false;
       final decoded = jsonDecode(widget.uiCode);
       _processItem(decoded);
     } catch (e) {
       print('DEBUG: A2UI Parse Error: $e');
-      setState(() {
-        _hasError = true;
-      });
+      _hasError = true;
+      if (mounted) setState(() {});
     }
   }
 
   void _processItem(dynamic item) {
     if (item is List) {
-      for (var element in item) {
-        _processItem(element);
+      if (item.isNotEmpty && item.first is Map && (item.first as Map).containsKey('component')) {
+         // Flavor: Raw component list
+         final List<Component> components = [];
+         String? rootId;
+         for (var element in item) {
+           if (element is Map) {
+             final data = Map<String, dynamic>.from(element);
+             final id = (data['id'] ?? data['componentId'] ?? 'root').toString();
+             if (id == 'root' || rootId == null) rootId = id;
+             _flattenComponent(data, components);
+           }
+         }
+         if (rootId != null) {
+           _processor.handleMessage(BeginRendering(surfaceId: 'main', root: rootId));
+           _processor.handleMessage(SurfaceUpdate(surfaceId: 'main', components: components));
+           if (!_surfaceIds.contains('main')) {
+             setState(() => _surfaceIds.add('main'));
+           }
+         }
+      } else {
+        for (var element in item) {
+          _processItem(element);
+        }
       }
-    } else if (item is Map<String, dynamic>) {
-      if (item.containsKey('messages') && item['messages'] is List) {
-        for (var msg in (item['messages'] as List)) {
+    } else if (item is Map) {
+      final map = Map<String, dynamic>.from(item);
+      if (map.containsKey('messages') && map['messages'] is List) {
+        for (var msg in (map['messages'] as List)) {
           _processItem(msg);
         }
-      } else if (item.containsKey('surfaceId') || 
-                 item.containsKey('id') || 
-                 item.containsKey('createSurface') || 
-                 item.containsKey('updateComponents') ||
-                 item.containsKey('type')) {
-        _handleRawMessage(item);
+      } else {
+        _handleRawMessage(map);
       }
     }
   }
 
   void _handleRawMessage(Map<String, dynamic> msg) {
     try {
-      String? type = msg['messageType']?.toString() ?? msg['type']?.toString();
+      String? type = (msg['messageType'] ?? msg['type'])?.toString();
       Map<String, dynamic> data = msg;
 
-      // Extract type from keys if not explicitly defined
       if (type == null) {
         if (msg.containsKey('createSurface')) {
           type = 'createSurface';
@@ -119,319 +136,141 @@ class _A2uiRendererState extends State<A2uiRenderer> {
         }
       }
 
-      final List<Component> collector = [];
-
       if (type == 'createSurface' || type == 'updateComponents') {
-        final String sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
+        final sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
         if (!_surfaceIds.contains(sid)) {
           setState(() => _surfaceIds.add(sid));
         }
 
+        final List<Component> collector = [];
+        
         if (data.containsKey('components') && data['components'] is List) {
           for (var c in (data['components'] as List)) {
-            _flattenComponent(c as Map<String, dynamic>, collector);
+            if (c is Map) _flattenComponent(Map<String, dynamic>.from(c), collector);
           }
         }
-        
-        if (data.containsKey('root')) {
-          final rootData = Map<String, dynamic>.from(data['root'] as Map<String, dynamic>);
-          rootData['id'] = rootData['id'] ?? '${sid}_root';
-          _flattenComponent(rootData, collector);
-        }
 
-        if (data.containsKey('rootComponent')) {
-          final rootData = Map<String, dynamic>.from(data['rootComponent'] as Map<String, dynamic>);
-          rootData['id'] = rootData['id'] ?? '${sid}_root';
-          _flattenComponent(rootData, collector);
+        for (var key in ['root', 'rootComponent']) {
+          if (data.containsKey(key)) {
+            final r = data[key];
+            if (r is Map) {
+              final rootData = Map<String, dynamic>.from(r);
+              rootData['id'] = rootData['id'] ?? '${sid}_root';
+              _flattenComponent(rootData, collector);
+            }
+          }
         }
 
         if (data.containsKey('layout') && data['layout'] is Map) {
-          final layoutData = Map<String, dynamic>.from(data['layout'] as Map<String, dynamic>);
-          final String rid = (layoutData['id'] ?? layoutData['componentId'] ?? '${sid}_root').toString();
+          final layoutData = Map<String, dynamic>.from(data['layout'] as Map);
+          final rid = (layoutData['id'] ?? layoutData['componentId'] ?? '${sid}_root').toString();
           layoutData['id'] = rid;
           _flattenComponent(layoutData, collector);
         }
 
-        if (data['concept'] == 'Card' || data['surfaceType'] == 'Card') {
-          final String cardId = '${sid}_root_card';
-          final Map<String, dynamic> cardProps = Map<String, dynamic>.from(data['style'] ?? {});
-          if (data.containsKey('title')) cardProps['title'] = data['title'];
-
-          final List<String> childrenIds = collector.map((c) => c.id).toList();
-          if (childrenIds.isNotEmpty) {
-            String finalChildId;
-            if (childrenIds.length > 1) {
-              finalChildId = '${sid}_card_column';
-              collector.add(Component(
-                id: finalChildId,
-                componentProperties: {
-                  'Column': {
-                    'children': childrenIds,
-                    'crossAxisAlignment': 'center',
-                  }
-                }
-              ));
-            } else {
-              finalChildId = childrenIds.first;
-            }
-            cardProps['child'] = finalChildId;
-          }
-
-          collector.add(Component(
-            id: cardId,
-            componentProperties: {'Card': cardProps}
-          ));
-        }
-
         if (collector.isNotEmpty) {
-          final String rootId = collector.any((c) => c.id == '${sid}_root') 
-              ? '${sid}_root' 
-              : (collector.any((c) => c.id == '${sid}_root_card') ? '${sid}_root_card' : collector.first.id);
-
+          final rootId = collector.any((c) => c.id == '${sid}_root') ? '${sid}_root' : collector.first.id;
           if (type == 'createSurface') {
             _processor.handleMessage(BeginRendering(surfaceId: sid, root: rootId));
           }
-
-          _processor.handleMessage(SurfaceUpdate(
-            surfaceId: sid,
-            components: collector,
-          ));
+          _processor.handleMessage(SurfaceUpdate(surfaceId: sid, components: collector));
         }
-        return;
       } else {
         _processor.handleMessage(A2uiMessage.fromJson(msg));
-        if (msg.containsKey('beginRendering')) {
-          final sid = msg['beginRendering']['surfaceId']?.toString();
-          if (sid != null && !_surfaceIds.contains(sid)) {
-            setState(() => _surfaceIds.add(sid));
-          }
-        }
       }
     } catch (e) {
-      print('DEBUG: Message handling error: $e');
+      print('DEBUG: Message handle error: $e');
     }
   }
 
   void _flattenComponent(Map<String, dynamic> raw, List<Component> collector) {
-    final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}').toString();
+    final String id = raw['id']?.toString() ?? 
+                     raw['componentId']?.toString() ?? 
+                     'comp_${++_idCounter}_${DateTime.now().millisecond}';
     
-    // Normalize type (lowercase to PascalCase)
-    String typeRaw = (raw['component'] ?? raw['componentType'] ?? raw['type'] ?? 'Column').toString();
-    String type = 'Column';
-    if (typeRaw.toLowerCase() == 'text') type = 'Text';
-    else if (typeRaw.toLowerCase() == 'image') type = 'Image';
-    else if (typeRaw.toLowerCase() == 'icon') type = 'Icon';
-    else if (typeRaw.toLowerCase() == 'button') type = 'Button';
-    else if (typeRaw.toLowerCase() == 'card') type = 'Card';
-    else if (typeRaw.toLowerCase() == 'divider') type = 'Divider';
-    else if (typeRaw.toLowerCase() == 'container' || typeRaw.toLowerCase() == 'group' || typeRaw.toLowerCase() == 'stack' || typeRaw.toLowerCase() == 'vstack' || typeRaw.toLowerCase() == 'hstack') {
-      type = 'Container';
-    } else {
-      // Fallback: capitalize first letter
-      type = typeRaw[0].toUpperCase() + typeRaw.substring(1);
+    String typeRaw = (raw['componentType'] ?? raw['type'] ?? 'Column').toString();
+    Map<String, dynamic> props = Map<String, dynamic>.from(raw);
+
+    if (raw['component'] is Map) {
+      final compMap = raw['component'] as Map;
+      if (compMap.isNotEmpty) {
+        typeRaw = compMap.keys.first.toString();
+        props.addAll(Map<String, dynamic>.from(compMap[typeRaw] as Map));
+      }
     }
+
+    String type = _normalizeType(typeRaw);
     
-    final Map<String, dynamic> props = Map<String, dynamic>.from(raw);
-    
-    // Merge 'props', 'style', or 'styles' object wrappers into top-level
-    if (props.containsKey('props') && props['props'] is Map) {
-      props.addAll(Map<String, dynamic>.from(props['props'] as Map));
-      props.remove('props');
-    }
-    if (props.containsKey('style') && props['style'] is Map) {
-      props.addAll(Map<String, dynamic>.from(props['style'] as Map));
-    }
-    if (props.containsKey('styles') && props['styles'] is Map) {
-      props.addAll(Map<String, dynamic>.from(props['styles'] as Map));
-    }
+    if (props.containsKey('props') && props['props'] is Map) props.addAll(Map<String, dynamic>.from(props['props'] as Map));
+    if (props.containsKey('style') && props['style'] is Map) props.addAll(Map<String, dynamic>.from(props['style'] as Map));
+    if (props.containsKey('styles') && props['styles'] is Map) props.addAll(Map<String, dynamic>.from(props['styles'] as Map));
 
-    if (type == 'Container' || type == 'Group' || type == 'Stack' || typeRaw.toLowerCase() == 'vstack' || typeRaw.toLowerCase() == 'hstack') {
-      final String dir = (props['direction'] ?? props['layout'] ?? props['flexDirection'] ?? props['orientation'] ??
-                         (typeRaw.toLowerCase() == 'hstack' ? 'horizontal' : 'vertical')).toString().toLowerCase();
-      type = (dir == 'horizontal' || dir == 'row' || typeRaw.toLowerCase() == 'hstack') ? 'Row' : 'Column';
-    }
+    // Resolve literalString/path
+    props.forEach((key, value) {
+      if (value is Map) {
+        if (value.containsKey('literalString')) props[key] = value['literalString'];
+        else if (value.containsKey('path')) props[key] = value['path'];
+      }
+    });
 
-    // Alignment mapping
-    if (props.containsKey('justifyContent')) {
-      props['mainAxisAlignment'] = props['justifyContent'];
-    }
-    if (props.containsKey('alignItems')) {
-      props['crossAxisAlignment'] = props['alignItems'];
-    }
-    if (props.containsKey('alignment') && !props.containsKey('crossAxisAlignment')) {
-      props['crossAxisAlignment'] = props['alignment'];
-    }
-
-    props.remove('id');
-    props.remove('componentId');
-    props.remove('component');
-    props.remove('componentType');
-    props.remove('type');
-    props.remove('orientation'); // Mapped to layout/type
-
-    // Handle nested 'size' object: {width: X, height: Y}
-    if (props.containsKey('size') && props['size'] is Map) {
-      final sizeMap = props['size'] as Map;
-      if (sizeMap.containsKey('width')) props['width'] = sizeMap['width'];
-      if (sizeMap.containsKey('height')) props['height'] = sizeMap['height'];
-    }
-
-    // Handle nested 'border' object
-    if (props.containsKey('border') && props['border'] is Map) {
-       final borderMap = props['border'] as Map;
-       if (borderMap.containsKey('width')) props['borderWidth'] = borderMap['width'];
-       if (borderMap.containsKey('color')) props['borderColor'] = borderMap['color'];
-    }
-
-    // Handle 'label' or 'value' for Text/Button
-    if (props.containsKey('value') && !props.containsKey('text')) {
-      props['text'] = props['value'];
-    }
-    if (type == 'Button' && props.containsKey('label') && props['label'] is Map) {
-      final labelMap = props['label'] as Map;
-      if (labelMap.containsKey('text')) props['label'] = labelMap['text'];
+    if (props['children'] is Map && (props['children'] as Map).containsKey('explicitList')) {
+      props['children'] = (props['children'] as Map)['explicitList'];
     }
 
     _normalizeProperties(type, props);
 
-    // Recursively flatten children
-    if (props.containsKey('children') && props['children'] is List) {
-      final List<dynamic> rawChildren = props['children'] as List<dynamic>;
+    if (props['children'] is List) {
       final List<String> childIds = [];
-      for (var childJson in rawChildren) {
-        if (childJson is Map<String, dynamic>) {
-          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}_${childIds.length}').toString();
-          childJson['id'] = childId;
-          childIds.add(childId);
-          _flattenComponent(childJson, collector);
-        } else if (childJson is String) {
-          childIds.add(childJson);
+      for (var child in (props['children'] as List)) {
+        if (child is Map) {
+          final childMap = Map<String, dynamic>.from(child);
+          _flattenComponent(childMap, collector);
+          childIds.add(childMap['id']?.toString() ?? 'unknown');
+        } else if (child is String) {
+          childIds.add(child);
         }
       }
       props['children'] = childIds;
-    } else if (props.containsKey('components') && props['components'] is List) {
-      final List<dynamic> rawChildren = props['components'] as List<dynamic>;
-      final List<String> childIds = [];
-      for (var childJson in rawChildren) {
-        if (childJson is Map<String, dynamic>) {
-          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}_${childIds.length}').toString();
-          childJson['id'] = childId;
-          childIds.add(childId);
-          _flattenComponent(childJson, collector);
-        } else if (childJson is String) {
-           childIds.add(childJson);
-        }
-      }
-      props['children'] = childIds;
-      props.remove('components');
     }
 
-    if (props.containsKey('child') && props['child'] is Map) {
-      final Map<String, dynamic> childJson = Map<String, dynamic>.from(props['child'] as Map);
-      final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_child').toString();
-      childJson['id'] = childId;
-      props['child'] = childId;
-      _flattenComponent(childJson, collector);
-    }
+    collector.add(Component(id: id, componentProperties: {type: props}));
+  }
 
-    collector.add(Component(
-      id: id,
-      componentProperties: {type: props},
-    ));
+  String _normalizeType(String raw) {
+    if (raw.isEmpty) return 'Container';
+    raw = raw.toLowerCase();
+    if (raw == 'text') return 'Text';
+    if (raw == 'image') return 'Image';
+    if (raw == 'icon') return 'Icon';
+    if (raw == 'button') return 'Button';
+    if (raw == 'card') return 'Card';
+    if (raw == 'divider') return 'Divider';
+    if (raw == 'container' || raw == 'hstack' || raw == 'vstack' || raw == 'group' || raw == 'column' || raw == 'row') return 'Container';
+    return raw[0].toUpperCase() + raw.substring(1);
   }
 
   void _normalizeProperties(String type, Map<String, dynamic> props) {
     if (type == 'Image' || type == 'Icon') {
-      if (props.containsKey('icon')) props['src'] = props['icon'].toString();
-      if (props.containsKey('iconName')) props['src'] = props['iconName'].toString();
-      if (props.containsKey('name')) props['src'] = props['name'].toString();
-      
-      if (props.containsKey('source')) {
-        final src = props['source'];
-        if (src is Map && src.containsKey('uri')) {
-          props['src'] = src['uri'].toString();
-        } else {
-          props['src'] = src.toString();
-        }
+      props['src'] = (props['src'] ?? props['url'] ?? props['source'] ?? props['name'] ?? props['icon'])?.toString();
+    }
+    // Simple unit conversion
+    props.forEach((key, value) {
+      if (value is String && value.endsWith('px')) {
+        props[key] = double.tryParse(value.replaceAll('px', '')) ?? 0.0;
       }
-    }
-
-    // Convert CSS-like units to numbers
-    final List<String> numericKeys = ['padding', 'borderRadius', 'gap', 'spacing', 'width', 'height', 'fontSize', 'marginBottom', 'marginTop', 'marginLeft', 'marginRight'];
-    for (var key in numericKeys) {
-      if (props.containsKey(key)) {
-        final val = props[key].toString().toLowerCase();
-        if (val == 'full' || val == 'circle') {
-            props[key] = 999.0;
-            continue;
-        }
-        final parsed = double.tryParse(val.replaceAll(RegExp(r'[^0-9.]'), ''));
-        if (parsed != null) {
-          props[key] = parsed;
-        }
-      }
-    }
-
-    if (props.containsKey('fontWeight')) {
-      final fw = props['fontWeight'].toString().toLowerCase();
-      int weight = 400;
-      if (fw.contains('bold') || fw == '700') weight = 700;
-      else if (fw.contains('extrabold') || fw == '800' || fw == '900') weight = 900;
-      else if (fw.contains('semibold') || fw == '600') weight = 600;
-      else if (fw.contains('medium') || fw == '500') weight = 500;
-      else if (fw.contains('light') || fw == '300') weight = 300;
-      else if (fw.contains('thin') || fw == '100') weight = 100;
-      props['fontWeight'] = weight;
-    }
-
-    // Specific mapping for fontSize if not already a double
-    if (props.containsKey('fontSize') && props['fontSize'] is! double) {
-      final fs = props['fontSize'].toString().toLowerCase();
-      if (fs == 'xs') props['fontSize'] = 12.0;
-      else if (fs == 'sm') props['fontSize'] = 14.0;
-      else if (fs == 'md' || fs == 'base') props['fontSize'] = 16.0;
-      else if (fs == 'lg') props['fontSize'] = 18.0;
-      else if (fs == 'xl') props['fontSize'] = 20.0;
-      else if (fs == '2xl') props['fontSize'] = 24.0;
-      else if (fs == '3xl') props['fontSize'] = 30.0;
-      else if (fs == '4xl') props['fontSize'] = 36.0;
-      else if (fs == '5xl') props['fontSize'] = 48.0;
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError) {
-      return Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text('Error rendering UI components', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-      );
-    }
-
-    if (_surfaceIds.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      decoration: BoxDecoration(
-        color: TizenStyles.slate900.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: TizenStyles.cyan400.withValues(alpha: 0.2)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: _surfaceIds.map((sid) => GenUiSurface(
-          key: ValueKey(sid),
-          surfaceId: sid,
-          host: _processor,
-        )).toList(),
-      ),
+    if (_hasError) return const Center(child: Text('Render Error'));
+    if (_surfaceIds.isEmpty) return const SizedBox.shrink();
+    
+    return Column(
+      children: _surfaceIds.map<Widget>((sid) => GenUiSurface(
+        surfaceId: sid,
+        host: _processor,
+      )).toList(),
     );
   }
 }
