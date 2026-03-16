@@ -6,6 +6,7 @@ import '../widgets/tizen_chat_input.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
+import '../services/chat_service.dart';
 
 class TizenChatScreen extends StatefulWidget {
   const TizenChatScreen({super.key});
@@ -18,7 +19,39 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  final ChatService _chatService = ChatService();
   bool _isTyping = false;
+  bool _isServerReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkServerConnection();
+  }
+
+  Future<void> _checkServerConnection() async {
+    try {
+      final info = await _chatService.connect();
+      if (mounted) {
+        setState(() {
+          _isServerReady = info['can_chat'] ?? false;
+        });
+        if (_isServerReady) {
+          _addMessage(ChatMessage(
+            text: info['message'] ?? 'Connected to Tizen Home Agent.',
+            type: MessageType.received,
+          ));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _addMessage(ChatMessage(
+          text: 'Error connecting to server. Please check if tizen-home-agent is running.',
+          type: MessageType.received,
+        ));
+      }
+    }
+  }
 
   final List<ChatMessage> _messages = [
     ChatMessage(
@@ -61,8 +94,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     });
   }
 
-  // BEGIN: TEST LOGIC - Echo Message
-  void _handleUserMessage(String text) {
+  // BEGIN: API LOGIC - Send message to Agent
+  Future<void> _handleUserMessage(String text) async {
     _addMessage(ChatMessage(text: text, type: MessageType.sent));
 
     // Show typing indicator
@@ -71,21 +104,32 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     });
     _scrollToBottom();
 
-    // 2-second delay before response
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      final response = await _chatService.sendMessage(text);
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+        });
+        
+        _addMessage(ChatMessage(
+          text: response['text'] ?? 'No response from agent.',
+          type: MessageType.received,
+          uiCode: response['ui_code'],
+        ));
+      }
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isTyping = false;
         });
         _addMessage(ChatMessage(
-          text: 'Received: $text',
+          text: 'Error: Failed to get response from agent.',
           type: MessageType.received,
-          senderInitial: 'T',
         ));
       }
-    });
+    }
   }
-  // END: TEST LOGIC
+  // END: API LOGIC
 
   @override
   void dispose() {

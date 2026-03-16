@@ -7,6 +7,7 @@ class ChatMessage {
   final String? imageUrl;
   final String? title;
   final String? subtitle;
+  final String? uiCode;
   final DateTime timestamp;
 
   ChatMessage({
@@ -16,6 +17,7 @@ class ChatMessage {
     this.imageUrl,
     this.title,
     this.subtitle,
+    this.uiCode,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 }
