@@ -211,6 +211,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                         messageWidget = ReceivedMessage(
                           text: message.text,
                           avatarInitial: message.senderInitial,
+                          uiCode: message.uiCode,
                         );
                         break;
                       case MessageType.richCard:
