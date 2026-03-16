@@ -45,8 +45,14 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isServerReady = false;
+        });
         _addMessage(ChatMessage(
-          text: 'Error connecting to server. Please check if tizen-home-agent is running.',
+          text: '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
+              'Please verify:\n'
+              '1. tizen-home-agent server is running on localhost:8080\n'
+              '2. Run: "sdb reverse tcp:8080 tcp:8080"',
           type: MessageType.received,
         ));
       }

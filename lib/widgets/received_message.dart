@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../theme/tizen_styles.dart';
 
 class ReceivedMessage extends StatelessWidget {
@@ -14,7 +15,7 @@ class ReceivedMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CircleAvatar(
           radius: 16,
@@ -26,11 +27,24 @@ class ReceivedMessage extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Flexible(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              text,
-              style: TizenStyles.bodyText,
+          child: MarkdownBody(
+            data: text,
+            styleSheet: MarkdownStyleSheet(
+              p: TizenStyles.bodyText,
+              strong: TizenStyles.bodyText.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
+              em: TizenStyles.bodyText.copyWith(fontStyle: FontStyle.italic),
+              listBullet: TizenStyles.bodyText,
+              code: TizenStyles.bodyText.copyWith(
+                fontFamily: 'monospace',
+                backgroundColor: Colors.black.withOpacity(0.3),
+              ),
+              codeblockDecoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              h1: TizenStyles.headerText,
+              h2: TizenStyles.headerText.copyWith(fontSize: 17),
+              h3: TizenStyles.headerText.copyWith(fontSize: 16),
             ),
           ),
         ),

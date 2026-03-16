@@ -48,7 +48,7 @@ class _TypingIndicatorState extends State<TypingIndicator> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         CircleAvatar(
           radius: 16,
