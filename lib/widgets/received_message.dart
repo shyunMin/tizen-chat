@@ -54,7 +54,7 @@ class ReceivedMessage extends StatelessWidget {
                   h3: TizenStyles.headerText.copyWith(fontSize: 16),
                 ),
               ),
-              if (uiCode != null && uiCode!.isNotEmpty)
+              if (uiCode != null && A2uiRenderer.isValidJson(uiCode))
                 A2uiRenderer(uiCode: uiCode!),
             ],
           ),

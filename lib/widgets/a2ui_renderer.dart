@@ -8,6 +8,43 @@ class A2uiRenderer extends StatefulWidget {
 
   const A2uiRenderer({super.key, required this.uiCode});
 
+  /// Validates if the given string is a potentially valid A2UI JSON.
+  static bool isValidJson(String? code) {
+    if (code == null || code.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(code);
+      bool isValid = false;
+      if (decoded is List) {
+        if (decoded.isNotEmpty) {
+          final first = decoded.first;
+          if (first is Map) isValid = _isA2uiMap(first as Map<String, dynamic>);
+        }
+      } else if (decoded is Map<String, dynamic>) {
+        if (decoded.containsKey('messages') && decoded['messages'] is List) {
+           isValid = (decoded['messages'] as List).isNotEmpty;
+        } else {
+          isValid = _isA2uiMap(decoded);
+        }
+      }
+      
+      if (!isValid) {
+        print('DEBUG: Invalid A2UI JSON detected: $code');
+      }
+      return isValid;
+    } catch (e) {
+      print('DEBUG: A2UI JSON Decode Error: $e, Payload: $code');
+      return false;
+    }
+  }
+
+  static bool _isA2uiMap(Map<String, dynamic> map) {
+    final List<String> a2uiKeys = [
+      'createSurface', 'updateComponents', 'beginRendering', 'surfaceUpdate',
+      'messageType', 'type', 'surfaceId', 'id'
+    ];
+    return map.keys.any((key) => a2uiKeys.contains(key));
+  }
+
   @override
   State<A2uiRenderer> createState() => _A2uiRendererState();
 }
