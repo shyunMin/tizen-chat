@@ -177,13 +177,22 @@ class _A2uiRendererState extends State<A2uiRenderer> {
         setState(() => _surfaceId = sid);
         
         final List<Component> components = [];
+        String? rid;
+
         if (data.containsKey('root')) {
           final rootData = Map<String, dynamic>.from(data['root'] as Map<String, dynamic>);
-          final String rootId = (rootData['id'] ?? '${sid}_root').toString();
-          rootData['id'] = rootId;
+          rid = (rootData['id'] ?? '${sid}_root').toString();
+          rootData['id'] = rid;
           _flattenComponent(rootData, components);
-          
-          _processor.handleMessage(BeginRendering(surfaceId: sid, root: rootId));
+        } else if (data.containsKey('components') && data['components'] is List) {
+          for (var c in (data['components'] as List)) {
+            _flattenComponent(c as Map<String, dynamic>, components);
+          }
+          if (components.isNotEmpty) rid = components.first.id;
+        }
+
+        if (rid != null) {
+          _processor.handleMessage(BeginRendering(surfaceId: sid, root: rid));
           _processor.handleMessage(SurfaceUpdate(surfaceId: sid, components: components));
         }
       } else if (msg.containsKey('updateComponents')) {
@@ -209,14 +218,22 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   }
 
   void _flattenComponent(Map<String, dynamic> raw, List<Component> collector) {
-    final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}').toString();
+    final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}').toString();
     String type = (raw['component'] ?? raw['componentType'] ?? raw['type'] ?? 'Column').toString();
     
-    if (type == 'Group') {
-      type = (raw['layout'] == 'horizontal') ? 'Row' : 'Column';
+    if (type == 'Group' || type == 'Stack') {
+      final String dir = (raw['direction'] ?? raw['layout'] ?? (raw['props'] is Map ? raw['props']['direction'] : null))?.toString() ?? 'vertical';
+      type = (dir == 'horizontal') ? 'Row' : 'Column';
     }
 
     final Map<String, dynamic> props = Map<String, dynamic>.from(raw);
+    
+    // Handle 'props' object wrapper
+    if (props.containsKey('props') && props['props'] is Map) {
+      props.addAll(Map<String, dynamic>.from(props['props'] as Map));
+      props.remove('props');
+    }
+
     props.remove('id');
     props.remove('componentId');
     props.remove('component');
@@ -231,7 +248,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       final List<String> childIds = [];
       for (var childJson in rawChildren) {
         if (childJson is Map<String, dynamic>) {
-          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${childIds.length}').toString();
+          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}_${childIds.length}').toString();
           childJson['id'] = childId;
           childIds.add(childId);
           _flattenComponent(childJson, collector);
@@ -245,7 +262,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       final List<String> childIds = [];
       for (var childJson in rawChildren) {
         if (childJson is Map<String, dynamic>) {
-          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${childIds.length}').toString();
+          final String childId = (childJson['id'] ?? childJson['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}_${collector.length}_${childIds.length}').toString();
           childJson['id'] = childId;
           childIds.add(childId);
           _flattenComponent(childJson, collector);
@@ -275,6 +292,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     if (type == 'Image' || type == 'Icon') {
       if (props.containsKey('icon')) props['src'] = props['icon'].toString();
       if (props.containsKey('iconName')) props['src'] = props['iconName'].toString();
+      if (props.containsKey('source')) props['src'] = props['source'].toString();
     }
 
     if (props.containsKey('fontWeight')) {
