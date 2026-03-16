@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../widgets/received_message.dart';
 import '../widgets/sent_message.dart';
@@ -117,10 +118,20 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           _isTyping = false;
         });
         
+        final dynamic rawUiCode = response['ui_code'];
+        String? uiCodeStr;
+        if (rawUiCode != null) {
+          if (rawUiCode is Map || rawUiCode is List) {
+            uiCodeStr = jsonEncode(rawUiCode);
+          } else {
+            uiCodeStr = rawUiCode.toString();
+          }
+        }
+
         _addMessage(ChatMessage(
           text: response['text'] ?? 'No response from agent.',
           type: MessageType.received,
-          uiCode: response['ui_code'],
+          uiCode: uiCodeStr,
         ));
       }
     } catch (e) {

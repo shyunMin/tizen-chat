@@ -17,6 +17,9 @@ class ReceivedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (uiCode != null) {
+        print('DEBUG: ReceivedMessage uiCode: ${uiCode!.length > 1000 ? uiCode!.substring(0, 1000) + "..." : uiCode}');
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

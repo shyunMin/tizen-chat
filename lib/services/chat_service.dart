@@ -58,6 +58,7 @@ class ChatService {
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        print('DEBUG: [RESPONSE] Full Data: ${jsonEncode(decoded)}');
         return decoded;
       } else {
         throw Exception('Server returned ${response.statusCode}');

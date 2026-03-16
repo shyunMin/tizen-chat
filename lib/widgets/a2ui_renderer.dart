@@ -40,7 +40,8 @@ class A2uiRenderer extends StatefulWidget {
   static bool _isA2uiMap(Map<String, dynamic> map) {
     final List<String> a2uiKeys = [
       'createSurface', 'updateComponents', 'beginRendering', 'surfaceUpdate',
-      'messageType', 'type', 'surfaceId', 'id'
+      'messageType', 'type', 'surfaceId', 'id', 'components', 'root', 
+      'layout', 'concept', 'child', 'children', 'surfaceType'
     ];
     return map.keys.any((key) => a2uiKeys.contains(key));
   }
@@ -60,6 +61,14 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     // Use CoreCatalogItems from genui package
     _processor = A2uiMessageProcessor(catalogs: [CoreCatalogItems.asCatalog()]);
     _parseAndProcess();
+  }
+
+  @override
+  void didUpdateWidget(A2uiRenderer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.uiCode != oldWidget.uiCode) {
+      _parseAndProcess();
+    }
   }
 
   void _parseAndProcess() {
