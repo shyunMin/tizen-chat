@@ -105,38 +105,51 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   void _handleRawMessage(Map<String, dynamic> msg) {
     try {
-      final String? type = msg['messageType']?.toString() ?? msg['type']?.toString();
+      String? type = msg['messageType']?.toString() ?? msg['type']?.toString();
+      Map<String, dynamic> data = msg;
+
+      // Extract type from keys if not explicitly defined
+      if (type == null) {
+        if (msg.containsKey('createSurface')) {
+          type = 'createSurface';
+          data = Map<String, dynamic>.from(msg['createSurface'] as Map);
+        } else if (msg.containsKey('updateComponents')) {
+          type = 'updateComponents';
+          data = Map<String, dynamic>.from(msg['updateComponents'] as Map);
+        }
+      }
+
       final List<Component> collector = [];
 
       if (type == 'createSurface' || type == 'updateComponents') {
-        final String sid = (msg['surfaceId'] ?? msg['id'] ?? 'main').toString();
+        final String sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
         if (!_surfaceIds.contains(sid)) {
           setState(() => _surfaceIds.add(sid));
         }
 
-        if (msg.containsKey('components') && msg['components'] is List) {
-          for (var c in (msg['components'] as List)) {
+        if (data.containsKey('components') && data['components'] is List) {
+          for (var c in (data['components'] as List)) {
             _flattenComponent(c as Map<String, dynamic>, collector);
           }
         }
         
-        if (msg.containsKey('root')) {
-          final rootData = Map<String, dynamic>.from(msg['root'] as Map<String, dynamic>);
+        if (data.containsKey('root')) {
+          final rootData = Map<String, dynamic>.from(data['root'] as Map<String, dynamic>);
           rootData['id'] = rootData['id'] ?? '${sid}_root';
           _flattenComponent(rootData, collector);
         }
 
-        if (msg.containsKey('layout') && msg['layout'] is Map) {
-          final layoutData = Map<String, dynamic>.from(msg['layout'] as Map<String, dynamic>);
+        if (data.containsKey('layout') && data['layout'] is Map) {
+          final layoutData = Map<String, dynamic>.from(data['layout'] as Map<String, dynamic>);
           final String rid = (layoutData['id'] ?? layoutData['componentId'] ?? '${sid}_root').toString();
           layoutData['id'] = rid;
           _flattenComponent(layoutData, collector);
         }
 
-        if (msg['concept'] == 'Card' || msg['surfaceType'] == 'Card') {
+        if (data['concept'] == 'Card' || data['surfaceType'] == 'Card') {
           final String cardId = '${sid}_root_card';
-          final Map<String, dynamic> cardProps = Map<String, dynamic>.from(msg['style'] ?? {});
-          if (msg.containsKey('title')) cardProps['title'] = msg['title'];
+          final Map<String, dynamic> cardProps = Map<String, dynamic>.from(data['style'] ?? {});
+          if (data.containsKey('title')) cardProps['title'] = data['title'];
 
           final List<String> childrenIds = collector.map((c) => c.id).toList();
           if (childrenIds.isNotEmpty) {
@@ -179,46 +192,6 @@ class _A2uiRendererState extends State<A2uiRenderer> {
           ));
         }
         return;
-      }
-
-      // Legacy/Alternative Flavors
-      if (msg.containsKey('createSurface')) {
-        final data = msg['createSurface'] as Map<String, dynamic>;
-        final String sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
-        if (!_surfaceIds.contains(sid)) {
-          setState(() => _surfaceIds.add(sid));
-        }
-        
-        final List<Component> components = [];
-        String? rid;
-
-        if (data.containsKey('root')) {
-          final rootData = Map<String, dynamic>.from(data['root'] as Map<String, dynamic>);
-          rid = (rootData['id'] ?? '${sid}_root').toString();
-          rootData['id'] = rid;
-          _flattenComponent(rootData, components);
-        } else if (data.containsKey('components') && data['components'] is List) {
-          for (var c in (data['components'] as List)) {
-            _flattenComponent(c as Map<String, dynamic>, components);
-          }
-          if (components.isNotEmpty) rid = components.first.id;
-        }
-
-        if (rid != null) {
-          _processor.handleMessage(BeginRendering(surfaceId: sid, root: rid));
-          _processor.handleMessage(SurfaceUpdate(surfaceId: sid, components: components));
-        }
-      } else if (msg.containsKey('updateComponents')) {
-        final data = msg['updateComponents'] as Map<String, dynamic>;
-        final String sid = (data['surfaceId'] ?? data['id'] ?? (_surfaceIds.isNotEmpty ? _surfaceIds.last : 'main')).toString();
-        
-        final List<Component> components = [];
-        if (data.containsKey('components') && data['components'] is List) {
-          for (var c in (data['components'] as List)) {
-            _flattenComponent(c as Map<String, dynamic>, components);
-          }
-        }
-        _processor.handleMessage(SurfaceUpdate(surfaceId: sid, components: components));
       } else {
         _processor.handleMessage(A2uiMessage.fromJson(msg));
         if (msg.containsKey('beginRendering')) {
