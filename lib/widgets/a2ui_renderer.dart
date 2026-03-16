@@ -51,109 +51,124 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   void _handleRawMessage(Map<String, dynamic> msg) {
     try {
-      // Flavor 3: Explicit messageType (Alternative v0.9)
-      if (msg['messageType'] == 'createSurface' || msg['messageType'] == 'updateComponents') {
-        final String sid = msg['surfaceId'] ?? msg['id'] ?? 'main';
+      final String? type = msg['messageType']?.toString() ?? msg['type']?.toString();
+      
+      if (type == 'createSurface' || type == 'updateComponents') {
+        final String sid = (msg['surfaceId'] ?? msg['id'] ?? 'main').toString();
         setState(() => _surfaceId = sid);
 
-        if (msg['messageType'] == 'createSurface') {
-          _processor.handleMessage(A2uiMessage.fromJson({
-            'beginRendering': {'surfaceId': sid}
-          }));
-        }
 
-        final List<Map<String, dynamic>> transformed = [];
+        final List<Component> transformed = [];
         
-        // Handle 'components' list
+        // Handle 'components' list directly in message
         if (msg.containsKey('components') && msg['components'] is List) {
           for (var c in (msg['components'] as List)) {
-            transformed.add(_transformComponent(c as Map<String, dynamic>));
+            transformed.add(Component.fromJson(_transformComponent(c as Map<String, dynamic>)));
           }
         }
         
-        // Handle 'root' component if present
+        // Handle 'root' component
         if (msg.containsKey('root')) {
-          transformed.add(_transformComponent(msg['root'] as Map<String, dynamic>));
+          final rootData = Map<String, dynamic>.from(msg['root'] as Map<String, dynamic>);
+          rootData['id'] = '${sid}_root';
+          transformed.add(Component.fromJson(_transformComponent(rootData)));
         }
 
-        // If 'concept' is Card, we might need special handling, but GenUI usually prefers explicit components.
-        // For now, let's just send the transformed components.
-        // Support for 'concept: Card' - wrap components in a Card if requested
-        if (msg['concept'] == 'Card') {
+        // Handle 'layout' as a root container
+        if (msg.containsKey('layout') && msg['layout'] is Map) {
+            final layoutData = Map<String, dynamic>.from(msg['layout'] as Map<String, dynamic>);
+            layoutData['id'] = '${sid}_root';
+            transformed.add(Component.fromJson(_transformComponent(layoutData)));
+        }
+
+        // Support for 'concept: Card' or 'surfaceType: Card'
+        if (msg['concept'] == 'Card' || msg['surfaceType'] == 'Card') {
           final cardProps = Map<String, dynamic>.from(msg['style'] ?? {});
-          // If multiple components, use a Column as the Card's child
-          if (transformed.length > 1) {
-            cardProps['child'] = {
-              'id': '${sid}_card_inner',
-              'component': {
-                'Column': {
-                  'children': transformed,
-                  'crossAxisAlignment': 'center',
-                }
-              }
-            };
-          } else if (transformed.isNotEmpty) {
-            cardProps['child'] = transformed.first;
+          if (msg.containsKey('title')) cardProps['title'] = msg['title'];
+
+          final List<Map<String, dynamic>> innerTransformed = [];
+          if (msg.containsKey('components') && msg['components'] is List) {
+            for (var c in (msg['components'] as List)) {
+              innerTransformed.add(_transformComponent(c as Map<String, dynamic>));
+            }
           }
 
-          transformed.clear();
-          transformed.add({
+          final Map<String, dynamic> cardComp = {
             'id': '${sid}_root_card',
             'component': {
-              'Card': cardProps,
+              'Card': {
+                ...cardProps,
+                if (innerTransformed.isNotEmpty)
+                  'child': innerTransformed.length > 1 
+                      ? {
+                          'id': '${sid}_card_inner',
+                          'component': {
+                            'Column': {
+                              'children': innerTransformed,
+                              'crossAxisAlignment': 'center',
+                            }
+                          }
+                        }
+                      : innerTransformed.first
+              }
             }
-          });
+          };
+          transformed.clear();
+          transformed.add(Component.fromJson(cardComp));
         }
 
         if (transformed.isNotEmpty) {
-          _processor.handleMessage(A2uiMessage.fromJson({
-            'surfaceUpdate': {
-              'surfaceId': sid,
-              'components': transformed
-            }
-          }));
+          final String rootId = transformed.any((c) => c.id == '${sid}_root') 
+              ? '${sid}_root' 
+              : transformed.first.id;
+
+          if (type == 'createSurface') {
+             _processor.handleMessage(BeginRendering(surfaceId: sid, root: rootId));
+          }
+
+          _processor.handleMessage(SurfaceUpdate(
+            surfaceId: sid,
+            components: transformed,
+          ));
         }
         return;
       }
 
-      // Flavor 1 & 2: createSurface/updateComponents as keys
+      // Default Flavor 1 & 2: createSurface/updateComponents as keys
       if (msg.containsKey('createSurface')) {
         final data = msg['createSurface'] as Map<String, dynamic>;
-        final String sid = data['surfaceId'] ?? data['id'] ?? 'main';
+        final String sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
         setState(() => _surfaceId = sid);
         
-        _processor.handleMessage(A2uiMessage.fromJson({
-          'beginRendering': {'surfaceId': sid}
-        }));
+        _processor.handleMessage(BeginRendering(surfaceId: sid, root: '${sid}_root'));
         
         if (data.containsKey('root')) {
-            final rootComp = _transformComponent(data['root'] as Map<String, dynamic>);
-            _processor.handleMessage(A2uiMessage.fromJson({
-              'surfaceUpdate': {
-                'surfaceId': sid,
-                'components': [rootComp]
-              }
-            }));
+            final rootData = Map<String, dynamic>.from(data['root'] as Map<String, dynamic>);
+            rootData['id'] = '${sid}_root'; // Ensure root component has the predicted ID
+            final rootComp = Component.fromJson(_transformComponent(rootData));
+             _processor.handleMessage(SurfaceUpdate(
+              surfaceId: sid,
+              components: [rootComp],
+            ));
         }
       } else if (msg.containsKey('updateComponents')) {
         final data = msg['updateComponents'] as Map<String, dynamic>;
-        final String sid = data['surfaceId'] ?? data['id'] ?? _surfaceId ?? 'main';
+        final String sid = (data['surfaceId'] ?? data['id'] ?? _surfaceId ?? 'main').toString();
         
         final List<dynamic> rawComponents = data['components'] as List<dynamic>;
-        final List<Map<String, dynamic>> transformed = rawComponents
-            .map((c) => _transformComponent(c as Map<String, dynamic>))
+        final List<Component> transformed = rawComponents
+            .map((c) => Component.fromJson(_transformComponent(c as Map<String, dynamic>)))
             .toList();
 
-        _processor.handleMessage(A2uiMessage.fromJson({
-          'surfaceUpdate': {
-            'surfaceId': sid,
-            'components': transformed
-          }
-        }));
+        _processor.handleMessage(SurfaceUpdate(
+          surfaceId: sid,
+          components: transformed,
+        ));
       } else {
+        // Final fallback to the library's fromJson
         _processor.handleMessage(A2uiMessage.fromJson(msg));
         if (msg.containsKey('beginRendering')) {
-          setState(() => _surfaceId = msg['beginRendering']['surfaceId']);
+          setState(() => _surfaceId = msg['beginRendering']['surfaceId']?.toString());
         }
       }
     } catch (e) {
@@ -164,14 +179,15 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   Map<String, dynamic> _transformComponent(Map<String, dynamic> raw) {
     final Map<String, dynamic> result = {};
     
-    // 1. Extract ID (support id, componentId)
+    // 1. Extract ID
     final String id = (raw['id'] ?? raw['componentId'] ?? 'comp_${DateTime.now().microsecondsSinceEpoch}').toString();
     result['id'] = id;
     
-    // 2. Extract Type (support component, componentType)
-    String type = raw['component']?.toString() ?? raw['componentType']?.toString() ?? 'Column';
+    // 2. Extract Type
+    String type = raw['component']?.toString() ?? 
+                  raw['componentType']?.toString() ?? 
+                  raw['type']?.toString() ?? 'Column';
     
-    // Map 'Group' to 'Column' or 'Row' based on layout
     if (type == 'Group') {
       type = (raw['layout'] == 'horizontal') ? 'Row' : 'Column';
     }
@@ -181,13 +197,63 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     props.remove('componentId');
     props.remove('component');
     props.remove('componentType');
+    props.remove('type');
+
+    // Normalize Image/Icon fields
+    if (type == 'Image' || type == 'Icon') {
+        if (props.containsKey('icon') && props['icon'] != null) {
+            props['src'] = props['icon'].toString();
+        }
+        if (props.containsKey('iconName') && props['iconName'] != null) {
+            props['src'] = props['iconName'].toString();
+        }
+    }
+
+    // Normalize font weight
+    if (props.containsKey('fontWeight')) {
+        final fw = props['fontWeight'].toString().toLowerCase();
+        int weight = 400; // default
+        if (fw.contains('bold') || fw == '700') weight = 700;
+        else if (fw.contains('extrabold') || fw == '800' || fw == '900') weight = 900;
+        else if (fw.contains('semibold') || fw == '600') weight = 600;
+        else if (fw.contains('medium') || fw == '500') weight = 500;
+        else if (fw.contains('light') || fw == '300') weight = 300;
+        else if (fw.contains('thin') || fw == '100') weight = 100;
+        props['fontWeight'] = weight;
+    }
+
+    // Normalize font sizes
+    if (props.containsKey('fontSize')) {
+        final fs = props['fontSize'].toString().toLowerCase();
+        double size = 16.0;
+        if (fs == 'xs') size = 12.0;
+        else if (fs == 'sm') size = 14.0;
+        else if (fs == 'md' || fs == 'base') size = 16.0;
+        else if (fs == 'lg') size = 18.0;
+        else if (fs == 'xl') size = 20.0;
+        else if (fs == '2xl') size = 24.0;
+        else if (fs == '3xl') size = 30.0;
+        else if (fs == '4xl') size = 36.0;
+        else if (fs == '5xl') size = 48.0;
+        else {
+            final parsed = double.tryParse(fs.replaceAll(RegExp(r'[^0-9.]'), ''));
+            if (parsed != null) size = parsed;
+        }
+        props['fontSize'] = size;
+    }
     
     // 3. Process children recursively
     if (props.containsKey('children') && props['children'] is List) {
       props['children'] = (props['children'] as List)
           .map((c) => _transformComponent(c as Map<String, dynamic>))
           .toList();
+    } else if (props.containsKey('components') && props['components'] is List) {
+      props['children'] = (props['components'] as List)
+          .map((c) => _transformComponent(c as Map<String, dynamic>))
+          .toList();
+      props.remove('components');
     }
+
     if (props.containsKey('child') && props['child'] is Map) {
       props['child'] = _transformComponent(props['child'] as Map<String, dynamic>);
     }
