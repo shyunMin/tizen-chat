@@ -41,9 +41,9 @@ class A2uiRenderer extends StatefulWidget {
     final List<String> a2uiKeys = [
       'createSurface', 'updateComponents', 'beginRendering', 'surfaceUpdate',
       'messageType', 'type', 'surfaceId', 'id', 'components', 'root', 
-      'layout', 'concept', 'child', 'children', 'surfaceType'
+      'layout', 'concept', 'child', 'children', 'surfaceType', 'messages', 'version'
     ];
-    return map.keys.any((key) => a2uiKeys.contains(key));
+    return map.keys.any((key) => a2uiKeys.any((aKey) => map.containsKey(aKey)));
   }
 
   @override
@@ -52,7 +52,7 @@ class A2uiRenderer extends StatefulWidget {
 
 class _A2uiRendererState extends State<A2uiRenderer> {
   late A2uiMessageProcessor _processor;
-  String? _surfaceId;
+  final List<String> _surfaceIds = [];
   bool _hasError = false;
 
   @override
@@ -74,24 +74,32 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   void _parseAndProcess() {
     try {
       final decoded = jsonDecode(widget.uiCode);
-      if (decoded is List) {
-        for (var msg in decoded) {
-          _handleRawMessage(msg as Map<String, dynamic>);
-        }
-      } else if (decoded is Map<String, dynamic>) {
-        if (decoded.containsKey('messages') && decoded['messages'] is List) {
-          for (var msg in decoded['messages']) {
-            _handleRawMessage(msg as Map<String, dynamic>);
-          }
-        } else {
-          _handleRawMessage(decoded);
-        }
-      }
+      _processItem(decoded);
     } catch (e) {
       print('DEBUG: A2UI Parse Error: $e');
       setState(() {
         _hasError = true;
       });
+    }
+  }
+
+  void _processItem(dynamic item) {
+    if (item is List) {
+      for (var element in item) {
+        _processItem(element);
+      }
+    } else if (item is Map<String, dynamic>) {
+      if (item.containsKey('messages') && item['messages'] is List) {
+        for (var msg in (item['messages'] as List)) {
+          _processItem(msg);
+        }
+      } else if (item.containsKey('surfaceId') || 
+                 item.containsKey('id') || 
+                 item.containsKey('createSurface') || 
+                 item.containsKey('updateComponents') ||
+                 item.containsKey('type')) {
+        _handleRawMessage(item);
+      }
     }
   }
 
@@ -102,7 +110,9 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
       if (type == 'createSurface' || type == 'updateComponents') {
         final String sid = (msg['surfaceId'] ?? msg['id'] ?? 'main').toString();
-        setState(() => _surfaceId = sid);
+        if (!_surfaceIds.contains(sid)) {
+          setState(() => _surfaceIds.add(sid));
+        }
 
         if (msg.containsKey('components') && msg['components'] is List) {
           for (var c in (msg['components'] as List)) {
@@ -174,7 +184,9 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       if (msg.containsKey('createSurface')) {
         final data = msg['createSurface'] as Map<String, dynamic>;
         final String sid = (data['surfaceId'] ?? data['id'] ?? 'main').toString();
-        setState(() => _surfaceId = sid);
+        if (!_surfaceIds.contains(sid)) {
+          setState(() => _surfaceIds.add(sid));
+        }
         
         final List<Component> components = [];
         String? rid;
@@ -197,7 +209,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
         }
       } else if (msg.containsKey('updateComponents')) {
         final data = msg['updateComponents'] as Map<String, dynamic>;
-        final String sid = (data['surfaceId'] ?? data['id'] ?? _surfaceId ?? 'main').toString();
+        final String sid = (data['surfaceId'] ?? data['id'] ?? (_surfaceIds.isNotEmpty ? _surfaceIds.last : 'main')).toString();
         
         final List<Component> components = [];
         if (data.containsKey('components') && data['components'] is List) {
@@ -209,7 +221,10 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       } else {
         _processor.handleMessage(A2uiMessage.fromJson(msg));
         if (msg.containsKey('beginRendering')) {
-          setState(() => _surfaceId = msg['beginRendering']['surfaceId']?.toString());
+          final sid = msg['beginRendering']['surfaceId']?.toString();
+          if (sid != null && !_surfaceIds.contains(sid)) {
+            setState(() => _surfaceIds.add(sid));
+          }
         }
       }
     } catch (e) {
@@ -340,7 +355,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
       );
     }
 
-    if (_surfaceId == null) {
+    if (_surfaceIds.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -352,9 +367,13 @@ class _A2uiRendererState extends State<A2uiRenderer> {
         border: Border.all(color: TizenStyles.cyan400.withValues(alpha: 0.2)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: GenUiSurface(
-        surfaceId: _surfaceId!,
-        host: _processor,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: _surfaceIds.map((sid) => GenUiSurface(
+          key: ValueKey(sid),
+          surfaceId: sid,
+          host: _processor,
+        )).toList(),
       ),
     );
   }
