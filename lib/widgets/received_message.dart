@@ -17,6 +17,7 @@ class ReceivedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('#############################################uiCode: $uiCode ');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -38,8 +39,13 @@ class ReceivedMessage extends StatelessWidget {
                 data: text,
                 styleSheet: MarkdownStyleSheet(
                   p: TizenStyles.bodyText,
-                  strong: TizenStyles.bodyText.copyWith(fontWeight: FontWeight.bold, color: Colors.white),
-                  em: TizenStyles.bodyText.copyWith(fontStyle: FontStyle.italic),
+                  strong: TizenStyles.bodyText.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  em: TizenStyles.bodyText.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
                   listBullet: TizenStyles.bodyText,
                   code: TizenStyles.bodyText.copyWith(
                     fontFamily: 'monospace',
@@ -54,8 +60,16 @@ class ReceivedMessage extends StatelessWidget {
                   h3: TizenStyles.headerText.copyWith(fontSize: 16),
                 ),
               ),
-              if (uiCode != null && A2uiRenderer.isValidJson(uiCode))
-                A2uiRenderer(uiCode: uiCode!),
+              if (uiCode != null)
+                // A2uiRenderer(uiCode: uiCode!),
+                SizedBox(
+                  height: 500,
+                  child: Container(
+                    color: Colors.blue,
+                    // child: Text('$uiCode'),
+                    child: PremiumContactCardScreen(uiCode: uiCode!),
+                  ),
+                ),
             ],
           ),
         ),

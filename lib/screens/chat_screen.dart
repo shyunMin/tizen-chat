@@ -53,7 +53,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           text: '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
               'Please verify:\n'
               '1. The chat server is running on the host PC.\n'
-              '2. Port forwarding exists: "sdb reverse tcp:9090 tcp:9090"',
+              '2. Port forwarding exists: "sdb reverse tcp:10010 tcp:10010"',
           type: MessageType.received,
         ));
       }
@@ -67,8 +67,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     ),
     ChatMessage(
       text: "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
-      type: MessageType.sent,
-    ),
+      type: MessageType.received,
+      ),
     ChatMessage(
       text: 'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
       type: MessageType.received,
