@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-class ReceivedMessage extends StatelessWidget {
+class ReceivedMessage extends StatefulWidget {
   final String text;
   final String avatarInitial;
   final String? uiCode;
@@ -16,8 +16,26 @@ class ReceivedMessage extends StatelessWidget {
   });
 
   @override
+  State<ReceivedMessage> createState() => _ReceivedMessageState();
+}
+
+class _ReceivedMessageState extends State<ReceivedMessage> {
+  WebViewController? _webViewController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.uiCode != null) {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.transparent)
+        ..loadHtmlString(widget.uiCode!);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    debugPrint('#############################################uiCode: $uiCode ');
+    debugPrint('#############################################uiCode: ${widget.uiCode} ');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -25,7 +43,7 @@ class ReceivedMessage extends StatelessWidget {
           radius: 16,
           backgroundColor: TizenStyles.slate800,
           child: Text(
-            avatarInitial,
+            widget.avatarInitial,
             style: const TextStyle(fontSize: 10, color: Colors.white),
           ),
         ),
@@ -36,7 +54,7 @@ class ReceivedMessage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               MarkdownBody(
-                data: text,
+                data: widget.text,
                 styleSheet: MarkdownStyleSheet(
                   p: TizenStyles.bodyText,
                   strong: TizenStyles.bodyText.copyWith(
@@ -60,21 +78,14 @@ class ReceivedMessage extends StatelessWidget {
                   h3: TizenStyles.headerText.copyWith(fontSize: 16),
                 ),
               ),
-              if (uiCode != null)
+              if (widget.uiCode != null && _webViewController != null)
                 SizedBox(
                   height: 350,
                   width: double.infinity,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: InAppWebView(
-                      initialData: InAppWebViewInitialData(
-                        data: uiCode!,
-                      ),
-                      initialSettings: InAppWebViewSettings(
-                        transparentBackground: true,
-                        supportZoom: false,
-                        disableHorizontalScroll: true,
-                      ),
+                    child: WebViewWidget(
+                      controller: _webViewController!,
                     ),
                   ),
                 ),

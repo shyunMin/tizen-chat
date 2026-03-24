@@ -9,12 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_inappwebview: ^6.1.5
   flutter_markdown_plus: ^1.0.7
   genui: ^0.7.0
   genui_a2ui: ^0.7.0
   http: ^1.6.0
   path_provider_tizen: ^2.2.1
+  webview_flutter: ^4.13.1
+  webview_flutter_tizen: ^0.9.7
 
 dev_dependencies:
   flutter_test:
