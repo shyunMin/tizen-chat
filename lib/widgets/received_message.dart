@@ -62,7 +62,6 @@ class ReceivedMessage extends StatelessWidget {
               if (uiCode != null && uiCode!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
-                  height: 400,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),

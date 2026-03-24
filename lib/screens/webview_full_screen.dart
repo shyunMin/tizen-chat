@@ -23,6 +23,7 @@ class WebViewExample extends StatefulWidget {
 
 class _WebViewExampleState extends State<WebViewExample> {
   late final WebViewController _controller;
+  double _contentHeight = 200; // Default initial height
 
   @override
   void initState() {
@@ -31,15 +32,44 @@ class _WebViewExampleState extends State<WebViewExample> {
   }
 
   void _initializeController() {
-    final PlatformWebViewControllerCreationParams params = const PlatformWebViewControllerCreationParams();
-
-    debugPrint('//////////// ${widget.uiCode}');
+    final PlatformWebViewControllerCreationParams params =
+        const PlatformWebViewControllerCreationParams();
 
     _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF111827)) // Deep background
+      ..setBackgroundColor(const Color(0xFF111827))
       ..tizenEnginePolicy = true
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (String url) {
+            _updateHeight();
+          },
+        ),
+      )
+      ..addJavaScriptChannel(
+        'HeightChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          final height = double.tryParse(message.message);
+          if (height != null && mounted) {
+            setState(() {
+              _contentHeight = height;
+            });
+          }
+        },
+      )
       ..loadHtmlString(widget.uiCode);
+  }
+
+  void _updateHeight() {
+    _controller.runJavaScript('''
+      function sendHeight() {
+        HeightChannel.postMessage(document.documentElement.scrollHeight.toString());
+      }
+      sendHeight();
+      // Also send height after a short delay to account for rendering/images
+      setTimeout(sendHeight, 500);
+      setTimeout(sendHeight, 1000);
+    ''');
   }
 
   @override
@@ -53,7 +83,10 @@ class _WebViewExampleState extends State<WebViewExample> {
   @override
   Widget build(BuildContext context) {
     if (widget.isInline) {
-      return WebViewWidget(controller: _controller);
+      return SizedBox(
+        height: _contentHeight,
+        child: WebViewWidget(controller: _controller),
+      );
     }
 
     return Scaffold(

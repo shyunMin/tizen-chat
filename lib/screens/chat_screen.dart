@@ -9,7 +9,6 @@ import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import '../services/chat_service.dart';
 
-
 class TizenChatScreen extends StatefulWidget {
   const TizenChatScreen({super.key});
 
@@ -91,14 +90,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
     ),
     ChatMessage(
-      text: 'View the full release notes for 2024 updates.',
-      type: MessageType.richCard,
-      title: 'SDK Documentation',
-      subtitle: 'View the full release notes for 2024 updates.',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
-    ),
-    ChatMessage(
       text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
       type: MessageType.received,
       uiCode: '''
@@ -125,7 +116,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 </html>
       ''',
     ),
-
   ];
 
   void _addMessage(ChatMessage message) {
@@ -220,10 +210,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12.0),
                 child: Center(
-                  child: Text(
-                    'Tizen AI',
-                    style: TizenStyles.headerText,
-                  ),
+                  child: Text('Tizen AI', style: TizenStyles.headerText),
                 ),
               ),
               // Chat Content
