@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_tizen/webview_flutter_tizen.dart';
 
 class ReceivedMessage extends StatefulWidget {
   final String text;
@@ -30,7 +31,8 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
       final String base64Content = base64Encode(utf8.encode(widget.uiCode!));
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0xFF1E293B))
+        ..setBackgroundColor(const Color(0xFF2D3748)) // Match HTML body background
+        ..setTizenEnginePolicy(true) // Address creation failures on some Tizen devices
         ..loadRequest(Uri.parse('data:text/html;charset=utf-8;base64,$base64Content'));
     }
   }
@@ -81,11 +83,17 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
                 ),
               ),
               if (widget.uiCode != null && _webViewController != null)
-                SizedBox(
+                Container(
                   height: 350,
                   width: double.infinity,
-                  // Remove ClipRRect to prevent native view clipping bugs on Tizen
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D3748),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  // Use a UniqueKey to prevent LateInitializationError during rebuilds/hot reloads
                   child: WebViewWidget(
+                    key: ValueKey(widget.uiCode),
                     controller: _webViewController!,
                   ),
                 ),

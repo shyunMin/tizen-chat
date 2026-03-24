@@ -85,16 +85,16 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       type: MessageType.received,
       uiCode: '''
 <html>
-  <body style="background-color: transparent; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
-    <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+  <body style="background-color: #2D3748; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
+    <div style="background: #1E293B; border-radius: 12px; padding: 20px; border: 1px solid #4DA8DA; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
       <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">
         <span style="margin-right: 8px;">🚀</span> Tizen WebView Test
       </h3>
       <p style="line-height: 1.5; color: #e0e0e0; font-size: 14px;">
-        이 영역은 <b>flutter_inappwebview</b>를 통해 렌더링된 <code>HTML</code> 코드입니다. (GenUI 렌더링 시스템을 대체)
+        이 영역은 <b>webview_flutter_tizen</b>을 통해 렌더링된 <code>HTML</code> 코드입니다.
       </p>
       <div style="margin-top: 15px;">
-        <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: #4DA8DA; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;">
           작동 테스트
         </button>
       </div>
