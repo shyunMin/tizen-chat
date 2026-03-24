@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_tizen/webview_flutter_tizen.dart';
@@ -40,14 +39,14 @@ class _WebViewExampleState extends State<WebViewExample> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF111827)) // Deep background
       ..tizenEnginePolicy = true
-      ..loadRequest(Uri.parse('data:text/html;base64,${base64Encode(utf8.encode(widget.uiCode))}'));
+      ..loadHtmlString(widget.uiCode);
   }
 
   @override
   void didUpdateWidget(WebViewExample oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uiCode != widget.uiCode) {
-      _controller.loadRequest(Uri.parse('data:text/html;base64,${base64Encode(utf8.encode(widget.uiCode))}'));
+      _controller.loadHtmlString(widget.uiCode);
     }
   }
 

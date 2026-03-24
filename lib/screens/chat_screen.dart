@@ -104,6 +104,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       uiCode: '''
 <!DOCTYPE html>
 <html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
   <body style="background-color: #2D3748; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
     <div style="background: #1E293B; border-radius: 12px; padding: 20px; border: 1px solid #4DA8DA; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
       <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">

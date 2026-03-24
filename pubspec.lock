@@ -57,6 +57,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.1"
+  crypto:
+    dependency: transitive
+    description:
+      name: crypto
+      sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.7"
   fake_async:
     dependency: transitive
     description:
@@ -73,7 +81,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-<<<<<<< Updated upstream
   file:
     dependency: transitive
     description:
@@ -82,16 +89,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.1"
-  fixnum:
-    dependency: transitive
-    description:
-      name: fixnum
-      sha256: b6dc7065e46c974bc7c5f143080a6764ec7a4be6da1285ececdc37be96de53be
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.1"
-=======
->>>>>>> Stashed changes
   flutter:
     dependency: "direct main"
     description: flutter
@@ -119,7 +116,6 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_tizen:
-<<<<<<< Updated upstream
     dependency: transitive
     description:
       name: flutter_tizen
@@ -127,41 +123,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.7"
-  freezed_annotation:
-=======
->>>>>>> Stashed changes
-    dependency: transitive
-    description:
-      name: flutter_tizen
-      sha256: "5df51a022828127d8d3bf2af32e67b746b764b1209193148fd33b0d7b7c122a7"
-      url: "https://pub.dev"
-    source: hosted
-<<<<<<< Updated upstream
-    version: "3.1.0"
-  genai_primitives:
-    dependency: transitive
-    description:
-      name: genai_primitives
-      sha256: "2468ecd2984f32232ab199315e384821c61a198e356828e34b9a5bcf0fda863e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.3"
-  genui:
-    dependency: "direct main"
-    description:
-      name: genui
-      sha256: c9d18f79ce39e4a906b31e469461c6ee5f46c5fb270dbc8cb8716e0e48791b37
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.7.0"
-  genui_a2ui:
-    dependency: "direct main"
-    description:
-      name: genui_a2ui
-      sha256: b43c4412948dd8bec72f9f84a37167f4d8bc8ce9a3422ef3b6ae44c512e98784
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.7.0"
   glob:
     dependency: transitive
     description:
@@ -178,9 +139,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
-=======
-    version: "0.2.7"
->>>>>>> Stashed changes
   http:
     dependency: "direct main"
     description:
@@ -229,14 +187,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  logging:
+    dependency: transitive
+    description:
+      name: logging
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.0"
   markdown:
     dependency: transitive
     description:
       name: markdown
-      sha256: "935e23e1ff3bc02d390bad4d4be001208ee92cc217cb5b5a6c19bc14aaa318c1"
+      sha256: ee85086ad7698b42522c6ad42fe195f1b9898e4d974a1af4576c1a3a176cada9
       url: "https://pub.dev"
     source: hosted
-    version: "7.3.0"
+    version: "7.3.1"
   matcher:
     dependency: transitive
     description:
@@ -261,15 +227,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
-<<<<<<< Updated upstream
-  mime:
-    dependency: transitive
-    description:
-      name: mime
-      sha256: "41a20518f0cb1256669420fdba0cd90d21561e560ac240f26ef8322e45bb7ed6"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.0"
   native_toolchain_c:
     dependency: transitive
     description:
@@ -286,8 +243,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.3.0"
-=======
->>>>>>> Stashed changes
   path:
     dependency: transitive
     description:
@@ -368,15 +323,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-<<<<<<< Updated upstream
-  pool:
-    dependency: transitive
-    description:
-      name: pool
-      sha256: "978783255c543aa3586a1b3c21f6e9d720eb315376a915872c61ef8b5c20177d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.2"
   pub_semver:
     dependency: transitive
     description:
@@ -385,24 +331,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  rational:
-    dependency: transitive
-    description:
-      name: rational
-      sha256: cb808fb6f1a839e6fc5f7d8cb3b0a10e1db48b3be102de73938c627f0b636336
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.2.3"
-  shelf:
-    dependency: transitive
-    description:
-      name: shelf
-      sha256: e7dd780a7ffb623c57850b33f43309312fc863fb6aa3d276a754bb299839ef12
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.2"
-=======
->>>>>>> Stashed changes
   sky_engine:
     dependency: transitive
     description: flutter
@@ -536,7 +464,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.24.1"
-<<<<<<< Updated upstream
   xdg_directories:
     dependency: transitive
     description:
@@ -556,8 +483,3 @@ packages:
 sdks:
   dart: ">=3.10.7 <4.0.0"
   flutter: ">=3.38.4"
-=======
-sdks:
-  dart: ">=3.10.7 <4.0.0"
-  flutter: ">=3.35.0"
->>>>>>> Stashed changes
