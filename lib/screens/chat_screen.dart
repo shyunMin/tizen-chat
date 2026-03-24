@@ -187,9 +187,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: TizenStyles.backgroundGradient,
-        ),
+        color: TizenStyles.slate900,
         child: SafeArea(
           child: Column(
             children: [
@@ -197,7 +195,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12.0),
                 child: Center(
-                  child: GradientText(
+                  child: Text(
                     'Tizen AI',
                     style: TizenStyles.headerText,
                   ),

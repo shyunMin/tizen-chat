@@ -24,7 +24,7 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('#############################################uiCode: ${widget.uiCode} ');
+    debugPrint('#############################################uiCode: ${widget.uiCode}, showWebView: $_showWebView');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

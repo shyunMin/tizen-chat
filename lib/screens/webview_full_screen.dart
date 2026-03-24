@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_tizen/webview_flutter_tizen.dart';
@@ -39,24 +40,21 @@ class _WebViewExampleState extends State<WebViewExample> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF111827)) // Deep background
       ..tizenEnginePolicy = true
-      ..loadHtmlString(widget.uiCode);
+      ..loadRequest(Uri.parse('data:text/html;base64,${base64Encode(utf8.encode(widget.uiCode))}'));
   }
 
   @override
   void didUpdateWidget(WebViewExample oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uiCode != widget.uiCode) {
-      _controller.loadHtmlString(widget.uiCode);
+      _controller.loadRequest(Uri.parse('data:text/html;base64,${base64Encode(utf8.encode(widget.uiCode))}'));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.isInline) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: WebViewWidget(controller: _controller),
-      );
+      return WebViewWidget(controller: _controller);
     }
 
     return Scaffold(
