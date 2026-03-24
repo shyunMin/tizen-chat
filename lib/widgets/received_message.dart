@@ -61,11 +61,7 @@ class ReceivedMessage extends StatelessWidget {
               ),
               if (uiCode != null && uiCode!.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  child: WebViewExample(uiCode: uiCode!, isInline: true),
-                ),
+                WebViewExample(uiCode: uiCode!, isInline: true),
               ],
             ],
           ),
