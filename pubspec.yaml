@@ -13,8 +13,9 @@ dependencies:
   genui: ^0.7.0
   genui_a2ui: ^0.7.0
   http: ^1.6.0
+  path_provider: ^2.0.7
   path_provider_tizen: ^2.2.1
-  webview_flutter: ^4.13.1
+  webview_flutter: ^4.10.0
   webview_flutter_tizen: ^0.9.7
 
 dev_dependencies:
