@@ -39,10 +39,12 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           _isServerReady = info['can_chat'] ?? false;
         });
         if (_isServerReady) {
-          _addMessage(ChatMessage(
-            text: info['message'] ?? 'Connected to Tizen Home Agent.',
-            type: MessageType.received,
-          ));
+          _addMessage(
+            ChatMessage(
+              text: info['message'] ?? 'Connected to Tizen Home Agent.',
+              type: MessageType.received,
+            ),
+          );
         }
       }
     } catch (e) {
@@ -50,28 +52,34 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         setState(() {
           _isServerReady = false;
         });
-        _addMessage(ChatMessage(
-          text: '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
-              'Please verify:\n'
-              '1. The chat server is running on the host PC.\n'
-              '2. Port forwarding exists: "sdb reverse tcp:10010 tcp:10010"',
-          type: MessageType.received,
-        ));
+        _addMessage(
+          ChatMessage(
+            text:
+                '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
+                'Please verify:\n'
+                '1. The chat server is running on the host PC.\n'
+                '2. Port forwarding exists: "sdb reverse tcp:9090 tcp:9090"',
+            type: MessageType.received,
+          ),
+        );
       }
     }
   }
 
   final List<ChatMessage> _messages = [
     ChatMessage(
-      text: 'Welcome to the Tizen OS developer portal. How can we help you innovate today?',
+      text:
+          'Welcome to the Tizen OS developer portal. How can we help you innovate today?',
       type: MessageType.received,
     ),
     ChatMessage(
-      text: "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
-      type: MessageType.received,
-      ),
+      text:
+          "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
+      type: MessageType.sent,
+    ),
     ChatMessage(
-      text: 'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
+      text:
+          'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
       type: MessageType.received,
     ),
     ChatMessage(
@@ -79,7 +87,16 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       type: MessageType.richCard,
       title: 'SDK Documentation',
       subtitle: 'View the full release notes for 2024 updates.',
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
+    ),
+    ChatMessage(
+      text: 'View the full release notes for 2024 updates.',
+      type: MessageType.richCard,
+      title: 'SDK Documentation',
+      subtitle: 'View the full release notes for 2024 updates.',
+      imageUrl:
+          'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
     ),
     ChatMessage(
       text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
@@ -105,6 +122,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 </html>
       ''',
     ),
+
   ];
 
   void _addMessage(ChatMessage message) {
@@ -142,7 +160,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         setState(() {
           _isTyping = false;
         });
-        
+
         final dynamic rawUiCode = response['ui_code'];
         String? uiCodeStr;
         if (rawUiCode != null) {
@@ -153,21 +171,25 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           }
         }
 
-        _addMessage(ChatMessage(
-          text: response['text'] ?? 'No response from agent.',
-          type: MessageType.received,
-          uiCode: uiCodeStr,
-        ));
+        _addMessage(
+          ChatMessage(
+            text: response['text'] ?? 'No response from agent.',
+            type: MessageType.received,
+            uiCode: uiCodeStr,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isTyping = false;
         });
-        _addMessage(ChatMessage(
-          text: 'Error: Failed to get response from agent.',
-          type: MessageType.received,
-        ));
+        _addMessage(
+          ChatMessage(
+            text: 'Error: Failed to get response from agent.',
+            type: MessageType.received,
+          ),
+        );
       }
     }
   }
@@ -213,12 +235,18 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                         children: [
                           Center(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: TizenStyles.slate800.withOpacity(0.5),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Text('TODAY', style: TizenStyles.dateText),
+                              child: const Text(
+                                'TODAY',
+                                style: TizenStyles.dateText,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -289,7 +317,8 @@ class GradientText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ShaderMask(
-      shaderCallback: (bounds) => TizenStyles.headerGradient.createShader(bounds),
+      shaderCallback: (bounds) =>
+          TizenStyles.headerGradient.createShader(bounds),
       child: Text(text, style: style),
     );
   }

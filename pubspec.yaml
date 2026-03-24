@@ -10,8 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_markdown_plus: ^1.0.7
-  genui: ^0.7.0
-  genui_a2ui: ^0.7.0
   http: ^1.6.0
   path_provider: ^2.0.7
   path_provider_tizen: ^2.2.1
@@ -25,3 +23,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
