@@ -22,6 +22,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   bool _isTyping = false;
+    ChatMessage(
   bool _isServerReady = false;
 
   @override

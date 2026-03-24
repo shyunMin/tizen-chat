@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
-import 'a2ui_renderer.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class ReceivedMessage extends StatelessWidget {
   final String text;
@@ -61,13 +61,21 @@ class ReceivedMessage extends StatelessWidget {
                 ),
               ),
               if (uiCode != null)
-                // A2uiRenderer(uiCode: uiCode!),
                 SizedBox(
-                  height: 500,
-                  child: Container(
-                    color: Colors.blue,
-                    // child: Text('$uiCode'),
-                    child: PremiumContactCardScreen(uiCode: uiCode!),
+                  height: 350,
+                  width: double.infinity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: InAppWebView(
+                      initialData: InAppWebViewInitialData(
+                        data: uiCode!,
+                      ),
+                      initialSettings: InAppWebViewSettings(
+                        transparentBackground: true,
+                        supportZoom: false,
+                        disableHorizontalScroll: true,
+                      ),
+                    ),
                   ),
                 ),
             ],
