@@ -28,6 +28,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   void initState() {
     super.initState();
     _checkServerConnection();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
   }
 
   Future<void> _checkServerConnection() async {
