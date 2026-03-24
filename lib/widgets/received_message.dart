@@ -63,15 +63,8 @@ class ReceivedMessage extends StatelessWidget {
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: TizenStyles.cyan400.withOpacity(0.3)),
-                  ),
                   clipBehavior: Clip.antiAlias,
-                  child: WebViewExample(
-                    uiCode: uiCode!,
-                    isInline: true,
-                  ),
+                  child: WebViewExample(uiCode: uiCode!, isInline: true),
                 ),
               ],
             ],
@@ -82,5 +75,3 @@ class ReceivedMessage extends StatelessWidget {
     );
   }
 }
-
-

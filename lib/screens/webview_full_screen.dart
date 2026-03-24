@@ -37,7 +37,7 @@ class _WebViewExampleState extends State<WebViewExample> {
 
     _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF111827))
+      ..setBackgroundColor(Colors.transparent)
       ..tizenEnginePolicy = true
       ..setNavigationDelegate(
         NavigationDelegate(
