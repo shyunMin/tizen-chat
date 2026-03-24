@@ -27,12 +27,31 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
   @override
   void initState() {
     super.initState();
+    _initController();
+  }
+
+  void _initController() {
     if (widget.uiCode != null) {
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0xFF2D3748))
+        ..setBackgroundColor(Colors.white) // Use white for testing visibility
         ..tizenEnginePolicy = true
         ..loadHtmlString(widget.uiCode!, baseUrl: 'http://localhost');
+    }
+  }
+
+  @override
+  void didUpdateWidget(ReceivedMessage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.uiCode != oldWidget.uiCode) {
+      if (widget.uiCode == null) {
+        _webViewController = null;
+      } else if (oldWidget.uiCode == null) {
+        _initController();
+      } else {
+        _webViewController?.loadHtmlString(widget.uiCode!, baseUrl: 'http://localhost');
+      }
+      setState(() {});
     }
   }
 
@@ -86,11 +105,6 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
                   height: 350,
                   width: double.infinity,
                   margin: const EdgeInsets.only(top: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2D3748),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  // Use a UniqueKey to prevent LateInitializationError during rebuilds/hot reloads
                   child: WebViewWidget(
                     key: ValueKey(widget.uiCode),
                     controller: _webViewController!,
