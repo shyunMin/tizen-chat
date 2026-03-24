@@ -28,12 +28,11 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
   void initState() {
     super.initState();
     if (widget.uiCode != null) {
-      final String base64Content = base64Encode(utf8.encode(widget.uiCode!));
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0xFF2D3748)) // Match HTML body background
-        ..setTizenEnginePolicy(true) // Address creation failures on some Tizen devices
-        ..loadRequest(Uri.parse('data:text/html;charset=utf-8;base64,$base64Content'));
+        ..setBackgroundColor(const Color(0xFF2D3748))
+        ..tizenEnginePolicy = true
+        ..loadHtmlString(widget.uiCode!, baseUrl: 'http://localhost');
     }
   }
 
