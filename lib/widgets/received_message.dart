@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
@@ -26,10 +27,11 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
   void initState() {
     super.initState();
     if (widget.uiCode != null) {
+      final String base64Content = base64Encode(utf8.encode(widget.uiCode!));
       _webViewController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.transparent)
-        ..loadHtmlString(widget.uiCode!);
+        ..setBackgroundColor(const Color(0xFF1E293B))
+        ..loadRequest(Uri.parse('data:text/html;charset=utf-8;base64,$base64Content'));
     }
   }
 
@@ -82,11 +84,9 @@ class _ReceivedMessageState extends State<ReceivedMessage> {
                 SizedBox(
                   height: 350,
                   width: double.infinity,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: WebViewWidget(
-                      controller: _webViewController!,
-                    ),
+                  // Remove ClipRRect to prevent native view clipping bugs on Tizen
+                  child: WebViewWidget(
+                    controller: _webViewController!,
                   ),
                 ),
             ],
