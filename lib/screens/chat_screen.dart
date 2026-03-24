@@ -81,6 +81,29 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       subtitle: 'View the full release notes for 2024 updates.',
       imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
     ),
+    ChatMessage(
+      text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
+      type: MessageType.received,
+      uiCode: '''
+<html>
+  <body style="background-color: transparent; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
+    <div style="background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">
+        <span style="margin-right: 8px;">🚀</span> Tizen WebView Test
+      </h3>
+      <p style="line-height: 1.5; color: #e0e0e0; font-size: 14px;">
+        이 영역은 <b>flutter_inappwebview</b>를 통해 렌더링된 <code>HTML</code> 코드입니다. (GenUI 렌더링 시스템을 대체)
+      </p>
+      <div style="margin-top: 15px;">
+        <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+          작동 테스트
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
+      ''',
+    ),
   ];
 
   void _addMessage(ChatMessage message) {
