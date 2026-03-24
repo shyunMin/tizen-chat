@@ -8,7 +8,7 @@ import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import '../services/chat_service.dart';
-import 'webview_full_screen.dart';
+
 
 class TizenChatScreen extends StatefulWidget {
   const TizenChatScreen({super.key});
@@ -24,7 +24,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final ChatService _chatService = ChatService();
   bool _isTyping = false;
   bool _isServerReady = false;
-  String? _currentUiCode;
 
   @override
   void initState() {
@@ -182,18 +181,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     super.dispose();
   }
 
-  void _onViewUiCode(String code) {
-    setState(() {
-      _currentUiCode = code;
-    });
-  }
-
-  void _onCloseWebView() {
-    setState(() {
-      _currentUiCode = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -204,105 +191,89 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           gradient: TizenStyles.backgroundGradient,
         ),
         child: SafeArea(
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                flex: 1,
-                child: Column(
-                  children: [
-                    // Custom Header
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12.0),
-                      child: Center(
-                        child: GradientText(
-                          'Tizen AI',
-                          style: TizenStyles.headerText,
-                        ),
-                      ),
-                    ),
-                    // Chat Content
-                    Expanded(
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return Column(
-                              children: [
-                                Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: TizenStyles.slate800.withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Text('TODAY', style: TizenStyles.dateText),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                              ],
-                            );
-                          }
-
-                          // Show typing indicator at the end
-                          if (_isTyping && index == _messages.length + 1) {
-                            return const Padding(
-                              padding: EdgeInsets.only(bottom: 24.0),
-                              child: TypingIndicator(),
-                            );
-                          }
-
-                          final message = _messages[index - 1];
-                          Widget messageWidget;
-
-                          switch (message.type) {
-                            case MessageType.sent:
-                              messageWidget = SentMessage(text: message.text);
-                              break;
-                            case MessageType.received:
-                              messageWidget = ReceivedMessage(
-                                text: message.text,
-                                avatarInitial: message.senderInitial,
-                                uiCode: message.uiCode,
-                                onViewUiCode: _onViewUiCode,
-                              );
-                              break;
-                            case MessageType.richCard:
-                              messageWidget = RichCardMessage(
-                                imageUrl: message.imageUrl ?? '',
-                                title: message.title ?? '',
-                                subtitle: message.subtitle ?? '',
-                                avatarInitial: message.senderInitial,
-                              );
-                              break;
-                          }
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 24.0),
-                            child: messageWidget,
-                          );
-                        },
-                      ),
-                    ),
-
-                    // Chat Input
-                    TizenChatInput(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      onSend: _handleUserMessage,
-                    ),
-                  ],
-                ),
-              ),
-              if (_currentUiCode != null)
-                Expanded(
-                  flex: 1,
-                  child: WebViewExample(
-                    uiCode: _currentUiCode!,
-                    onClose: _onCloseWebView,
+              // Custom Header
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0),
+                child: Center(
+                  child: GradientText(
+                    'Tizen AI',
+                    style: TizenStyles.headerText,
                   ),
                 ),
+              ),
+              // Chat Content
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Column(
+                        children: [
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: TizenStyles.slate800.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text('TODAY', style: TizenStyles.dateText),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    }
+
+                    // Show typing indicator at the end
+                    if (_isTyping && index == _messages.length + 1) {
+                      return const Padding(
+                        padding: EdgeInsets.only(bottom: 24.0),
+                        child: TypingIndicator(),
+                      );
+                    }
+
+                    final message = _messages[index - 1];
+                    Widget messageWidget;
+
+                    switch (message.type) {
+                      case MessageType.sent:
+                        messageWidget = SentMessage(text: message.text);
+                        break;
+                      case MessageType.received:
+                        messageWidget = ReceivedMessage(
+                          text: message.text,
+                          avatarInitial: message.senderInitial,
+                          uiCode: message.uiCode,
+                        );
+                        break;
+                      case MessageType.richCard:
+                        messageWidget = RichCardMessage(
+                          imageUrl: message.imageUrl ?? '',
+                          title: message.title ?? '',
+                          subtitle: message.subtitle ?? '',
+                          avatarInitial: message.senderInitial,
+                        );
+                        break;
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0),
+                      child: messageWidget,
+                    );
+                  },
+                ),
+              ),
+
+              // Chat Input
+              TizenChatInput(
+                controller: _controller,
+                focusNode: _focusNode,
+                onSend: _handleUserMessage,
+              ),
             ],
           ),
         ),

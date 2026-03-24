@@ -7,12 +7,14 @@ class WebViewExample extends StatefulWidget {
   final String uiCode;
   final String title;
   final VoidCallback? onClose;
+  final bool isInline;
 
   const WebViewExample({
     super.key,
     required this.uiCode,
     this.title = 'Generated UI',
     this.onClose,
+    this.isInline = false,
   });
 
   @override
@@ -50,6 +52,13 @@ class _WebViewExampleState extends State<WebViewExample> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isInline) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: WebViewWidget(controller: _controller),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(

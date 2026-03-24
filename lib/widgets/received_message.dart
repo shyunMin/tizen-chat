@@ -3,23 +3,28 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
 import '../screens/webview_full_screen.dart';
 
-class ReceivedMessage extends StatelessWidget {
+class ReceivedMessage extends StatefulWidget {
   final String text;
   final String avatarInitial;
   final String? uiCode;
-  final ValueChanged<String>? onViewUiCode;
 
   const ReceivedMessage({
     super.key,
     required this.text,
     required this.avatarInitial,
     this.uiCode,
-    this.onViewUiCode,
   });
 
   @override
+  State<ReceivedMessage> createState() => _ReceivedMessageState();
+}
+
+class _ReceivedMessageState extends State<ReceivedMessage> {
+  bool _showWebView = false;
+
+  @override
   Widget build(BuildContext context) {
-    debugPrint('#############################################uiCode: $uiCode ');
+    debugPrint('#############################################uiCode: ${widget.uiCode} ');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -27,7 +32,7 @@ class ReceivedMessage extends StatelessWidget {
           radius: 16,
           backgroundColor: TizenStyles.slate800,
           child: Text(
-            avatarInitial,
+            widget.avatarInitial,
             style: const TextStyle(fontSize: 10, color: Colors.white),
           ),
         ),
@@ -38,7 +43,7 @@ class ReceivedMessage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               MarkdownBody(
-                data: text,
+                data: widget.text,
                 styleSheet: MarkdownStyleSheet(
                   p: TizenStyles.bodyText,
                   strong: TizenStyles.bodyText.copyWith(
@@ -62,64 +67,74 @@ class ReceivedMessage extends StatelessWidget {
                   h3: TizenStyles.headerText.copyWith(fontSize: 16),
                 ),
               ),
-              if (uiCode != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: InkWell(
-                    onTap: () {
-                      if (onViewUiCode != null) {
-                        onViewUiCode!(uiCode!);
-                      } else {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => WebViewExample(uiCode: uiCode!),
-                          ),
-                        );
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: TizenStyles.accentGradient,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: TizenStyles.cyan400.withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.auto_awesome,
+              if (widget.uiCode != null) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _showWebView = !_showWebView;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: _showWebView 
+                          ? LinearGradient(colors: [TizenStyles.slate900, TizenStyles.slate800])
+                          : TizenStyles.accentGradient,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_showWebView ? TizenStyles.slate900 : TizenStyles.cyan400).withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _showWebView ? Icons.close : Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          _showWebView ? 'Close Agent UI' : 'View Agent UI',
+                          style: TizenStyles.bodyText.copyWith(
                             color: Colors.white,
-                            size: 18,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'View Agent UI',
-                            style: TizenStyles.bodyText.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+                if (_showWebView) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 400,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: TizenStyles.cyan400.withOpacity(0.3)),
+                    ),
+                    child: WebViewExample(
+                      uiCode: widget.uiCode!,
+                      isInline: true,
+                    ),
+                  ),
+                ],
+              ],
             ],
           ),
         ),
-        const SizedBox(width: 100), // Right margin increased to 100
+        const SizedBox(width: 100),
       ],
     );
   }
