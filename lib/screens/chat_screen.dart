@@ -69,56 +69,56 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   }
 
   final List<ChatMessage> _messages = [
-    ChatMessage(
-      text:
-          'Welcome to the Tizen OS developer portal. How can we help you innovate today?',
-      type: MessageType.received,
-    ),
-    ChatMessage(
-      text:
-          "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
-      type: MessageType.sent,
-    ),
-    ChatMessage(
-      text:
-          'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
-      type: MessageType.received,
-    ),
-    ChatMessage(
-      text: 'View the full release notes for 2024 updates.',
-      type: MessageType.richCard,
-      title: 'SDK Documentation',
-      subtitle: 'View the full release notes for 2024 updates.',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
-    ),
-    ChatMessage(
-      text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
-      type: MessageType.received,
-      uiCode: '''
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-  </head>
-  <body style="background-color: #2D3748; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
-    <div style="background: #1E293B; border-radius: 12px; padding: 20px; border: 1px solid #4DA8DA; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-      <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">
-        <span style="margin-right: 8px;">🚀</span> Tizen WebView Test
-      </h3>
-      <p style="line-height: 1.5; color: #e0e0e0; font-size: 14px;">
-        이 영역은 <b>webview_flutter_tizen</b>을 통해 렌더링된 <code>HTML</code> 코드입니다.
-      </p>
-      <div style="margin-top: 15px;">
-        <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: #4DA8DA; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;">
-          작동 테스트
-        </button>
-      </div>
-    </div>
-  </body>
-</html>
-      ''',
-    ),
+    //     ChatMessage(
+    //       text:
+    //           'Welcome to the Tizen OS developer portal. How can we help you innovate today?',
+    //       type: MessageType.received,
+    //     ),
+    //     ChatMessage(
+    //       text:
+    //           "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
+    //       type: MessageType.sent,
+    //     ),
+    //     ChatMessage(
+    //       text:
+    //           'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
+    //       type: MessageType.received,
+    //     ),
+    //     ChatMessage(
+    //       text: 'View the full release notes for 2024 updates.',
+    //       type: MessageType.richCard,
+    //       title: 'SDK Documentation',
+    //       subtitle: 'View the full release notes for 2024 updates.',
+    //       imageUrl:
+    //           'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
+    //     ),
+    //     ChatMessage(
+    //       text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
+    //       type: MessageType.received,
+    //       uiCode: '''
+    // <!DOCTYPE html>
+    // <html>
+    //   <head>
+    //     <meta charset="UTF-8">
+    //   </head>
+    //   <body style="background-color: #2D3748; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
+    //     <div style="background: #1E293B; border-radius: 12px; padding: 20px; border: 1px solid #4DA8DA; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    //       <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">
+    //         <span style="margin-right: 8px;">🚀</span> Tizen WebView Test
+    //       </h3>
+    //       <p style="line-height: 1.5; color: #e0e0e0; font-size: 14px;">
+    //         이 영역은 <b>webview_flutter_tizen</b>을 통해 렌더링된 <code>HTML</code> 코드입니다.
+    //       </p>
+    //       <div style="margin-top: 15px;">
+    //         <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: #4DA8DA; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;">
+    //           작동 테스트
+    //         </button>
+    //       </div>
+    //     </div>
+    //   </body>
+    // </html>
+    //       ''',
+    //     ),
   ];
 
   void _addMessage(ChatMessage message) {

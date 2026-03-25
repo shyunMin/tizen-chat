@@ -33,7 +33,7 @@ class TizenChatInput extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.8),
+            color: TizenStyles.slate900.withOpacity(0.5),
           ),
           child: Row(
             children: [

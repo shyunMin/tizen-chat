@@ -37,11 +37,15 @@ class _WebViewExampleState extends State<WebViewExample> {
 
     _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
+      ..setBackgroundColor(TizenStyles.slate900)
       ..tizenEnginePolicy = true
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
+            _controller.runJavaScript('''
+              document.body.style.backgroundColor = '#0F172A';
+              document.documentElement.style.backgroundColor = '#0F172A';
+            ''');
             _updateHeight();
           },
         ),
