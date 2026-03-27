@@ -1,4 +1,4 @@
-﻿using Tizen.Flutter.Embedding;
+using Tizen.Flutter.Embedding;
 
 namespace Runner
 {
@@ -6,6 +6,10 @@ namespace Runner
     {
         protected override void OnCreate()
         {
+            // Set window properties before calling base.OnCreate()
+            IsWindowTransparent = true;
+            IsTopLevel = true;
+
             base.OnCreate();
 
             GeneratedPluginRegistrant.RegisterPlugins(this);

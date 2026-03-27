@@ -31,9 +31,9 @@ class TizenChatInput extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 26.0),
           decoration: BoxDecoration(
-            color: TizenStyles.slate900.withOpacity(0.5),
+            color: Colors.transparent,
           ),
           child: Row(
             children: [

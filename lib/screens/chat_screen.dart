@@ -205,13 +205,13 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: TizenStyles.slate900,
+        color: Colors.transparent,
         child: SafeArea(
           child: Column(
             children: [
               // Custom Header
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
+                padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
                 child: Center(
                   child: Text('Tizen AI', style: TizenStyles.headerText),
                 ),
@@ -220,7 +220,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == 0) {

@@ -15,7 +15,8 @@ class TizenChatApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
+        scaffoldBackgroundColor: Colors.transparent,
+        canvasColor: Colors.transparent,
       ),
       home: const TizenChatScreen(),
     );
