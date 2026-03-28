@@ -35,9 +35,12 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
         focusNode: _keyboardFocusNode,
         autofocus: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.altLeft) {
-            _toggleVisibility();
+          if ((event is KeyDownEvent || event is KeyUpEvent) &&
+              (event.logicalKey == LogicalKeyboardKey.altLeft ||
+                  event.logicalKey == LogicalKeyboardKey.metaLeft)) {
+            if (event is KeyDownEvent) {
+              _toggleVisibility();
+            }
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -118,6 +121,8 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
 
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
+  final FocusNode _micFocusNode = FocusNode();
+  final FocusNode _sendFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -186,6 +191,8 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
     _rotationController.dispose();
     _textController.dispose();
     _inputFocusNode.dispose();
+    _micFocusNode.dispose();
+    _sendFocusNode.dispose();
     super.dispose();
   }
 
@@ -312,10 +319,27 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                 ),
                               ),
                               if (_charIndex >= _fullText.length)
-                                const Icon(
-                                  Icons.mic_none,
-                                  color: Colors.blueAccent,
-                                  size: 32,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildFocusableIcon(
+                                      icon: Icons.mic_rounded,
+                                      size: 34,
+                                      focusNode: _micFocusNode,
+                                      onTap: () {
+                                        // Handle Mic Tap
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildFocusableIcon(
+                                      icon: Icons.send_rounded,
+                                      size: 30,
+                                      focusNode: _sendFocusNode,
+                                      onTap: () {
+                                        // Handle Send Tap
+                                      },
+                                    ),
+                                  ],
                                 ),
                             ],
                           ),
@@ -329,6 +353,58 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildFocusableIcon({
+    required IconData icon,
+    required double size,
+    required FocusNode focusNode,
+    required VoidCallback onTap,
+  }) {
+    return Focus(
+      focusNode: focusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedBuilder(
+          animation: focusNode,
+          builder: (context, child) {
+            final isFocused = focusNode.hasFocus;
+            return Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isFocused
+                    ? Colors.blueAccent.withOpacity(0.2)
+                    : Colors.transparent,
+                shape: BoxShape.circle,
+                boxShadow: isFocused
+                    ? [
+                        BoxShadow(
+                          color: Colors.blueAccent.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        )
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                icon,
+                color: isFocused ? Colors.white : Colors.blueAccent,
+                size: size,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
