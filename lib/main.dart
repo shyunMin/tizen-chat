@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/chat_screen.dart';
+import 'screens/tizen_chat_screen_2.dart';
 
 void main() {
   runApp(const TizenChatApp());
@@ -18,7 +18,7 @@ class TizenChatApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.transparent,
         canvasColor: Colors.transparent,
       ),
-      home: const TizenChatScreen(),
+      home: const TizenChatScreen2(),
     );
   }
 }
