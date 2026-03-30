@@ -21,16 +21,19 @@ graph TB
             PUI[PromptUI: 입력 인터페이스 컨트롤러]
             GVU[GenUIView: 에이전트 생성 UI 컨텐츠 가시화]
             CUI[ChatUI: 기존 텍스트 기반 대화 창]
+            UM[UIManager: 전체 화면 상태 및 시각 요소 총괄 제어]
         end
 
         subgraph "서비스 레이어 (Service Layer)"
             CS[ChatService: AI 에이전트와의 API 통신 관리]
             VC[VoiceController: 음성 캡처 및 녹음 상태 제어]
             SP[STTProvider: 음성 인식 엔진 연동 인터페이스]
+            SM[SessionManager: 대화 세션 및 기록 관리]
         end
 
         subgraph "인프라 레이어 (Infrastructure Layer)"
             SE[STTEngine: 로컬/클라우드 음성 인식 처리 엔진]
+            TNB[TizenNativeBridge: 플랫폼 SDK 연동 및 하드웨어 가속]
         end
     end
 ```
@@ -38,17 +41,20 @@ graph TB
 ### 각 모듈별 상세 설명
 
 #### 1. UI 레이어 (User Interface Layer)
-*   **PromptUI**: 사용자의 텍스트 입력 및 마이크 버튼을 통한 음성 입력 트리거를 담당하는 최상단 위젯입니다.
-*   **GenUIView**: AI 에이전트가 생성한 HTML/JS 코드를 WebView 기술을 활용하여 화면에 직접 렌더링하는 전용 뷰입니다.
+*   **PromptUI**: 사용자의 텍스트 입력 및 마이크 버튼 이벤트를 처리하는 입력 인터페이스입니다.
+*   **GenUIView**: AI 에이전트의 응답(HTML/JS)을 웹뷰 환경에서 최적화하여 보여주는 전용 뷰입니다.
 *   **ChatUI**: 전송 및 수신된 메시지를 리스트 형태로 시각화하여 대화의 흐름을 보여줍니다.
+*   **UIManager**: 화면의 오버레이 상태와 포커스 제어 등 전체적인 시각 요소를 총괄 관리하는 중앙 컨트롤러입니다.
 
 #### 2. 서비스 레이어 (Service Layer)
-*   **ChatService**: AI 에이전트 서버(`Python/FastAPI`)와 HTTP 통신을 수행하여 메시지 송수신 및 세션을 관리합니다.
-*   **VoiceController**: 하드웨어 마이크에 접근하여 오디오 데이터를 캡처하고, 녹음 중인 상태(VAD 등)를 관리합니다.
-*   **STTProvider**: 음성 데이터를 텍스트로 변환하기 위해 다양한 엔진(로컬/클라우드)을 유연하게 활용할 수 있도록 추상화된 제공자 입구입니다.
+*   **ChatService**: AI 에이전트 서버와의 HTTP 통신 및 전송 데이터 처리를 담당합니다.
+*   **VoiceController**: 오디오 장치 제어 및 실시간 음성 캡처의 수명 주기를 관리합니다.
+*   **STTProvider**: 내부/외부 엔진을 추상화하여 음성 데이터를 텍스트로 치환하는 중계 포인트입니다.
+*   **SessionManager**: 대화 기록 보존 및 세션 초기화 등 비즈니스 규칙에 따른 세션 상태를 유지합니다.
 
 #### 3. 인프라 레이어 (Infrastructure Layer)
-*   **STTEngine**: 실제 음성 파형 데이터를 분석하여 텍스트로 치환하는 연산을 수행하는 핵심 엔진 영역입니다.
+*   **STTEngine**: 음성 원천 데이터를 실제 텍스트 결과값으로 변환(Inference)하는 핵심 엔진입니다.
+*   **TizenNativeBridge**: Tizen 플랫폼 전용 네이티브 플러그인 연동 및 렌더링 최적화를 수행합니다.
 
 ## 최근 수정 사항
 - **2026-03-24**: 
