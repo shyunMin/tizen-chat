@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 
 class PromptBar extends StatefulWidget {
   final bool isVisible;
+  final Function(String)? onSend;
 
   const PromptBar({
     super.key,
     required this.isVisible,
+    this.onSend,
   });
 
   @override
@@ -63,7 +65,12 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
         }
       });
     } else if (!widget.isVisible && oldWidget.isVisible) {
-      _reset();
+      // Delay reset for fade-out period to avoid premature shrinking
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && !widget.isVisible) {
+          _reset();
+        }
+      });
     }
   }
 
@@ -222,6 +229,12 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                       ),
                                     ),
                                     readOnly: _charIndex < _fullText.length,
+                                    onSubmitted: (value) {
+                                      if (value.isNotEmpty &&
+                                          widget.onSend != null) {
+                                        widget.onSend!(value);
+                                      }
+                                    },
                                   ),
                                 ),
                               ),
@@ -243,7 +256,10 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                       size: 30,
                                       focusNode: _sendFocusNode,
                                       onTap: () {
-                                        // Handle Send Tap
+                                        if (_textController.text.isNotEmpty &&
+                                            widget.onSend != null) {
+                                          widget.onSend!(_textController.text);
+                                        }
                                       },
                                     ),
                                   ],

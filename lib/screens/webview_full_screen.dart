@@ -37,14 +37,14 @@ class _WebViewExampleState extends State<WebViewExample> {
 
     _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(TizenStyles.slate900)
+      ..setBackgroundColor(TizenStyles.slate950)
       ..tizenEnginePolicy = true
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
             _controller.runJavaScript('''
-              document.body.style.backgroundColor = '#0F172A';
-              document.documentElement.style.backgroundColor = '#0F172A';
+              document.body.style.backgroundColor = '#020617';
+              document.documentElement.style.backgroundColor = '#020617';
             ''');
             _updateHeight();
           },
@@ -67,10 +67,11 @@ class _WebViewExampleState extends State<WebViewExample> {
   void _updateHeight() {
     _controller.runJavaScript('''
       function sendHeight() {
-        HeightChannel.postMessage(document.documentElement.scrollHeight.toString());
+        if (window.HeightChannel) {
+          HeightChannel.postMessage(document.documentElement.scrollHeight.toString());
+        }
       }
       sendHeight();
-      // Also send height after a short delay to account for rendering/images
       setTimeout(sendHeight, 500);
       setTimeout(sendHeight, 1000);
     ''');
@@ -87,32 +88,14 @@ class _WebViewExampleState extends State<WebViewExample> {
   @override
   Widget build(BuildContext context) {
     if (widget.isInline) {
+      // For chat bubbles: Use height calculation
       return SizedBox(
         height: _contentHeight,
         child: WebViewWidget(controller: _controller),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.title,
-          style: TizenStyles.headerText.copyWith(fontSize: 18),
-        ),
-        backgroundColor: TizenStyles.slate900,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
-          onPressed: () {
-            if (widget.onClose != null) {
-              widget.onClose!();
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-      ),
-      body: WebViewWidget(controller: _controller),
-    );
+    // For Full Screen or Generative UI (takes whole available space)
+    return WebViewWidget(controller: _controller);
   }
 }

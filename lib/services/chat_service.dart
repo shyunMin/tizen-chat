@@ -3,13 +3,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ChatService {
+  static final ChatService _instance = ChatService._internal();
+  factory ChatService() => _instance;
+  ChatService._internal();
+
   final String baseUrl =
       'http://192.168.0.6:10010'; // Use PC's LAN IP for stability
   // final String baseUrl = 'http://localhost:9090';
   final http.Client _client = http.Client();
+  bool _isConnected = false;
+  bool get isConnected => _isConnected;
 
   Future<Map<String, dynamic>> connect() async {
-    // return {};
+    if (_isConnected) return {'can_chat': true, 'message': 'Already connected.'};
     try {
       print('DEBUG: [REQUEST] Connecting to $baseUrl/connect ...');
 
@@ -27,6 +33,7 @@ class ChatService {
       print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
+        _isConnected = true;
         return jsonDecode(response.body);
       } else {
         throw Exception('Server returned ${response.statusCode}');
@@ -61,7 +68,7 @@ class ChatService {
             body: jsonEncode({'message': message}),
             // body: jsonEncode({'prompt': message, 'session_id': '1234567890'}),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 120));
 
       print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
 

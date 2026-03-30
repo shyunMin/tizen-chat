@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/received_message.dart';
 import '../widgets/sent_message.dart';
 import '../widgets/rich_card_message.dart';
@@ -10,7 +11,9 @@ import '../theme/tizen_styles.dart';
 import '../services/chat_service.dart';
 
 class TizenChatScreen extends StatefulWidget {
-  const TizenChatScreen({super.key});
+  final List<ChatMessage>? initialMessages;
+
+  const TizenChatScreen({super.key, this.initialMessages});
 
   @override
   State<TizenChatScreen> createState() => _TizenChatScreenState();
@@ -23,13 +26,24 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final ChatService _chatService = ChatService();
   bool _isTyping = false;
   bool _isServerReady = false;
+  late List<ChatMessage> _messages;
 
   @override
   void initState() {
     super.initState();
+    _messages = widget.initialMessages != null
+        ? List<ChatMessage>.from(widget.initialMessages!)
+        : [];
+
     _checkServerConnection();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
+      // Use a small delay to ensure the screen is fully pushed before requesting focus
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
+      });
     });
   }
 
@@ -40,7 +54,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         setState(() {
           _isServerReady = info['can_chat'] ?? false;
         });
-        if (_isServerReady) {
+        if (_isServerReady && widget.initialMessages == null) {
           _addMessage(
             ChatMessage(
               text: info['message'] ?? 'Connected to Tizen Home Agent.',
@@ -67,59 +81,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       }
     }
   }
-
-  final List<ChatMessage> _messages = [
-    //     ChatMessage(
-    //       text:
-    //           'Welcome to the Tizen OS developer portal. How can we help you innovate today?',
-    //       type: MessageType.received,
-    //     ),
-    //     ChatMessage(
-    //       text:
-    //           "I'm looking for the Tizen SDK 10 Release Notes. Can you provide a link?",
-    //       type: MessageType.sent,
-    //     ),
-    //     ChatMessage(
-    //       text:
-    //           'Certainly. The Tizen SDK 10 includes new features for VStudio extensions and improved emulator performance.',
-    //       type: MessageType.received,
-    //     ),
-    //     ChatMessage(
-    //       text: 'View the full release notes for 2024 updates.',
-    //       type: MessageType.richCard,
-    //       title: 'SDK Documentation',
-    //       subtitle: 'View the full release notes for 2024 updates.',
-    //       imageUrl:
-    //           'https://lh3.googleusercontent.com/aida-public/AB6AXuC7YfU4xqiYxcEtCIU54kYFOUWpL8eawB77azl5R_4K1XwgAFWi986TaRXC-jByh4zxp4vW4JS5T_p4m4gvhUXNMx9KxZiu4SLcKj40VRkfBk7AUb8UbqfySoJWy-WOv3RXkBewWD0mHHGRD6GObhvWlF2XUZGxxQkRkj4lBWiZXSmaPfFpeBmVhZe8O5H2T4FzVLOd5CLmnYilxZ_2tjeoOa8WggEdSvdvO0V1SdyF5-rEX1svGDi3MSLtPkk71SRlvvIssJhki4Ao',
-    //     ),
-    //     ChatMessage(
-    //       text: '웹뷰 렌더링 정상 작동 확인을 위한 샘플입니다.',
-    //       type: MessageType.received,
-    //       uiCode: '''
-    // <!DOCTYPE html>
-    // <html>
-    //   <head>
-    //     <meta charset="UTF-8">
-    //   </head>
-    //   <body style="background-color: #2D3748; margin: 0; padding: 16px; font-family: sans-serif; color: white;">
-    //     <div style="background: #1E293B; border-radius: 12px; padding: 20px; border: 1px solid #4DA8DA; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-    //       <h3 style="margin-top: 0; color: #4DA8DA; display: flex; align-items: center;">
-    //         <span style="margin-right: 8px;">🚀</span> Tizen WebView Test
-    //       </h3>
-    //       <p style="line-height: 1.5; color: #e0e0e0; font-size: 14px;">
-    //         이 영역은 <b>webview_flutter_tizen</b>을 통해 렌더링된 <code>HTML</code> 코드입니다.
-    //       </p>
-    //       <div style="margin-top: 15px;">
-    //         <button onclick="alert('버튼 클릭 이벤트가 정상 작동합니다!')" style="background: #4DA8DA; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%;">
-    //           작동 테스트
-    //         </button>
-    //       </div>
-    //     </div>
-    //   </body>
-    // </html>
-    //       ''',
-    //     ),
-  ];
 
   void _addMessage(ChatMessage message) {
     setState(() {
@@ -201,99 +162,112 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Colors.transparent,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Custom Header
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
-                child: Center(
-                  child: Text('Tizen AI', style: TizenStyles.headerText),
+    return KeyboardListener(
+      focusNode: FocusNode(), // Temporary node to catch global key events
+      autofocus: true,
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.escape ||
+                event.logicalKey == LogicalKeyboardKey.goBack)) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: TizenStyles.slate950,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: TizenStyles.slate950,
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Custom Header
+                const Padding(
+                  padding:
+                      EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
+                  child: Center(
+                    child: Text('Tizen AI', style: TizenStyles.headerText),
+                  ),
                 ),
-              ),
-              // Chat Content
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(20.0),
-                  itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Column(
-                        children: [
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: TizenStyles.slate800.withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'TODAY',
-                                style: TizenStyles.dateText,
+                // Chat Content
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(20.0),
+                    itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Column(
+                          children: [
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: TizenStyles.slate800.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  'TODAY',
+                                  style: TizenStyles.dateText,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      );
-                    }
-
-                    // Show typing indicator at the end
-                    if (_isTyping && index == _messages.length + 1) {
-                      return const Padding(
-                        padding: EdgeInsets.only(bottom: 24.0),
-                        child: TypingIndicator(),
-                      );
-                    }
-
-                    final message = _messages[index - 1];
-                    Widget messageWidget;
-
-                    switch (message.type) {
-                      case MessageType.sent:
-                        messageWidget = SentMessage(text: message.text);
-                        break;
-                      case MessageType.received:
-                        messageWidget = ReceivedMessage(
-                          text: message.text,
-                          avatarInitial: message.senderInitial,
-                          uiCode: message.uiCode,
+                            const SizedBox(height: 24),
+                          ],
                         );
-                        break;
-                      case MessageType.richCard:
-                        messageWidget = RichCardMessage(
-                          imageUrl: message.imageUrl ?? '',
-                          title: message.title ?? '',
-                          subtitle: message.subtitle ?? '',
-                          avatarInitial: message.senderInitial,
-                        );
-                        break;
-                    }
+                      }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 24.0),
-                      child: messageWidget,
-                    );
-                  },
+                      // Show typing indicator at the end
+                      if (_isTyping && index == _messages.length + 1) {
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 24.0),
+                          child: TypingIndicator(),
+                        );
+                      }
+
+                      final message = _messages[index - 1];
+                      Widget messageWidget;
+
+                      switch (message.type) {
+                        case MessageType.sent:
+                          messageWidget = SentMessage(text: message.text);
+                          break;
+                        case MessageType.received:
+                          messageWidget = ReceivedMessage(
+                            text: message.text,
+                            avatarInitial: message.senderInitial,
+                            uiCode: message.uiCode,
+                          );
+                          break;
+                        case MessageType.richCard:
+                          messageWidget = RichCardMessage(
+                            imageUrl: message.imageUrl ?? '',
+                            title: message.title ?? '',
+                            subtitle: message.subtitle ?? '',
+                            avatarInitial: message.senderInitial,
+                          );
+                          break;
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: messageWidget,
+                      );
+                    },
+                  ),
                 ),
-              ),
 
-              // Chat Input
-              TizenChatInput(
-                controller: _controller,
-                focusNode: _focusNode,
-                onSend: _handleUserMessage,
-              ),
-            ],
+                // Chat Input
+                TizenChatInput(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  onSend: _handleUserMessage,
+                ),
+              ],
+            ),
           ),
         ),
       ),

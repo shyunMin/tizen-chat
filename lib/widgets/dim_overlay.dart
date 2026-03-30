@@ -13,25 +13,52 @@ class DimOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
-      child: AnimatedContainer(
-        duration: duration,
-        curve: Curves.easeInOut,
-        color: isVisible ? Colors.black.withOpacity(0.5) : Colors.transparent,
-        child: isVisible
-            ? Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.black.withOpacity(0.5),
-                      Colors.black.withOpacity(0.5),
-                      Colors.black.withOpacity(0.5),
-                    ],
+      child: Stack(
+        children: [
+          // Background dimming
+          Positioned.fill(
+            child: AnimatedContainer(
+              duration: duration,
+              curve: Curves.easeInOut,
+              color: isVisible ? Colors.black.withOpacity(0.7) : Colors.transparent,
+              child: isVisible
+                  ? Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.black.withOpacity(0.5),
+                            Colors.black.withOpacity(0.7),
+                            Colors.black.withOpacity(1.0),
+                          ],
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          // Green dot indicator (App Running)
+          Positioned(
+            top: 25,
+            right: 25,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withOpacity(0.8),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.greenAccent.withOpacity(0.4),
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
-                ),
-              )
-            : null,
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

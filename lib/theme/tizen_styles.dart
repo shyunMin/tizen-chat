@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class TizenStyles {
   // Colors
+  static const Color slate950 = Color(0xFF020617);
   static const Color slate900 = Color(0xFF0F172A);
   static const Color slate800 = Color(0xFF1E293B);
   static const Color slate500 = Color(0xFF64748B);
