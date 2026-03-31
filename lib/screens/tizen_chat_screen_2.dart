@@ -23,12 +23,12 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
   bool _isWaiting = false;
   bool _shouldSlideDown = true;
   String _responseMessage = "";
-  
+
   ScreenState _activeScreen = ScreenState.initial;
   String _currentText = "";
   String _currentUiCode = "";
   final List<ChatMessage> _messages = [];
-  
+
   final FocusNode _keyboardFocusNode = FocusNode();
   final ChatService _chatService = ChatService();
 
@@ -41,10 +41,10 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
   Future<void> _handleSend(String text) async {
     // Explicitly request focus to handle keyboard events after PromptBar hides
     _keyboardFocusNode.requestFocus();
-    
+
     setState(() {
       _shouldSlideDown = false; // Stay at current height
-      _isVisible = false;       // Trigger fade out
+      _isVisible = false; // Trigger fade out
       _responseMessage = "";
     });
 
@@ -58,7 +58,7 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
 
     // Wait for PromptBar disappear timing (total 300ms feel)
     await Future.delayed(const Duration(milliseconds: 100));
-    
+
     if (mounted) {
       setState(() {
         _isWaiting = true;
@@ -69,44 +69,42 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
       final response = await _chatService.sendMessage(text);
       if (mounted) {
         // Set data first
-        final rawText = response['text'] ?? '';
+        // final rawText = response['text'] ?? '';
+        final rawText = response['response'] ?? '';
         final dynamic rawUiCode = response['ui_code'];
-        
+
         // Clear history to keep only the latest pair for the next screen launch
         _messages.clear();
 
         // Add user message to history
         _messages.add(ChatMessage(text: text, type: MessageType.sent));
-        
+
         setState(() {
           _isWaiting = false;
           _currentText = rawText;
-          
+
           if (rawUiCode != null && rawUiCode.toString().isNotEmpty) {
             _currentUiCode = rawUiCode.toString();
             final chatMsg = ChatMessage(
-              text: _currentText, 
+              text: _currentText,
               type: MessageType.received,
-              uiCode: _currentUiCode
+              uiCode: _currentUiCode,
             );
             _messages.add(chatMsg);
-            
+
             // Push Generative UI Screen
-            _pushScreen(GenerativeUIScreen(
-              text: _currentText,
-              uiCode: _currentUiCode,
-            ));
+            _pushScreen(
+              GenerativeUIScreen(text: _currentText, uiCode: _currentUiCode),
+            );
           } else {
             final chatMsg = ChatMessage(
-              text: _currentText, 
-              type: MessageType.received
+              text: _currentText,
+              type: MessageType.received,
             );
             _messages.add(chatMsg);
-            
+
             // Push Chat Screen with only the current pair
-            _pushScreen(TizenChatScreen(
-              initialMessages: List.from(_messages),
-            ));
+            _pushScreen(TizenChatScreen(initialMessages: List.from(_messages)));
           }
         });
       }
@@ -116,7 +114,7 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
           _isWaiting = false;
           _responseMessage = "오류 발생: ${e.toString()}";
         });
-        
+
         // Hide error message after 3 seconds
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
@@ -132,7 +130,7 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
   void _toggleVisibility() {
     // Prevent toggling while waiting for server response
     if (_isWaiting) return;
-    
+
     // As per user request: No prompt while TizenChatScreen is active
     if (_activeScreen == ScreenState.chat) return;
 
@@ -159,21 +157,23 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
       _shouldSlideDown = true;
     });
 
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => screen,
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-      ),
-    ).then((_) {
-      // Clear messages when returning from the sub-screen (TizenChatScreen or GenerativeUIScreen)
-      // to ensure history is deleted as requested
-      if (mounted) {
-        setState(() {
-          _messages.clear();
+    Navigator.of(context)
+        .push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => screen,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        )
+        .then((_) {
+          // Clear messages when returning from the sub-screen (TizenChatScreen or GenerativeUIScreen)
+          // to ensure history is deleted as requested
+          if (mounted) {
+            setState(() {
+              _messages.clear();
+            });
+          }
         });
-      }
-    });
   }
 
   @override
@@ -236,7 +236,9 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
                   child: Center(
                     child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 100),
-                      opacity: (_isWaiting || _responseMessage.isNotEmpty) ? 1.0 : 0.0,
+                      opacity: (_isWaiting || _responseMessage.isNotEmpty)
+                          ? 1.0
+                          : 0.0,
                       child: _isWaiting
                           ? const TypingIndicator(
                               showAvatar: false,

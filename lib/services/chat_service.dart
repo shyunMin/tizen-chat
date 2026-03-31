@@ -7,49 +7,51 @@ class ChatService {
   factory ChatService() => _instance;
   ChatService._internal();
 
-  final String baseUrl =
-      'http://192.168.0.6:10010'; // Use PC's LAN IP for stability
-  // final String baseUrl = 'http://localhost:9090';
+  // final String baseUrl =
+  // 'http://192.168.0.6:10010'; // Use PC's LAN IP for stability
+  final String baseUrl = 'http://localhost:9090';
   final http.Client _client = http.Client();
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
   Future<Map<String, dynamic>> connect() async {
-    if (_isConnected) return {'can_chat': true, 'message': 'Already connected.'};
-    try {
-      print('DEBUG: [REQUEST] Connecting to $baseUrl/connect ...');
+    // if (_isConnected)
+    //   return {'can_chat': true, 'message': 'Already connected.'};
+    // try {
+    //   print('DEBUG: [REQUEST] Connecting to $baseUrl/connect ...');
 
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/connect'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Connection': 'close',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
+    //   final response = await _client
+    //       .post(
+    //         Uri.parse('$baseUrl/connect'),
+    //         headers: {
+    //           'Content-Type': 'application/json',
+    //           'Accept': 'application/json',
+    //           'Connection': 'close',
+    //         },
+    //       )
+    //       .timeout(const Duration(seconds: 20));
 
-      print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
+    //   print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        _isConnected = true;
-        return jsonDecode(response.body);
-      } else {
-        throw Exception('Server returned ${response.statusCode}');
-      }
-    } on TimeoutException {
-      print('DEBUG: [TIMEOUT] No response bytes received within 20s.');
-      throw Exception(
-        'Server at $baseUrl is not responding back. \n'
-        '1. Ensure "sdb reverse tcp:9090 tcp:9090" is active. \n'
-        '2. Check if PC firewall allows Python/Uvicorn to communicate. \n'
-        '3. Try restarting the Tizen device and SDB server.',
-      );
-    } catch (e) {
-      print('DEBUG: [ERROR] $e');
-      throw Exception('Connection error: $e');
-    }
+    //   if (response.statusCode == 200) {
+    //     _isConnected = true;
+    //     return jsonDecode(response.body);
+    //   } else {
+    //     throw Exception('Server returned ${response.statusCode}');
+    //   }
+    // } on TimeoutException {
+    //   print('DEBUG: [TIMEOUT] No response bytes received within 20s.');
+    //   throw Exception(
+    //     'Server at $baseUrl is not responding back. \n'
+    //     '1. Ensure "sdb reverse tcp:9090 tcp:9090" is active. \n'
+    //     '2. Check if PC firewall allows Python/Uvicorn to communicate. \n'
+    //     '3. Try restarting the Tizen device and SDB server.',
+    //   );
+    // } catch (e) {
+    //   print('DEBUG: [ERROR] $e');
+    //   throw Exception('Connection error: $e');
+    // }
+    return {};
   }
 
   Future<Map<String, dynamic>> sendMessage(String message) async {
@@ -58,15 +60,15 @@ class ChatService {
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/chat'),
-            // Uri.parse('$baseUrl/api/chat'),
+            // Uri.parse('$baseUrl/chat'),
+            Uri.parse('$baseUrl/api/chat'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
               'Connection': 'close',
             },
-            body: jsonEncode({'message': message}),
-            // body: jsonEncode({'prompt': message, 'session_id': '1234567890'}),
+            // body: jsonEncode({'message': message}),
+            body: jsonEncode({'prompt': message, 'session_id': '1234567890'}),
           )
           .timeout(const Duration(seconds: 120));
 
