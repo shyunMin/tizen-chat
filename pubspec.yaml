@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_markdown_plus: ^1.0.7
+  google_generative_ai: ^0.4.7
   http: ^1.6.0
   path_provider: ^2.0.7
   path_provider_tizen: ^2.2.1

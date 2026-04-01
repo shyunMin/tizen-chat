@@ -69,8 +69,26 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
       final response = await _chatService.sendMessage(text);
       if (mounted) {
         // Set data first
-        // final rawText = response['text'] ?? '';
-        final rawText = response['response'] ?? '';
+        // Extract text response with multiple fallback keys for stability
+        final String rawText;
+        if (response['text'] != null && response['text'].toString().isNotEmpty) {
+          rawText = response['text'].toString();
+        } else if (response['response'] != null &&
+            response['response'].toString().isNotEmpty) {
+          rawText = response['response'].toString();
+        } else if (response['content'] != null &&
+            response['content'].toString().isNotEmpty) {
+          rawText = response['content'].toString();
+        } else if (response['message'] != null &&
+            response['message'].toString().isNotEmpty) {
+          rawText = response['message'].toString();
+        } else if (response['response_text'] != null &&
+            response['response_text'].toString().isNotEmpty) {
+          rawText = response['response_text'].toString();
+        } else {
+          rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+        }
+
         final dynamic rawUiCode = response['ui_code'];
 
         // Clear history to keep only the latest pair for the next screen launch

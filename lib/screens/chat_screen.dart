@@ -118,6 +118,26 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           _isTyping = false;
         });
 
+        // Extract text response with multiple fallback keys for stability
+        final String rawText;
+        if (response['text'] != null && response['text'].toString().isNotEmpty) {
+          rawText = response['text'].toString();
+        } else if (response['response'] != null &&
+            response['response'].toString().isNotEmpty) {
+          rawText = response['response'].toString();
+        } else if (response['content'] != null &&
+            response['content'].toString().isNotEmpty) {
+          rawText = response['content'].toString();
+        } else if (response['message'] != null &&
+            response['message'].toString().isNotEmpty) {
+          rawText = response['message'].toString();
+        } else if (response['response_text'] != null &&
+            response['response_text'].toString().isNotEmpty) {
+          rawText = response['response_text'].toString();
+        } else {
+          rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+        }
+
         final dynamic rawUiCode = response['ui_code'];
         String? uiCodeStr;
         if (rawUiCode != null) {
@@ -130,7 +150,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
         _addMessage(
           ChatMessage(
-            text: response['text'] ?? 'No response from agent.',
+            text: rawText,
             type: MessageType.received,
             uiCode: uiCodeStr,
           ),

@@ -15,43 +15,34 @@ class ChatService {
   bool get isConnected => _isConnected;
 
   Future<Map<String, dynamic>> connect() async {
-    // if (_isConnected)
-    //   return {'can_chat': true, 'message': 'Already connected.'};
-    // try {
-    //   print('DEBUG: [REQUEST] Connecting to $baseUrl/connect ...');
+    // New server doesn't need to check connection on startup
+    /*
+    if (_isConnected) {
+      return {'can_chat': true, 'message': 'Already connected.'};
+    }
+    try {
+      print('DEBUG: [REQUEST] Connecting to $baseUrl/status ...');
 
-    //   final response = await _client
-    //       .post(
-    //         Uri.parse('$baseUrl/connect'),
-    //         headers: {
-    //           'Content-Type': 'application/json',
-    //           'Accept': 'application/json',
-    //           'Connection': 'close',
-    //         },
-    //       )
-    //       .timeout(const Duration(seconds: 20));
+      final response = await _client
+          .get(
+            Uri.parse('$baseUrl/api/status'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Connection': 'close',
+            },
+          )
+          .timeout(const Duration(seconds: 5));
 
-    //   print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
-
-    //   if (response.statusCode == 200) {
-    //     _isConnected = true;
-    //     return jsonDecode(response.body);
-    //   } else {
-    //     throw Exception('Server returned ${response.statusCode}');
-    //   }
-    // } on TimeoutException {
-    //   print('DEBUG: [TIMEOUT] No response bytes received within 20s.');
-    //   throw Exception(
-    //     'Server at $baseUrl is not responding back. \n'
-    //     '1. Ensure "sdb reverse tcp:9090 tcp:9090" is active. \n'
-    //     '2. Check if PC firewall allows Python/Uvicorn to communicate. \n'
-    //     '3. Try restarting the Tizen device and SDB server.',
-    //   );
-    // } catch (e) {
-    //   print('DEBUG: [ERROR] $e');
-    //   throw Exception('Connection error: $e');
-    // }
-    return {};
+      if (response.statusCode == 200) {
+        _isConnected = true;
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      print('DEBUG: [ERROR-CONNECT] $e');
+    }
+    */
+    return {'can_chat': true, 'message': 'Connection check skipped.'};
   }
 
   Future<Map<String, dynamic>> sendMessage(String message) async {
@@ -60,17 +51,19 @@ class ChatService {
 
       final response = await _client
           .post(
-            // Uri.parse('$baseUrl/chat'),
             Uri.parse('$baseUrl/api/chat'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
               'Connection': 'close',
             },
-            // body: jsonEncode({'message': message}),
-            body: jsonEncode({'prompt': message, 'session_id': '1234567890'}),
+            body: jsonEncode({
+              'prompt': message, 
+              'session_id': '1234567890',
+              'stream': false // Explicitly disable stream if supported
+            }),
           )
-          .timeout(const Duration(seconds: 120));
+          .timeout(const Duration(seconds: 180)); // Extend to 180s for complex reasoning agents
 
       print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
 
@@ -87,7 +80,7 @@ class ChatService {
         'The agent took too long to respond. Please check the python server console.',
       );
     } catch (e) {
-      print('DEBUG: [ERROR] $e');
+      print('DEBUG: [ERROR-SEND] $e');
       throw Exception('Chat error: $e');
     }
   }
