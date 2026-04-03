@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import '../widgets/received_message.dart';
 import '../widgets/sent_message.dart';
 import '../widgets/rich_card_message.dart';
@@ -12,8 +13,15 @@ import '../services/chat_service.dart';
 
 class TizenChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
+  final Stream<String>? externalMessageStream;
+  final String? autoSendText; // 추가: 진입 시 자동 전송할 메시지
 
-  const TizenChatScreen({super.key, this.initialMessages});
+  const TizenChatScreen({
+    super.key,
+    this.initialMessages,
+    this.externalMessageStream,
+    this.autoSendText, // 추가
+  });
 
   @override
   State<TizenChatScreen> createState() => _TizenChatScreenState();
@@ -24,9 +32,11 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
+  final FocusNode _keyboardFocusNode = FocusNode();
   bool _isTyping = false;
   bool _isServerReady = false;
   late List<ChatMessage> _messages;
+  StreamSubscription<String>? _externalSubscription;
 
   @override
   void initState() {
@@ -44,6 +54,17 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           _focusNode.requestFocus();
         }
       });
+    });
+
+    if (widget.autoSendText != null) {
+      // 진입 시 자동 전송 요청이 있으면 처리
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleUserMessage(widget.autoSendText!);
+      });
+    }
+
+    _externalSubscription = widget.externalMessageStream?.listen((msg) {
+      if (mounted) _handleUserMessage(msg);
     });
   }
 
@@ -174,8 +195,10 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
   @override
   void dispose() {
+    _externalSubscription?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _keyboardFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -183,12 +206,13 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode(), // Temporary node to catch global key events
+      focusNode: _keyboardFocusNode,
       autofocus: true,
       onKeyEvent: (KeyEvent event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.escape ||
-                event.logicalKey == LogicalKeyboardKey.goBack)) {
+                event.logicalKey == LogicalKeyboardKey.goBack ||
+                event.logicalKey == LogicalKeyboardKey.browserBack)) {
           Navigator.of(context).pop();
         }
       },

@@ -18,15 +18,24 @@ class GenerativeUIScreen extends StatefulWidget {
 }
 
 class _GenerativeUIScreenState extends State<GenerativeUIScreen> {
+  final FocusNode _keyboardFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode(),
+      focusNode: _keyboardFocusNode,
       autofocus: true,
       onKeyEvent: (event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.escape ||
-                event.logicalKey == LogicalKeyboardKey.goBack)) {
+                event.logicalKey == LogicalKeyboardKey.goBack ||
+                event.logicalKey == LogicalKeyboardKey.browserBack)) {
           Navigator.of(context).pop();
         }
       },
