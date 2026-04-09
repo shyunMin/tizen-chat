@@ -29,7 +29,6 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
 
   ScreenState _activeScreen = ScreenState.initial;
   String _currentText = "";
-  String _currentUiCode = "";
   final List<ChatMessage> _messages = [];
 
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -41,8 +40,17 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
   @override
   void initState() {
     super.initState();
-    _chatService.connect();
+    _initializeServices();
     _startHttpMessageBus();
+  }
+
+  Future<void> _initializeServices() async {
+    // Only try once at startup as requested
+    try {
+      await _chatService.connect();
+    } catch (e) {
+      print('DEBUG: Initial status check failed: $e');
+    }
   }
 
   Future<void> _startHttpMessageBus() async {
@@ -57,10 +65,12 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
       if (_activeScreen == ScreenState.overlay) return; // overlay가 자체 처리
       if (_activeScreen == ScreenState.initial && _isVisible) {
         // 첫 화면에서 메시지 수신 시 바로 채팅창으로 전환하며 자동 전송
-        _pushScreen(TizenChatScreen(
-          autoSendText: msg,
-          externalMessageStream: _externalMessageController.stream,
-        ));
+        _pushScreen(
+          TizenChatScreen(
+            autoSendText: msg,
+            externalMessageStream: _externalMessageController.stream,
+          ),
+        );
         return;
       }
       if (_activeScreen == ScreenState.chat) {
@@ -101,67 +111,45 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
     try {
       final response = await _chatService.sendMessage(text);
       if (mounted) {
-        // Set data first
-        // Extract text response with multiple fallback keys for stability
-        final String rawText;
+        // 1. Prepare data (Outside setState)
+        String rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
         if (response['text'] != null &&
             response['text'].toString().isNotEmpty) {
           rawText = response['text'].toString();
         } else if (response['response'] != null &&
             response['response'].toString().isNotEmpty) {
           rawText = response['response'].toString();
-        } else if (response['content'] != null &&
-            response['content'].toString().isNotEmpty) {
-          rawText = response['content'].toString();
-        } else if (response['message'] != null &&
-            response['message'].toString().isNotEmpty) {
-          rawText = response['message'].toString();
-        } else if (response['response_text'] != null &&
-            response['response_text'].toString().isNotEmpty) {
-          rawText = response['response_text'].toString();
-        } else {
-          rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
         }
 
         final dynamic rawUiCode = response['ui_code'];
+        final String? uiCodeStr = rawUiCode?.toString();
 
-        // Clear history to keep only the latest pair for the next screen launch
-        _messages.clear();
-
-        // Add user message to history
-        _messages.add(ChatMessage(text: text, type: MessageType.sent));
-
+        // 2. Update status and messages (UI State)
         setState(() {
           _isWaiting = false;
           _currentText = rawText;
+          _messages.clear();
+          _messages.add(ChatMessage(text: text, type: MessageType.sent));
 
-          if (rawUiCode != null && rawUiCode.toString().isNotEmpty) {
-            _currentUiCode = rawUiCode.toString();
-            final chatMsg = ChatMessage(
-              text: _currentText,
-              type: MessageType.received,
-              uiCode: _currentUiCode,
-            );
-            _messages.add(chatMsg);
+          final receivedMsg = ChatMessage(
+            text: _currentText,
+            type: MessageType.received,
+            uiCode: uiCodeStr?.isNotEmpty == true ? uiCodeStr : null,
+          );
+          _messages.add(receivedMsg);
+        });
 
-            // Push Generative UI Screen
-            _pushScreen(
-              GenerativeUIScreen(text: _currentText, uiCode: _currentUiCode),
-            );
-          } else {
-            final chatMsg = ChatMessage(
-              text: _currentText,
-              type: MessageType.received,
-            );
-            _messages.add(chatMsg);
-
-            // Push Chat Screen with only the current pair
-            _pushScreen(TizenChatScreen(
+        // 3. Navigate (Outside setState)
+        if (uiCodeStr != null && uiCodeStr.isNotEmpty) {
+          _pushScreen(GenerativeUIScreen(text: rawText, uiCode: uiCodeStr));
+        } else {
+          _pushScreen(
+            TizenChatScreen(
               initialMessages: List.from(_messages),
               externalMessageStream: _externalMessageController.stream,
-            ));
-          }
-        });
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -264,21 +252,20 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
                 Navigator.of(context)
                     .push(
                       PageRouteBuilder(
-                        pageBuilder:
-                            (context, animation, secondaryAnimation) =>
-                                const HttpMessageOverlayScreen(),
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const HttpMessageOverlayScreen(),
                         transitionDuration: Duration.zero,
                         reverseTransitionDuration: Duration.zero,
                       ),
                     )
                     .then((_) {
-                  if (mounted) {
-                    setState(() {
-                      _activeScreen = ScreenState.initial;
-                      _messages.clear();
+                      if (mounted) {
+                        setState(() {
+                          _activeScreen = ScreenState.initial;
+                          _messages.clear();
+                        });
+                      }
                     });
-                  }
-                });
               }
               return KeyEventResult.handled;
             }

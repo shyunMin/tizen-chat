@@ -7,78 +7,107 @@ class ChatService {
   factory ChatService() => _instance;
   ChatService._internal();
 
-  // final String baseUrl =
-  // 'http://192.168.0.6:10010'; // Use PC's LAN IP for stability
-  final String baseUrl = 'http://localhost:9090';
-  final http.Client _client = http.Client();
+  //sdb shell curl -v -X POST http://192.168.0.6:10010/api/status
+  final String baseUrl =
+      'http://192.168.0.6:10010'; // Use PC's LAN IP for stability
+  // Use static http methods for better stability in SDB environments
+  // final http.Client _client = http.Client(); // Removed instance-based client
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
   Future<Map<String, dynamic>> connect() async {
-    // New server doesn't need to check connection on startup
-    /*
     if (_isConnected) {
       return {'can_chat': true, 'message': 'Already connected.'};
     }
     try {
-      print('DEBUG: [REQUEST] Connecting to $baseUrl/status ...');
+      print('DEBUG: [CONNECT-START] -> $baseUrl/api/status');
+      final startTime = DateTime.now();
 
-      final response = await _client
-          .get(
+      final response = await http
+          .post(
             Uri.parse('$baseUrl/api/status'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Connection': 'close',
+              'Connection': 'close', // Force close to prevent SDB hang
             },
           )
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
+
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      print(
+        'DEBUG: [CONNECT-END] Status: ${response.statusCode} (${duration}ms)',
+      );
 
       if (response.statusCode == 200) {
         _isConnected = true;
         return jsonDecode(utf8.decode(response.bodyBytes));
+      } else {
+        return {
+          'can_chat': false,
+          'message': 'Server error: ${response.statusCode}',
+        };
       }
     } catch (e) {
       print('DEBUG: [ERROR-CONNECT] $e');
+      return {
+        'can_chat': false,
+        'message':
+            'Connection failed. Ensure PC server is active and SDB reverse is configured.',
+      };
     }
-    */
-    return {'can_chat': true, 'message': 'Connection check skipped.'};
   }
 
   Future<Map<String, dynamic>> sendMessage(String message) async {
     try {
-      print('DEBUG: [REQUEST] chat -> $message');
+      // If not connected, try to connect first (Initialize)
+      if (!_isConnected) {
+        print('DEBUG: [CHAT-INIT] Server not ready, initializing first...');
+        await connect();
+      }
 
-      final response = await _client
+      print('DEBUG: [CHAT-START] -> "$message"');
+      final startTime = DateTime.now();
+
+      final response = await http
           .post(
             Uri.parse('$baseUrl/api/chat'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'Connection': 'close',
+              'Connection': 'close', // Force close to prevent SDB hang
             },
-            body: jsonEncode({
-              'prompt': message, 
-              'session_id': '1234567890',
-              'stream': false // Explicitly disable stream if supported
-            }),
+            body: jsonEncode({'message': message, 'session_id': '1234567890'}),
           )
-          .timeout(const Duration(seconds: 180)); // Extend to 180s for complex reasoning agents
+          .timeout(const Duration(seconds: 180));
 
-      print('DEBUG: [RESPONSE] Status: ${response.statusCode}');
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      final String bodyString = utf8.decode(response.bodyBytes);
+      print('DEBUG: [CHAT-END] Status: ${response.statusCode} (${duration}ms)');
+      print('DEBUG: [CHAT-BODY] Length: ${bodyString.length}');
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-        print('DEBUG: [RESPONSE] Full Data: ${jsonEncode(decoded)}');
-        return decoded;
+        try {
+          final decoded = jsonDecode(bodyString) as Map<String, dynamic>;
+          return {
+            ...decoded,
+            'text':
+                decoded['text'] ??
+                decoded['response'] ??
+                decoded['message'] ??
+                '',
+            'ui_code': decoded['ui_code'] ?? '',
+          };
+        } catch (je) {
+          print('DEBUG: [ERROR-JSON] $je');
+          return {'text': bodyString, 'ui_code': ''};
+        }
       } else {
         throw Exception('Server returned ${response.statusCode}');
       }
     } on TimeoutException {
-      print('DEBUG: [TIMEOUT] Chat response delayed or blocked.');
-      throw Exception(
-        'The agent took too long to respond. Please check the python server console.',
-      );
+      print('DEBUG: [TIMEOUT] SDB request timed out.');
+      throw Exception('Server request timed out. Check SDB connection.');
     } catch (e) {
       print('DEBUG: [ERROR-SEND] $e');
       throw Exception('Chat error: $e');
@@ -86,6 +115,6 @@ class ChatService {
   }
 
   void dispose() {
-    _client.close();
+    // No-op for static http usage
   }
 }

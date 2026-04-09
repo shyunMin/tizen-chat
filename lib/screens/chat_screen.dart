@@ -34,7 +34,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final ChatService _chatService = ChatService();
   final FocusNode _keyboardFocusNode = FocusNode();
   bool _isTyping = false;
-  bool _isServerReady = false;
   late List<ChatMessage> _messages;
   StreamSubscription<String>? _externalSubscription;
 
@@ -45,7 +44,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         ? List<ChatMessage>.from(widget.initialMessages!)
         : [];
 
-    _checkServerConnection();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
       // Use a small delay to ensure the screen is fully pushed before requesting focus
@@ -66,41 +64,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     _externalSubscription = widget.externalMessageStream?.listen((msg) {
       if (mounted) _handleUserMessage(msg);
     });
-  }
-
-  Future<void> _checkServerConnection() async {
-    try {
-      final info = await _chatService.connect();
-      if (mounted) {
-        setState(() {
-          _isServerReady = info['can_chat'] ?? false;
-        });
-        if (_isServerReady && widget.initialMessages == null) {
-          _addMessage(
-            ChatMessage(
-              text: info['message'] ?? 'Connected to Tizen Home Agent.',
-              type: MessageType.received,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isServerReady = false;
-        });
-        _addMessage(
-          ChatMessage(
-            text:
-                '⚠️ Connection Failed: ${e.toString().replaceAll('Exception: ', '')}\n\n'
-                'Please verify:\n'
-                '1. The chat server is running on the host PC.\n'
-                '2. Port forwarding exists: "sdb reverse tcp:9090 tcp:9090"',
-            type: MessageType.received,
-          ),
-        );
-      }
-    }
   }
 
   void _addMessage(ChatMessage message) {
