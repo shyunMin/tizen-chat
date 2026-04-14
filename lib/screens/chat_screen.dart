@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -9,7 +8,8 @@ import '../widgets/tizen_chat_input.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
-import '../services/chat_service.dart';
+// import '../services/chat_service.dart';
+import '../services/carbon_grpc_service.dart';
 
 class TizenChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
@@ -31,7 +31,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  final ChatService _chatService = ChatService();
+  // final ChatService _chatService = ChatService();
+  final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   final FocusNode _keyboardFocusNode = FocusNode();
   bool _isTyping = false;
   late List<ChatMessage> _messages;
@@ -85,60 +86,91 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     });
   }
 
-  // BEGIN: API LOGIC - Send message to Agent
+  // BEGIN: API LOGIC - Send message to Agent via gRPC
   Future<void> _handleUserMessage(String text) async {
     _addMessage(ChatMessage(text: text, type: MessageType.sent));
 
-    // Show typing indicator
+    // Show typing indicator momentarily until the stream starts
     setState(() {
       _isTyping = true;
     });
     _scrollToBottom();
 
     try {
-      final response = await _chatService.sendMessage(text);
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
-        });
+      String accumulatedText = '';
+      String? activeToolName;
+      
+      // 예약 시점 저장 후 빈 응답 메시지로 자리 마련
+      int replyIndex = _messages.length;
+      setState(() {
+         _messages.add(ChatMessage(text: '', type: MessageType.received));
+      });
 
-        // Extract text response with multiple fallback keys for stability
-        final String rawText;
-        if (response['text'] != null && response['text'].toString().isNotEmpty) {
-          rawText = response['text'].toString();
-        } else if (response['response'] != null &&
-            response['response'].toString().isNotEmpty) {
-          rawText = response['response'].toString();
-        } else if (response['content'] != null &&
-            response['content'].toString().isNotEmpty) {
-          rawText = response['content'].toString();
-        } else if (response['message'] != null &&
-            response['message'].toString().isNotEmpty) {
-          rawText = response['message'].toString();
-        } else if (response['response_text'] != null &&
-            response['response_text'].toString().isNotEmpty) {
-          rawText = response['response_text'].toString();
-        } else {
-          rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+      final stream = _grpcService.sendMessage(text);
+
+      await for (final event in stream) {
+        if (!mounted) break;
+
+        if (_isTyping) {
+            setState(() { _isTyping = false; });
         }
 
-        final dynamic rawUiCode = response['ui_code'];
-        String? uiCodeStr;
-        if (rawUiCode != null) {
-          if (rawUiCode is Map || rawUiCode is List) {
-            uiCodeStr = jsonEncode(rawUiCode);
-          } else {
-            uiCodeStr = rawUiCode.toString();
-          }
+        switch (event) {
+          case CarbonTextDelta(:final content):
+            accumulatedText += content;
+            setState(() {
+              _messages[replyIndex] = ChatMessage(
+                text: activeToolName != null ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText' : accumulatedText,
+                type: MessageType.received,
+              );
+            });
+            _scrollToBottom();
+            break;
+          case CarbonToolUseStart(:final toolName):
+            activeToolName = toolName;
+            setState(() {
+              _messages[replyIndex] = ChatMessage(
+                text: '[🔧 $activeToolName 실행 중...]\n$accumulatedText',
+                type: MessageType.received,
+              );
+            });
+            _scrollToBottom();
+            break;
+          case CarbonToolResult():
+            activeToolName = null;
+            setState(() {
+              _messages[replyIndex] = ChatMessage(
+                text: accumulatedText,
+                type: MessageType.received,
+              );
+            });
+            break;
+          case CarbonTurnComplete():
+            setState(() {
+              if (activeToolName == null && accumulatedText.trim().isEmpty) {
+                 accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+              }
+              _messages[replyIndex] = ChatMessage(
+                text: accumulatedText,
+                type: MessageType.received,
+              );
+            });
+            _scrollToBottom();
+            return;
+          case CarbonError(:final message, :final fatal):
+            setState(() {
+               _messages[replyIndex] = ChatMessage(
+                text: 'Error: $message',
+                type: MessageType.received,
+              );
+            });
+            if (fatal) await _grpcService.reconnect();
+            _scrollToBottom();
+            return;
+          case CarbonSessionEnded():
+            await _grpcService.reconnect();
+            return;
         }
-
-        _addMessage(
-          ChatMessage(
-            text: rawText,
-            type: MessageType.received,
-            uiCode: uiCodeStr,
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -147,7 +179,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         });
         _addMessage(
           ChatMessage(
-            text: 'Error: Failed to get response from agent.',
+            text: 'Error: Failed to get response from agent. $e',
             type: MessageType.received,
           ),
         );

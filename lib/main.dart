@@ -1,7 +1,11 @@
+import 'screens/tizen_chat_screen_3.dart';
 import 'package:flutter/material.dart';
 import 'screens/tizen_chat_screen_2.dart';
 
 void main() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    print('FLUTTER ERROR: ${details.exception}');
+  };
   runApp(const TizenChatApp());
 }
 
@@ -15,10 +19,10 @@ class TizenChatApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.red,
-        canvasColor: Colors.blue,
+        scaffoldBackgroundColor: const Color(0xFF121212), // Solid dark grey
+        canvasColor: Colors.black,
       ),
-      home: const TizenChatScreen2(),
+      home: const TizenChatScreen3(),
     );
   }
 }

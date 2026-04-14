@@ -4,7 +4,7 @@ import '../widgets/dim_overlay.dart';
 import '../widgets/prompt_bar.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/generative_ui_screen.dart';
-import '../services/chat_service.dart';
+import '../services/carbon_grpc_service.dart';
 import '../models/chat_message.dart';
 import 'chat_screen.dart'; // Import the original Chat Screen
 import '../features/http_message_overlay/http_message_overlay_screen.dart';
@@ -13,26 +13,27 @@ import '../features/http_message_overlay/http_message_bus.dart';
 
 enum ScreenState { initial, chat, generativeUI, overlay }
 
-class TizenChatScreen2 extends StatefulWidget {
-  const TizenChatScreen2({super.key});
+class TizenChatScreen3 extends StatefulWidget {
+  const TizenChatScreen3({super.key});
 
   @override
-  State<TizenChatScreen2> createState() => _TizenChatScreen2State();
+  State<TizenChatScreen3> createState() => _TizenChatScreen3State();
 }
 
-class _TizenChatScreen2State extends State<TizenChatScreen2>
+class _TizenChatScreen3State extends State<TizenChatScreen3>
     with TickerProviderStateMixin {
   bool _isVisible = false;
   bool _isWaiting = false;
   bool _shouldSlideDown = true;
   String _responseMessage = "";
+  String _statusMessage = "";
 
   ScreenState _activeScreen = ScreenState.initial;
   String _currentText = "";
   final List<ChatMessage> _messages = [];
 
   final FocusNode _keyboardFocusNode = FocusNode();
-  final ChatService _chatService = ChatService();
+  final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
   final StreamController<String> _externalMessageController =
       StreamController<String>.broadcast();
@@ -40,26 +41,22 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
   @override
   void initState() {
     super.initState();
-    print('DEBUG: [LIFECYCLE] initState start');
     _initializeServices();
-    // _startHttpMessageBus();
-    print('DEBUG: [LIFECYCLE] initState end');
+    _startHttpMessageBus();
 
+    // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocusNode.requestFocus();
     });
   }
 
   Future<void> _initializeServices() async {
-    // Debug: 네트워크 장애가 앱을 종료시키는지 확인하기 위해 주석 처리
-    /*
+    // Only try once at startup as requested
     try {
-      await _chatService.connect();
+      await _grpcService.connect();
     } catch (e) {
       print('DEBUG: Initial status check failed: $e');
     }
-    */
-    print('DEBUG: [LIFECYCLE] Network init bypassed');
   }
 
   Future<void> _startHttpMessageBus() async {
@@ -118,46 +115,74 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
     }
 
     try {
-      final response = await _chatService.sendMessage(text);
-      if (mounted) {
-        // 1. Prepare data (Outside setState)
-        String rawText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
-        if (response['text'] != null &&
-            response['text'].toString().isNotEmpty) {
-          rawText = response['text'].toString();
-        } else if (response['response'] != null &&
-            response['response'].toString().isNotEmpty) {
-          rawText = response['response'].toString();
-        }
+      setState(() {
+        _messages.clear();
+        _messages.add(ChatMessage(text: text, type: MessageType.sent));
+      });
 
-        final dynamic rawUiCode = response['ui_code'];
-        final String? uiCodeStr = rawUiCode?.toString();
+      String accumulatedText = '';
+      String? activeToolName;
 
-        // 2. Update status and messages (UI State)
-        setState(() {
-          _isWaiting = false;
-          _currentText = rawText;
-          _messages.clear();
-          _messages.add(ChatMessage(text: text, type: MessageType.sent));
+      final stream = _grpcService.sendMessage(text);
+      await for (final event in stream) {
+        if (!mounted) break;
 
-          final receivedMsg = ChatMessage(
-            text: _currentText,
-            type: MessageType.received,
-            uiCode: uiCodeStr?.isNotEmpty == true ? uiCodeStr : null,
-          );
-          _messages.add(receivedMsg);
-        });
+        switch (event) {
+          case CarbonTextDelta(:final content):
+            accumulatedText += content;
+            // Generative UI format detect logic mock or usage
+            if (accumulatedText.contains('```dart')) {
+              // naive extraction if you wanted, but genui expects rawText usually
+            }
+            setState(() {
+              _currentText = accumulatedText;
+            });
+            break;
+          case CarbonToolUseStart(:final toolName):
+            activeToolName = toolName;
+            setState(() {
+              _statusMessage = '🔧 $toolName 실행 중...';
+            });
+            break;
+          case CarbonToolResult():
+            setState(() {
+              _statusMessage = '';
+            });
+            break;
+          case CarbonTurnComplete():
+            setState(() {
+              _isWaiting = false;
+              if (activeToolName == null && accumulatedText.trim().isEmpty) {
+                accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+              }
+              _currentText = accumulatedText;
 
-        // 3. Navigate (Outside setState)
-        if (uiCodeStr != null && uiCodeStr.isNotEmpty) {
-          _pushScreen(GenerativeUIScreen(text: rawText, uiCode: uiCodeStr));
-        } else {
-          _pushScreen(
-            TizenChatScreen(
-              initialMessages: List.from(_messages),
-              externalMessageStream: _externalMessageController.stream,
-            ),
-          );
+              final receivedMsg = ChatMessage(
+                text: _currentText,
+                type: MessageType.received,
+                uiCode: null,
+              );
+              _messages.add(receivedMsg);
+            });
+
+            _pushScreen(
+              TizenChatScreen(
+                initialMessages: List.from(_messages),
+                externalMessageStream: _externalMessageController.stream,
+              ),
+            );
+            return;
+          case CarbonError(:final fatal, :final message):
+            setState(() {
+              _isWaiting = false;
+              _responseMessage = '오류: $message';
+            });
+            if (fatal) await _grpcService.reconnect();
+            _hideErrorDelay();
+            return;
+          case CarbonSessionEnded():
+            await _grpcService.reconnect();
+            return;
         }
       }
     } catch (e) {
@@ -166,17 +191,19 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
           _isWaiting = false;
           _responseMessage = "오류 발생: ${e.toString()}";
         });
-
-        // Hide error message after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _responseMessage = "";
-            });
-          }
-        });
+        _hideErrorDelay();
       }
     }
+  }
+
+  void _hideErrorDelay() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _responseMessage = "";
+        });
+      }
+    });
   }
 
   void _toggleVisibility() {
@@ -246,6 +273,9 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
         canRequestFocus: _activeScreen != ScreenState.chat,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
+          print(
+            'DEBUG: [Key] ${event.logicalKey} (${event.runtimeType})',
+          ); // 키 입력 로그 추가
           if ((event is KeyDownEvent || event is KeyUpEvent)) {
             if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
               if (event is KeyDownEvent) {
@@ -286,16 +316,6 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
             children: [
               // Dim Screen Overlay
               DimOverlay(isVisible: _isVisible || _isWaiting),
-
-              // Debug indicator
-              Positioned(
-                top: 50,
-                left: 50,
-                child: Text(
-                  'Screen: TizenChatScreen2',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
 
               // Prompt Bar with Animation
               AnimatedPositioned(
@@ -357,7 +377,9 @@ class _TizenChatScreen2State extends State<TizenChatScreen2>
                                   ],
                                 ),
                                 child: Text(
-                                  _responseMessage,
+                                  _statusMessage.isNotEmpty
+                                      ? _statusMessage
+                                      : _responseMessage,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 18,
