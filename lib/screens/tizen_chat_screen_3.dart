@@ -88,6 +88,8 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
   }
 
   Future<void> _handleSend(String text) async {
+    if (_isWaiting) return; // Prevent duplicate execution
+
     // Explicitly request focus to handle keyboard events after PromptBar hides
     _keyboardFocusNode.requestFocus();
 
@@ -162,6 +164,7 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
                 type: MessageType.received,
                 uiCode: null,
               );
+              print('DEBUG: [TizenChatScreen3] Adding received message to list');
               _messages.add(receivedMsg);
             });
 
@@ -280,31 +283,6 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
             if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
               if (event is KeyDownEvent) {
                 _toggleVisibility();
-              }
-              return KeyEventResult.handled;
-            } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-              if (event is KeyDownEvent) {
-                // overlay push 전 상태 변경
-                setState(() {
-                  _activeScreen = ScreenState.overlay;
-                });
-                Navigator.of(context)
-                    .push(
-                      PageRouteBuilder(
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const HttpMessageOverlayScreen(),
-                        transitionDuration: Duration.zero,
-                        reverseTransitionDuration: Duration.zero,
-                      ),
-                    )
-                    .then((_) {
-                      if (mounted) {
-                        setState(() {
-                          _activeScreen = ScreenState.initial;
-                          _messages.clear();
-                        });
-                      }
-                    });
               }
               return KeyEventResult.handled;
             }

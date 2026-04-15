@@ -62,16 +62,7 @@ class CarbonGrpcService {
     if (_isConnected || _isConnecting) return;
     _isConnecting = true;
 
-    // Tizen Flutter does not support Unix Domain Socket (dart:io limitation on Tizen).
-    // carbon-daemon listens on a Unix socket; socat bridges it to TCP 50051 on the device.
-    // Start socat bridge before connecting:
-    //   sdb shell "socat TCP-LISTEN:50051,reuseaddr,fork UNIX-CLIENT:/tmp/carbon/carbon.sock &"
-    final endpoints = [
-      // 'TCP:127.0.0.1:50051', // socat bridge: Unix socket → TCP (primary)
-      // 'TCP:192.168.0.11:50051',
-      // '/run/carbon/carbon.sock',
-      '/run/user/5001/carbon/carbon.sock',
-    ];
+    final endpoints = ['/run/user/5001/carbon/carbon.sock'];
 
     Exception? lastError;
 
@@ -108,6 +99,8 @@ class CarbonGrpcService {
 
         _responseSubscription = responseStream.listen(
           (ServerEvent event) {
+            // [LOG] 하위 gRPC 스트림에서 오는 모든 이벤트 출력
+            print('DEBUG: [CarbonGrpc] Raw Event: ${event.whichEvent()}');
             if (event.hasSessionCreated()) {
               _sessionId = event.sessionCreated.sessionId;
               print(
@@ -161,6 +154,9 @@ class CarbonGrpcService {
       StreamController<CarbonEvent>.broadcast();
   StreamSubscription<ServerEvent>? _responseSubscription;
 
+  // Track if a turn is currently active to avoid duplicate processing of the same stream
+  bool _isTurnActive = false;
+
   void _handleServerEvent(ServerEvent event) {
     if (event.hasTextDelta()) {
       _eventController.add(CarbonTextDelta(event.textDelta.content));
@@ -181,6 +177,9 @@ class CarbonGrpcService {
         ),
       );
     } else if (event.hasTurnComplete()) {
+      print(
+        'DEBUG: [CarbonGrpc] Event -> TurnComplete (usage: ${event.turnComplete.usageJson})',
+      );
       _eventController.add(
         CarbonTurnComplete(usageJson: event.turnComplete.usageJson),
       );
@@ -227,18 +226,31 @@ class CarbonGrpcService {
       return;
     }
 
-    final ingressInput = IngressInput(
-      sessionId: _sessionId,
-      intent: IngressIntent.INGRESS_INTENT_RUN_TURN,
-      source: "ai-chat-flutter",
-      text: text,
-    );
+    // Mutex: Wait if a turn is already active
+    if (_isTurnActive) {
+      print(
+        'DEBUG: [CarbonGrpc] Warning: Multiple sendMessage calls overlap. Waiting for previous turn...',
+      );
+      // In a more robust system we might use a queue, but here we just block/error or wait
+      while (_isTurnActive) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
 
+    _isTurnActive = true;
     try {
-      _requestStreamController!.add(ClientMessage(ingressInput: ingressInput));
+      _requestStreamController!.add(
+        ClientMessage(
+          ingressInput: IngressInput(
+            sessionId: _sessionId,
+            intent: IngressIntent.INGRESS_INTENT_RUN_TURN,
+            source: "ai-chat-flutter",
+            text: text,
+          ),
+        ),
+      );
 
       // Now we wait for events from our broadcast controller.
-      // We yield them until TurnComplete, fatal error, or SessionEnded.
       await for (final evt in _eventController.stream) {
         yield evt;
         if (evt is CarbonTurnComplete) {
@@ -251,6 +263,8 @@ class CarbonGrpcService {
       }
     } catch (e) {
       yield CarbonError("SEND_ERROR", e.toString(), false);
+    } finally {
+      _isTurnActive = false;
     }
   }
 }

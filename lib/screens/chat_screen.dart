@@ -68,6 +68,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   }
 
   void _addMessage(ChatMessage message) {
+    print('DEBUG: [UI Message Added] type: ${message.type}, text: ${message.text.length > 20 ? "${message.text.substring(0, 20)}..." : message.text}');
     setState(() {
       _messages.add(message);
     });
@@ -88,6 +89,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
   // BEGIN: API LOGIC - Send message to Agent via gRPC
   Future<void> _handleUserMessage(String text) async {
+    if (_isTyping) return; // Prevent duplicate sending while already processing
+
     _addMessage(ChatMessage(text: text, type: MessageType.sent));
 
     // Show typing indicator momentarily until the stream starts
@@ -100,11 +103,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       String accumulatedText = '';
       String? activeToolName;
       
-      // 예약 시점 저장 후 빈 응답 메시지로 자리 마련
-      int replyIndex = _messages.length;
-      setState(() {
-         _messages.add(ChatMessage(text: '', type: MessageType.received));
-      });
+      // 자리 마련을 위한 빈 응답 메시지는 스트림 시작 직전이 아닌,
+      // 실제 텍스트 데이터(delta)가 올 때 생성하도록 로직 변경
+      int replyIndex = -1; 
 
       final stream = _grpcService.sendMessage(text);
 
@@ -118,55 +119,74 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         switch (event) {
           case CarbonTextDelta(:final content):
             accumulatedText += content;
-            setState(() {
-              _messages[replyIndex] = ChatMessage(
-                text: activeToolName != null ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText' : accumulatedText,
-                type: MessageType.received,
-              );
-            });
+            if (replyIndex == -1) {
+               // 첫 데이터 수신 시점에 메시지 객체 생성
+               replyIndex = _messages.length;
+               _addMessage(ChatMessage(text: accumulatedText, type: MessageType.received));
+            } else {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: activeToolName != null ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText' : accumulatedText,
+                  type: MessageType.received,
+                );
+              });
+            }
             _scrollToBottom();
             break;
           case CarbonToolUseStart(:final toolName):
             activeToolName = toolName;
-            setState(() {
-              _messages[replyIndex] = ChatMessage(
-                text: '[🔧 $activeToolName 실행 중...]\n$accumulatedText',
-                type: MessageType.received,
-              );
-            });
+            if (replyIndex != -1) {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: '[🔧 $activeToolName 실행 중...]\n$accumulatedText',
+                  type: MessageType.received,
+                );
+              });
+            }
             _scrollToBottom();
             break;
           case CarbonToolResult():
             activeToolName = null;
-            setState(() {
-              _messages[replyIndex] = ChatMessage(
-                text: accumulatedText,
-                type: MessageType.received,
-              );
-            });
+            if (replyIndex != -1) {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: accumulatedText,
+                  type: MessageType.received,
+                );
+              });
+            }
             break;
           case CarbonTurnComplete():
             setState(() {
               if (activeToolName == null && accumulatedText.trim().isEmpty) {
                  accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
               }
-              _messages[replyIndex] = ChatMessage(
-                text: accumulatedText,
-                type: MessageType.received,
-              );
+              if (replyIndex != -1) {
+                _messages[replyIndex] = ChatMessage(
+                  text: accumulatedText,
+                  type: MessageType.received,
+                );
+              } else {
+                // 한 번도 데이터가 안 왔을 경우 예외 처리
+                _addMessage(ChatMessage(text: accumulatedText, type: MessageType.received));
+              }
             });
             _scrollToBottom();
-            return;
+            break;
           case CarbonError(:final message, :final fatal):
             setState(() {
-               _messages[replyIndex] = ChatMessage(
-                text: 'Error: $message',
-                type: MessageType.received,
-              );
+              if (replyIndex != -1) {
+                _messages[replyIndex] = ChatMessage(
+                  text: 'Error: $message',
+                  type: MessageType.received,
+                );
+              } else {
+                _addMessage(ChatMessage(text: 'Error: $message', type: MessageType.received));
+              }
             });
             if (fatal) await _grpcService.reconnect();
             _scrollToBottom();
-            return;
+            break;
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
@@ -263,7 +283,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                       if (_isTyping && index == _messages.length + 1) {
                         return const Padding(
                           padding: EdgeInsets.only(bottom: 24.0),
-                          child: TypingIndicator(),
+                          child: TypingIndicator(showAvatar: true),
                         );
                       }
 
