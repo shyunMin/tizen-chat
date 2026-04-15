@@ -89,7 +89,7 @@ class TizenChatInput extends StatelessWidget {
                     gradient: TizenStyles.accentGradient,
                     boxShadow: [
                       BoxShadow(
-                        color: TizenStyles.cyan400.withOpacity(0.2),
+                        color: TizenStyles.cyan400.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -163,7 +163,7 @@ class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProv
             borderRadius: BorderRadius.circular(9999),
             boxShadow: [
               BoxShadow(
-                color: TizenStyles.cyan400.withOpacity(0.3),
+                color: TizenStyles.cyan400.withValues(alpha: 0.3),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),

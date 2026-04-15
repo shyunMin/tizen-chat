@@ -30,8 +30,8 @@ class SentMessage extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      TizenStyles.blue800.withOpacity(0.7),
-                      TizenStyles.blue900.withOpacity(0.7),
+                      TizenStyles.blue800.withValues(alpha: 0.7),
+                      TizenStyles.blue900.withValues(alpha: 0.7),
                     ],
                   ),
                   borderRadius: const BorderRadius.only(
@@ -40,7 +40,7 @@ class SentMessage extends StatelessWidget {
                     bottomLeft: Radius.circular(18),
                     bottomRight: Radius.circular(2),
                   ),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Text(
                   text,

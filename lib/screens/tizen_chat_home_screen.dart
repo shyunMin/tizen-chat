@@ -47,6 +47,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocusNode.requestFocus();
+      
+      // 앱 시작 후 약간의 지연 시간 뒤에 Prompt Bar가 올라오는 애니메이션 실행
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() {
+            _isVisible = true;
+          });
+        }
+      });
     });
   }
 
@@ -207,20 +216,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
   }
 
-  void _toggleVisibility() {
-    // Prevent toggling while waiting for server response
-    if (_isWaiting) return;
 
-    if (_activeScreen == ScreenState.chat) return;
-
-    setState(() {
-      _shouldSlideDown = true;
-      _isVisible = !_isVisible;
-      if (_isVisible) {
-        _responseMessage = "";
-      }
-    });
-  }
 
   @override
   void dispose() {
@@ -272,15 +268,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         onKeyEvent: (node, event) {
           print(
             'DEBUG: [Key] ${event.logicalKey} (${event.runtimeType})',
-          ); // 키 입력 로그 추가
-          if ((event is KeyDownEvent || event is KeyUpEvent)) {
-            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-              if (event is KeyDownEvent) {
-                _toggleVisibility();
-              }
-              return KeyEventResult.handled;
-            }
-          }
+          );
           return KeyEventResult.ignored;
         },
         child: SizedBox.expand(
@@ -338,11 +326,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withOpacity(0.8),
+                                  color: Colors.blueAccent.withValues(alpha: 0.8),
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.blueAccent.withOpacity(0.3),
+                                      color: Colors.blueAccent.withValues(alpha: 0.3),
                                       blurRadius: 10,
                                       spreadRadius: 2,
                                     ),

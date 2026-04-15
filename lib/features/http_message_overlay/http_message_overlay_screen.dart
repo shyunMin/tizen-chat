@@ -109,7 +109,7 @@
 //         child: Container(
 //           width: double.infinity,
 //           height: double.infinity,
-//           color: Colors.black.withOpacity(0.3), // 전체 배경 살짝 어둡게
+//           color: Colors.black.withValues(alpha: 0.3), // 전체 배경 살짝 어둡게
 //           child: Column(
 //             children: [
 //               // 상단 메시지 영역
@@ -119,7 +119,7 @@
 //                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
 //                   margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
 //                   decoration: BoxDecoration(
-//                     color: Colors.black.withOpacity(0.7),
+//                     color: Colors.black.withValues(alpha: 0.7),
 //                     borderRadius: BorderRadius.circular(12),
 //                     border: Border.all(color: Colors.white12),
 //                   ),

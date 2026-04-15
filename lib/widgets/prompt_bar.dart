@@ -7,11 +7,7 @@ class PromptBar extends StatefulWidget {
   final bool isVisible;
   final Function(String)? onSend;
 
-  const PromptBar({
-    super.key,
-    required this.isVisible,
-    this.onSend,
-  });
+  const PromptBar({super.key, required this.isVisible, this.onSend});
 
   @override
   State<PromptBar> createState() => _PromptBarState();
@@ -127,10 +123,10 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
               gradient: SweepGradient(
                 center: Alignment.center,
                 colors: [
-                  Colors.blueAccent.withOpacity(0.3),
-                  Colors.cyanAccent.withOpacity(0.3),
-                  Colors.purpleAccent.withOpacity(0.3),
-                  Colors.blueAccent.withOpacity(0.3),
+                  Colors.blueAccent.withValues(alpha: 0.3),
+                  Colors.cyanAccent.withValues(alpha: 0.3),
+                  Colors.purpleAccent.withValues(alpha: 0.3),
+                  Colors.blueAccent.withValues(alpha: 0.3),
                 ],
                 transform: GradientRotation(
                   _rotationController.value * 2 * 3.14159,
@@ -138,15 +134,15 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blueAccent.withOpacity(
-                    0.5 * _glowAnimation.value,
+                  color: Colors.blueAccent.withValues(
+                    alpha: 0.5 * _glowAnimation.value,
                   ),
                   blurRadius: 25 * _glowAnimation.value,
                   spreadRadius: 3 * _glowAnimation.value,
                 ),
                 BoxShadow(
-                  color: Colors.purpleAccent.withOpacity(
-                    0.2 * _glowAnimation.value,
+                  color: Colors.purpleAccent.withValues(
+                    alpha: 0.2 * _glowAnimation.value,
                   ),
                   blurRadius: 40 * _glowAnimation.value,
                 ),
@@ -154,7 +150,7 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.85),
+                color: Colors.black.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(
                   41,
                 ), // Adjusted for 2px border
@@ -176,11 +172,11 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                         left: _isExpanded ? 25 : (42 - 16),
                         top: 0,
                         bottom: 0,
-                        child: const Center(
-                          child: Icon(
-                            Icons.auto_awesome,
-                            color: Colors.blueAccent,
-                            size: 32,
+                        child: Center(
+                          child: Image.asset(
+                            'assets/images/bixby.png',
+                            width: 30,
+                            height: 30,
                           ),
                         ),
                       ),
@@ -225,7 +221,9 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                           ? _displayText
                                           : _fullText,
                                       hintStyle: TextStyle(
-                                        color: Colors.white.withOpacity(0.7),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                     ),
                                     readOnly: _charIndex < _fullText.length,
@@ -242,19 +240,21 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    _buildFocusableIcon(
+                                    _FocusableActionIcon(
                                       icon: Icons.mic_rounded,
                                       size: 34,
                                       focusNode: _micFocusNode,
+                                      isEnabled: false,
                                       onTap: () {
                                         // Handle Mic Tap
                                       },
                                     ),
                                     const SizedBox(width: 8),
-                                    _buildFocusableIcon(
+                                    _FocusableActionIcon(
                                       icon: Icons.send_rounded,
                                       size: 30,
                                       focusNode: _sendFocusNode,
+                                      isEnabled: true,
                                       onTap: () {
                                         if (_textController.text.isNotEmpty &&
                                             widget.onSend != null) {
@@ -278,54 +278,132 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
       },
     );
   }
+}
 
-  Widget _buildFocusableIcon({
-    required IconData icon,
-    required double size,
-    required FocusNode focusNode,
-    required VoidCallback onTap,
-  }) {
+class _FocusableActionIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final FocusNode focusNode;
+  final VoidCallback onTap;
+  final bool isEnabled;
+
+  const _FocusableActionIcon({
+    required this.icon,
+    required this.size,
+    required this.focusNode,
+    required this.onTap,
+    this.isEnabled = true,
+  });
+
+  @override
+  State<_FocusableActionIcon> createState() => _FocusableActionIconState();
+}
+
+class _FocusableActionIconState extends State<_FocusableActionIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressController;
+  late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = true);
+    _pressController.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = false);
+    _pressController.reverse();
+  }
+
+  void _handleTapCancel() {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = false);
+    _pressController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Focus(
-      focusNode: focusNode,
+      focusNode: widget.focusNode,
       onKeyEvent: (node, event) {
+        if (!widget.isEnabled) return KeyEventResult.ignored;
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.enter)) {
-          onTap();
+          _pressController.forward().then((_) => _pressController.reverse());
+          widget.onTap();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
       child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedBuilder(
-          animation: focusNode,
-          builder: (context, child) {
-            final isFocused = focusNode.hasFocus;
-            return Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isFocused
-                    ? Colors.blueAccent.withOpacity(0.2)
-                    : Colors.transparent,
-                shape: BoxShape.circle,
-                boxShadow: isFocused
-                    ? [
-                        BoxShadow(
-                          color: Colors.blueAccent.withOpacity(0.3),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        )
-                      ]
-                    : null,
-              ),
-              child: Icon(
-                icon,
-                color: isFocused ? Colors.white : Colors.blueAccent,
-                size: size,
-              ),
-            );
-          },
+        onTapDown: _handleTapDown,
+        onTapUp: _handleTapUp,
+        onTapCancel: _handleTapCancel,
+        onTap: widget.isEnabled ? widget.onTap : null,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: AnimatedBuilder(
+            animation: widget.focusNode,
+            builder: (context, child) {
+              final isFocused = widget.focusNode.hasFocus;
+              final active = widget.isEnabled && (isFocused || _isPressed);
+              
+              Color iconColor;
+              if (!widget.isEnabled) {
+                iconColor = Colors.white.withValues(alpha: 0.3);
+              } else if (active) {
+                iconColor = Colors.white;
+              } else {
+                iconColor = Colors.blueAccent;
+              }
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: active
+                      ? Colors.blueAccent.withValues(alpha: 0.25)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: Colors.blueAccent.withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  widget.icon,
+                  color: iconColor,
+                  size: widget.size,
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

@@ -48,10 +48,10 @@ class ReceivedMessage extends StatelessWidget {
                   listBullet: TizenStyles.bodyText,
                   code: TizenStyles.bodyText.copyWith(
                     fontFamily: 'monospace',
-                    backgroundColor: Colors.black.withOpacity(0.3),
+                    backgroundColor: Colors.black.withValues(alpha: 0.3),
                   ),
                   codeblockDecoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   h1: TizenStyles.headerText,

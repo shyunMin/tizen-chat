@@ -111,7 +111,7 @@ class _TypingIndicatorState extends State<TypingIndicator> with SingleTickerProv
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: TizenStyles.slate900.withOpacity(0.4),
+              color: TizenStyles.slate900.withValues(alpha: 0.4),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(18),
                 topRight: Radius.circular(18),

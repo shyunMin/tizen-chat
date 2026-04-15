@@ -262,7 +262,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: TizenStyles.slate800.withOpacity(0.5),
+                                  color: TizenStyles.slate800.withValues(alpha: 0.5),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: const Text(

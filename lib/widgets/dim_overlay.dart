@@ -20,7 +20,9 @@ class DimOverlay extends StatelessWidget {
             child: AnimatedContainer(
               duration: duration,
               curve: Curves.easeInOut,
-              color: isVisible ? Colors.black.withOpacity(0.7) : Colors.transparent,
+              color: isVisible
+                  ? Colors.black.withValues(alpha: 0.7)
+                  : Colors.transparent,
               child: isVisible
                   ? Container(
                       decoration: BoxDecoration(
@@ -28,9 +30,9 @@ class DimOverlay extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.black.withOpacity(0.5),
-                            Colors.black.withOpacity(0.7),
-                            Colors.black.withOpacity(1.0),
+                            Colors.black.withValues(alpha: 0.5),
+                            Colors.black.withValues(alpha: 0.7),
+                            Colors.black.withValues(alpha: 1.0),
                           ],
                         ),
                       ),
@@ -38,26 +40,26 @@ class DimOverlay extends StatelessWidget {
                   : null,
             ),
           ),
-          // Green dot indicator (App Running)
-          Positioned(
-            top: 25,
-            right: 25,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: Colors.greenAccent.withOpacity(0.8),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.greenAccent.withOpacity(0.4),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Green dot for recording
+          // Positioned(
+          //   top: 25,
+          //   right: 25,
+          //   child: Container(
+          //     width: 8,
+          //     height: 8,
+          //     decoration: BoxDecoration(
+          //       color: Colors.greenAccent.withValues(alpha: 0.8),
+          //       shape: BoxShape.circle,
+          //       boxShadow: [
+          //         BoxShadow(
+          //           color: Colors.greenAccent.withValues(alpha: 0.4),
+          //           blurRadius: 10,
+          //           spreadRadius: 2,
+          //         ),
+          //       ],
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
