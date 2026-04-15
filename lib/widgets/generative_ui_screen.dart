@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/tizen_styles.dart';
-import '../screens/webview_full_screen.dart';
+import '../screens/generative_web_view.dart';
 
 class GenerativeUIScreen extends StatefulWidget {
   final String text;
@@ -77,7 +77,7 @@ class _GenerativeUIScreenState extends State<GenerativeUIScreen> {
 
                   // WebView Area
                   Expanded(
-                    child: WebViewExample(
+                    child: GenerativeWebView(
                       uiCode: widget.uiCode,
                       isInline: false, // Takes whole remaining space (no internal height limit)
                     ),

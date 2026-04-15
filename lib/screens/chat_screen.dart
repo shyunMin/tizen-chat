@@ -8,7 +8,6 @@ import '../widgets/tizen_chat_input.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
-// import '../services/chat_service.dart';
 import '../services/carbon_grpc_service.dart';
 
 class TizenChatScreen extends StatefulWidget {
@@ -31,7 +30,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  // final ChatService _chatService = ChatService();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   final FocusNode _keyboardFocusNode = FocusNode();
   bool _isTyping = false;
@@ -56,7 +54,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     });
 
     if (widget.autoSendText != null) {
-      // 진입 시 자동 전송 요청이 있으면 처리
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _handleUserMessage(widget.autoSendText!);
       });

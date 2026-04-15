@@ -62,90 +62,72 @@ class CarbonGrpcService {
     if (_isConnected || _isConnecting) return;
     _isConnecting = true;
 
-    final endpoints = ['/run/user/5001/carbon/carbon.sock'];
+    final endpoint = '/run/user/5001/carbon/carbon.sock';
 
-    Exception? lastError;
+    try {
+      print('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
 
-    for (final endpoint in endpoints) {
-      try {
-        print('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
+      _channel = ClientChannel(
+        InternetAddress(endpoint, type: InternetAddressType.unix),
+        port: 0,
+        options: const ChannelOptions(
+          credentials: ChannelCredentials.insecure(),
+        ),
+      );
 
-        if (endpoint.startsWith('TCP:')) {
-          final parts = endpoint.split(':');
-          _channel = ClientChannel(
-            parts[1],
-            port: int.parse(parts[2]),
-            options: const ChannelOptions(
-              credentials: ChannelCredentials.insecure(),
-            ),
-          );
-        } else {
-          _channel = ClientChannel(
-            InternetAddress(endpoint, type: InternetAddressType.unix),
-            port: 0,
-            options: const ChannelOptions(
-              credentials: ChannelCredentials.insecure(),
-            ),
-          );
-        }
+      _client = AgentServiceClient(_channel!);
+      _requestStreamController = StreamController<ClientMessage>();
 
-        _client = AgentServiceClient(_channel!);
-        _requestStreamController = StreamController<ClientMessage>();
+      final responseStream = _client!.session(
+        _requestStreamController!.stream,
+      );
+      final handshakeCompleter = Completer<void>();
 
-        final responseStream = _client!.session(
-          _requestStreamController!.stream,
-        );
-        final handshakeCompleter = Completer<void>();
+      _responseSubscription = responseStream.listen(
+        (ServerEvent event) {
+          // [LOG] 하위 gRPC 스트림에서 오는 모든 이벤트 출력
+          print('DEBUG: [CarbonGrpc] Raw Event: ${event.whichEvent()}');
+          if (event.hasSessionCreated()) {
+            _sessionId = event.sessionCreated.sessionId;
+            print(
+              'DEBUG: [CarbonGrpc] Session Created: $_sessionId via $endpoint',
+            );
+            if (!handshakeCompleter.isCompleted) handshakeCompleter.complete();
+          } else {
+            _handleServerEvent(event);
+          }
+        },
+        onError: (e) {
+          print('DEBUG: [CarbonGrpc] Stream Error on $endpoint: $e');
+          _isConnected = false;
+          if (!handshakeCompleter.isCompleted)
+            handshakeCompleter.completeError(e);
+          else
+            _broadcastError(e.toString(), fatal: true);
+        },
+        onDone: () {
+          print('DEBUG: [CarbonGrpc] Stream Closed');
+          _isConnected = false;
+        },
+      );
 
-        _responseSubscription = responseStream.listen(
-          (ServerEvent event) {
-            // [LOG] 하위 gRPC 스트림에서 오는 모든 이벤트 출력
-            print('DEBUG: [CarbonGrpc] Raw Event: ${event.whichEvent()}');
-            if (event.hasSessionCreated()) {
-              _sessionId = event.sessionCreated.sessionId;
-              print(
-                'DEBUG: [CarbonGrpc] Session Created: $_sessionId via $endpoint',
-              );
-              if (!handshakeCompleter.isCompleted)
-                handshakeCompleter.complete();
-            } else {
-              _handleServerEvent(event);
-            }
-          },
-          onError: (e) {
-            print('DEBUG: [CarbonGrpc] Stream Error on $endpoint: $e');
-            _isConnected = false;
-            if (!handshakeCompleter.isCompleted)
-              handshakeCompleter.completeError(e);
-            else
-              _broadcastError(e.toString(), fatal: true);
-          },
-          onDone: () {
-            print('DEBUG: [CarbonGrpc] Stream Closed');
-            _isConnected = false;
-          },
-        );
+      // Send the handshake
+      _requestStreamController!.add(
+        ClientMessage(createSession: CreateSessionRequest(product: "claw")),
+      );
 
-        // Send the handshake
-        _requestStreamController!.add(
-          ClientMessage(createSession: CreateSessionRequest(product: "claw")),
-        );
-
-        await handshakeCompleter.future.timeout(const Duration(seconds: 3));
-        _isConnected = true;
-        _isConnecting = false;
-        print('DEBUG: [CarbonGrpc] Successfully connected to $endpoint');
-        return; // Connection successful!
-      } catch (e) {
-        print('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
-        lastError = Exception(e.toString());
-        await disconnect(); // Cleanup before trying next
-      }
+      await handshakeCompleter.future.timeout(const Duration(seconds: 3));
+      _isConnected = true;
+      _isConnecting = false;
+      print('DEBUG: [CarbonGrpc] Successfully connected to $endpoint');
+      return;
+    } catch (e) {
+      print('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
+      await disconnect();
     }
 
     _isConnected = false;
     _isConnecting = false;
-    // throw lastError ?? Exception('All connection attempts failed');
   }
 
   // To support returning a stream from sendMessage() while using a single gRPC stream,

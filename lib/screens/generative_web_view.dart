@@ -3,13 +3,13 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_tizen/webview_flutter_tizen.dart';
 import '../theme/tizen_styles.dart';
 
-class WebViewExample extends StatefulWidget {
+class GenerativeWebView extends StatefulWidget {
   final String uiCode;
   final String title;
   final VoidCallback? onClose;
   final bool isInline;
 
-  const WebViewExample({
+  const GenerativeWebView({
     super.key,
     required this.uiCode,
     this.title = 'Generated UI',
@@ -18,10 +18,10 @@ class WebViewExample extends StatefulWidget {
   });
 
   @override
-  State<WebViewExample> createState() => _WebViewExampleState();
+  State<GenerativeWebView> createState() => _GenerativeWebViewState();
 }
 
-class _WebViewExampleState extends State<WebViewExample> {
+class _GenerativeWebViewState extends State<GenerativeWebView> {
   late final WebViewController _controller;
   double _contentHeight = 200; // Default initial height
 
@@ -78,7 +78,7 @@ class _WebViewExampleState extends State<WebViewExample> {
   }
 
   @override
-  void didUpdateWidget(WebViewExample oldWidget) {
+  void didUpdateWidget(GenerativeWebView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uiCode != widget.uiCode) {
       _controller.loadHtmlString(widget.uiCode);

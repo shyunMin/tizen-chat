@@ -1,6 +1,5 @@
-import 'screens/tizen_chat_screen_3.dart';
+import 'screens/tizen_chat_home_screen.dart';
 import 'package:flutter/material.dart';
-import 'screens/tizen_chat_screen_2.dart';
 
 void main() {
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -22,7 +21,7 @@ class TizenChatApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF121212), // Solid dark grey
         canvasColor: Colors.black,
       ),
-      home: const TizenChatScreen3(),
+      home: const TizenChatHomeScreen(),
     );
   }
 }

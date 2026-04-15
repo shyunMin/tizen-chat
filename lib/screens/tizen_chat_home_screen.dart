@@ -6,21 +6,21 @@ import '../widgets/typing_indicator.dart';
 import '../widgets/generative_ui_screen.dart';
 import '../services/carbon_grpc_service.dart';
 import '../models/chat_message.dart';
-import 'chat_screen.dart'; // Import the original Chat Screen
+import 'chat_screen.dart';
 import '../features/http_message_overlay/http_message_overlay_screen.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
 
 enum ScreenState { initial, chat, generativeUI, overlay }
 
-class TizenChatScreen3 extends StatefulWidget {
-  const TizenChatScreen3({super.key});
+class TizenChatHomeScreen extends StatefulWidget {
+  const TizenChatHomeScreen({super.key});
 
   @override
-  State<TizenChatScreen3> createState() => _TizenChatScreen3State();
+  State<TizenChatHomeScreen> createState() => _TizenChatHomeScreenState();
 }
 
-class _TizenChatScreen3State extends State<TizenChatScreen3>
+class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     with TickerProviderStateMixin {
   bool _isVisible = false;
   bool _isWaiting = false;
@@ -99,7 +99,6 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
       _responseMessage = "";
     });
 
-    // Wait for fade animation (200ms) before resetting position to bottom for next time
     await Future.delayed(const Duration(milliseconds: 200));
     if (mounted) {
       setState(() {
@@ -107,7 +106,6 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
       });
     }
 
-    // Wait for PromptBar disappear timing (total 300ms feel)
     await Future.delayed(const Duration(milliseconds: 100));
 
     if (mounted) {
@@ -164,7 +162,7 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
                 type: MessageType.received,
                 uiCode: null,
               );
-              print('DEBUG: [TizenChatScreen3] Adding received message to list');
+              print('DEBUG: [TizenChatHomeScreen] Adding received message to list');
               _messages.add(receivedMsg);
             });
 
@@ -213,14 +211,12 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
     // Prevent toggling while waiting for server response
     if (_isWaiting) return;
 
-    // As per user request: No prompt while TizenChatScreen is active
     if (_activeScreen == ScreenState.chat) return;
 
     setState(() {
       _shouldSlideDown = true;
       _isVisible = !_isVisible;
       if (_isVisible) {
-        // Clear response messages when becoming visible to avoid overlap
         _responseMessage = "";
       }
     });
@@ -256,8 +252,6 @@ class _TizenChatScreen3State extends State<TizenChatScreen3>
           ),
         )
         .then((_) {
-          // Clear messages when returning from the sub-screen (TizenChatScreen or GenerativeUIScreen)
-          // to ensure history is deleted as requested
           if (mounted) {
             setState(() {
               _messages.clear();

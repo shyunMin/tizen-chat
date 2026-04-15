@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../theme/tizen_styles.dart';
-import '../screens/webview_full_screen.dart';
+import '../screens/generative_web_view.dart';
 
 class ReceivedMessage extends StatelessWidget {
   final String text;
@@ -61,7 +61,7 @@ class ReceivedMessage extends StatelessWidget {
               ),
               if (uiCode != null && uiCode!.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                WebViewExample(uiCode: uiCode!, isInline: true),
+                GenerativeWebView(uiCode: uiCode!, isInline: true),
               ],
             ],
           ),
