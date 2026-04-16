@@ -239,12 +239,41 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       focusNode: _keyboardFocusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.escape ||
-                event.logicalKey == LogicalKeyboardKey.goBack ||
-                event.logicalKey == LogicalKeyboardKey.browserBack)) {
-          SystemNavigator.pop(); // 앱 종료
-          return KeyEventResult.handled;
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          // 뒤로가기 및 종료
+          if (event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.goBack ||
+              event.logicalKey == LogicalKeyboardKey.browserBack) {
+            if (event is KeyDownEvent) SystemNavigator.pop();
+            return KeyEventResult.handled;
+          }
+
+          // 상하 키로 스크롤
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                (_scrollController.offset - 100).clamp(
+                  0,
+                  _scrollController.position.maxScrollExtent,
+                ),
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                (_scrollController.offset + 100).clamp(
+                  0,
+                  _scrollController.position.maxScrollExtent,
+                ),
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },
@@ -265,7 +294,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: Colors.grey[900]?.withValues(
-                    alpha: 0.9,
+                    alpha: 0.95,
                   ), // 짙은 회색, 투명도 80
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
