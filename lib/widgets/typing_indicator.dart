@@ -97,15 +97,28 @@ class _TypingIndicatorState extends State<TypingIndicator> with SingleTickerProv
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.showAvatar) ...[
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: TizenStyles.slate800,
-            child: Text(
-              widget.avatarInitial,
-              style: const TextStyle(fontSize: 10, color: Colors.white),
-            ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 38,
+                height: 38,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(TizenStyles.cyan400.withValues(alpha: 0.8)),
+                ),
+              ),
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: TizenStyles.slate800,
+                child: Text(
+                  widget.avatarInitial,
+                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
         ],
         if (widget.showBubble)
           Container(

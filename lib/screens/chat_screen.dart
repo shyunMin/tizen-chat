@@ -138,7 +138,11 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               // 첫 데이터 수신 시점에 메시지 객체 생성
               replyIndex = _messages.length;
               _addMessage(
-                ChatMessage(text: accumulatedText, type: MessageType.received),
+                ChatMessage(
+                  text: accumulatedText,
+                  type: MessageType.received,
+                  isWaiting: true,
+                ),
               );
               setState(() {
                 _isTyping = false;
@@ -150,6 +154,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                       ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText'
                       : accumulatedText,
                   type: MessageType.received,
+                  isWaiting: true,
                 );
               });
             }
@@ -164,6 +169,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 ChatMessage(
                   text: '[🔧 $activeToolName 실행 중...]',
                   type: MessageType.received,
+                  isWaiting: true,
                 ),
               );
               setState(() {
@@ -174,6 +180,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 _messages[replyIndex] = ChatMessage(
                   text: '[🔧 $activeToolName 실행 중...]\n$accumulatedText',
                   type: MessageType.received,
+                  isWaiting: true,
                 );
               });
             }
@@ -188,6 +195,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                       ? accumulatedText
                       : '도구 실행을 완료했습니다.',
                   type: MessageType.received,
+                  isWaiting: true,
                 );
               });
             }
@@ -201,6 +209,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 _messages[replyIndex] = ChatMessage(
                   text: accumulatedText,
                   type: MessageType.received,
+                  isWaiting: false,
                 );
               } else {
                 // 한 번도 데이터가 안 왔을 경우 예외 처리
@@ -220,6 +229,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 _messages[replyIndex] = ChatMessage(
                   text: 'Error: $message',
                   type: MessageType.received,
+                  isWaiting: false,
                 );
               } else {
                 _addMessage(
@@ -382,6 +392,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                                   text: message.text,
                                   avatarInitial: message.senderInitial,
                                   uiCode: message.uiCode,
+                                  isWaiting: message.isWaiting,
                                 );
                                 break;
                               case MessageType.richCard:

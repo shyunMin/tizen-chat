@@ -7,12 +7,14 @@ class ReceivedMessage extends StatelessWidget {
   final String text;
   final String avatarInitial;
   final String? uiCode;
+  final bool isWaiting;
 
   const ReceivedMessage({
     super.key,
     required this.text,
     required this.avatarInitial,
     this.uiCode,
+    this.isWaiting = false,
   });
 
   @override
@@ -20,15 +22,29 @@ class ReceivedMessage extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: TizenStyles.slate800,
-          child: Text(
-            avatarInitial,
-            style: const TextStyle(fontSize: 10, color: Colors.white),
-          ),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            if (isWaiting)
+              SizedBox(
+                width: 38,
+                height: 38,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(TizenStyles.cyan400.withValues(alpha: 0.8)),
+                ),
+              ),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: TizenStyles.slate800,
+              child: Text(
+                avatarInitial,
+                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

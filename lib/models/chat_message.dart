@@ -9,6 +9,7 @@ class ChatMessage {
   final String? subtitle;
   final String? uiCode;
   final DateTime timestamp;
+  bool isWaiting;
 
   ChatMessage({
     required this.text,
@@ -18,6 +19,7 @@ class ChatMessage {
     this.title,
     this.subtitle,
     this.uiCode,
+    this.isWaiting = false,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 }
