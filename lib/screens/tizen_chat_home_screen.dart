@@ -110,24 +110,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
     setState(() {
       _shouldSlideDown = false; // Stay at current height
-      _isVisible = false; // Trigger fade out
+      _isVisible = true; // Keep visible and let PromptBar expand via isWaiting
+      _isWaiting = true;
       _responseMessage = "";
     });
-
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (mounted) {
-      setState(() {
-        _shouldSlideDown = true;
-      });
-    }
-
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    if (mounted) {
-      setState(() {
-        _isWaiting = true;
-      });
-    }
 
     try {
       setState(() {
@@ -246,11 +232,29 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
 
     Navigator.of(context)
-        .push(
+        .pushReplacement(
           PageRouteBuilder(
+            opaque: false,
             pageBuilder: (context, animation, secondaryAnimation) => screen,
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
+            transitionDuration: const Duration(milliseconds: 400),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              final slideAnimation = Tween<Offset>(
+                begin: const Offset(0.0, 0.3), // Starting slightly lower
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ));
+
+              return SlideTransition(
+                position: slideAnimation,
+                child: FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+              );
+            },
           ),
         )
         .then((_) {
@@ -285,7 +289,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           child: Stack(
             children: [
               // Dim Screen Overlay
-              DimOverlay(isVisible: _isVisible || _isWaiting),
+              DimOverlay(
+                isVisible: _isVisible || _isWaiting,
+                opacity: _activeScreen == ScreenState.chat ? 0.4 : 1.0,
+              ),
 
               // Prompt Bar with Animation
               AnimatedPositioned(
@@ -303,6 +310,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                       height: 84,
                       child: PromptBar(
                         isVisible: _isVisible,
+                        isWaiting: _isWaiting,
                         onSend: _handleSend,
                       ),
                     ),
@@ -310,7 +318,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 ),
               ),
 
-              // Waiting Animation or Response Message
+              // Waiting Animation or Response Message (Layered over PromptBar)
               if (_isWaiting || _responseMessage.isNotEmpty)
                 Positioned(
                   bottom: 60,

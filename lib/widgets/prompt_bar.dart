@@ -5,9 +5,15 @@ import 'package:flutter/services.dart';
 
 class PromptBar extends StatefulWidget {
   final bool isVisible;
+  final bool isWaiting;
   final Function(String)? onSend;
 
-  const PromptBar({super.key, required this.isVisible, this.onSend});
+  const PromptBar({
+    super.key,
+    required this.isVisible,
+    this.onSend,
+    this.isWaiting = false,
+  });
 
   @override
   State<PromptBar> createState() => _PromptBarState();
@@ -114,7 +120,9 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutCubic,
-          width: _isExpanded ? 580 : 84,
+          width: _isExpanded
+              ? MediaQuery.of(context).size.width * 0.7 // 채팅창 너비와 동일하게 70%로 수정
+              : 84,
           height: 84,
           child: Container(
             padding: const EdgeInsets.all(2), // Increased thickness
@@ -226,7 +234,7 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                         ),
                                       ),
                                     ),
-                                    readOnly: _charIndex < _fullText.length,
+                                    readOnly: _charIndex < _fullText.length || widget.isWaiting,
                                     onSubmitted: (value) {
                                       if (value.isNotEmpty &&
                                           widget.onSend != null) {
@@ -244,7 +252,7 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                       icon: Icons.mic_rounded,
                                       size: 34,
                                       focusNode: _micFocusNode,
-                                      isEnabled: false,
+                                      isEnabled: false, // Mic is always disabled for now, but also check waiting if needed
                                       onTap: () {
                                         // Handle Mic Tap
                                       },
@@ -254,7 +262,7 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                       icon: Icons.send_rounded,
                                       size: 30,
                                       focusNode: _sendFocusNode,
-                                      isEnabled: true,
+                                      isEnabled: !widget.isWaiting,
                                       onTap: () {
                                         if (_textController.text.isNotEmpty &&
                                             widget.onSend != null) {

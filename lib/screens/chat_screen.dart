@@ -243,90 +243,116 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
             (event.logicalKey == LogicalKeyboardKey.escape ||
                 event.logicalKey == LogicalKeyboardKey.goBack ||
                 event.logicalKey == LogicalKeyboardKey.browserBack)) {
-          Navigator.of(context).pop();
+          SystemNavigator.pop(); // 앱 종료
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
       child: Scaffold(
-        backgroundColor: TizenStyles.slate950,
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: TizenStyles.slate950,
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Custom Header
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: 12.0,
-                    horizontal: 20.0,
-                  ),
-                  child: Center(
-                    child: GradientText(
-                      'Tizen AI',
-                      style: TizenStyles.headerText,
+        backgroundColor: Colors.transparent,
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 30.0), // 하단 여백 30
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.7, // 너비 70%
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900]?.withValues(
+                    alpha: 0.9,
+                  ), // 짙은 회색, 투명도 80
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 8),
                     ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Custom Header
+                      const Padding(
+                        padding: EdgeInsets.all(10.0), // 일괄 여백 10
+                        child: Center(
+                          child: GradientText(
+                            'Tizen AI',
+                            style: TizenStyles.headerText,
+                          ),
+                        ),
+                      ),
+                      // Chat Content
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(10.0), // 일괄 여백 10
+                          itemCount: _messages.length + (_isTyping ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            // Show typing indicator at the end
+                            if (_isTyping && index == _messages.length) {
+                              return const Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: 10.0,
+                                ), // 불필요한 여백 축소
+                                child: TypingIndicator(showAvatar: true),
+                              );
+                            }
+
+                            final message = _messages[index];
+                            Widget messageWidget;
+
+                            switch (message.type) {
+                              case MessageType.sent:
+                                messageWidget = SentMessage(text: message.text);
+                                break;
+                              case MessageType.received:
+                                messageWidget = ReceivedMessage(
+                                  text: message.text,
+                                  avatarInitial: message.senderInitial,
+                                  uiCode: message.uiCode,
+                                );
+                                break;
+                              case MessageType.richCard:
+                                messageWidget = RichCardMessage(
+                                  imageUrl: message.imageUrl ?? '',
+                                  title: message.title ?? '',
+                                  subtitle: message.subtitle ?? '',
+                                  avatarInitial: message.senderInitial,
+                                );
+                                break;
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 10.0,
+                              ), // 불필요한 여백 축소
+                              child: messageWidget,
+                            );
+                          },
+                        ),
+                      ),
+
+                      // Chat Input
+                      TizenChatInput(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        onSend: _handleUserMessage,
+                      ),
+                    ],
                   ),
                 ),
-                // Chat Content
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 30.0,
-                      vertical: 20.0,
-                    ),
-                    itemCount: _messages.length + (_isTyping ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      // Show typing indicator at the end
-                      if (_isTyping && index == _messages.length) {
-                        return const Padding(
-                          padding: EdgeInsets.only(bottom: 24.0),
-                          child: TypingIndicator(showAvatar: true),
-                        );
-                      }
-
-                      final message = _messages[index];
-                      Widget messageWidget;
-
-                      switch (message.type) {
-                        case MessageType.sent:
-                          messageWidget = SentMessage(text: message.text);
-                          break;
-                        case MessageType.received:
-                          messageWidget = ReceivedMessage(
-                            text: message.text,
-                            avatarInitial: message.senderInitial,
-                            uiCode: message.uiCode,
-                          );
-                          break;
-                        case MessageType.richCard:
-                          messageWidget = RichCardMessage(
-                            imageUrl: message.imageUrl ?? '',
-                            title: message.title ?? '',
-                            subtitle: message.subtitle ?? '',
-                            avatarInitial: message.senderInitial,
-                          );
-                          break;
-                      }
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 24.0),
-                        child: messageWidget,
-                      );
-                    },
-                  ),
-                ),
-
-                // Chat Input
-                TizenChatInput(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  onSend: _handleUserMessage,
-                ),
-              ],
+              ),
             ),
           ),
         ),

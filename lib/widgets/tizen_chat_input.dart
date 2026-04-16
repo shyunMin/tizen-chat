@@ -46,25 +46,31 @@ class _TizenChatInputState extends State<TizenChatInput> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 26.0),
+          padding: const EdgeInsets.all(10.0), // 일괄 여백 10
           decoration: BoxDecoration(
             color: Colors.transparent,
           ),
           child: Row(
             children: [
               Expanded(
-                child: GlowInputBorder(
-                  focusNode: widget.focusNode,
+                child: SubtleRotatingBorder(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 4,
                     ),
-                    decoration: BoxDecoration(
-                      color: TizenStyles.slate900,
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Row(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900]?.withValues(alpha: 0.9), // 채팅창 배경색과 동일하게 수정
+                    borderRadius: BorderRadius.circular(9999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
                       children: [
                         Expanded(
                           child: TextField(
@@ -115,21 +121,18 @@ class _TizenChatInputState extends State<TizenChatInput> {
   }
 }
 
-class GlowInputBorder extends StatefulWidget {
-  final Widget child;
-  final FocusNode focusNode;
 
-  const GlowInputBorder({
-    super.key,
-    required this.child,
-    required this.focusNode,
-  });
+class SubtleRotatingBorder extends StatefulWidget {
+  final Widget child;
+
+  const SubtleRotatingBorder({super.key, required this.child});
 
   @override
-  State<GlowInputBorder> createState() => _GlowInputBorderState();
+  State<SubtleRotatingBorder> createState() => _SubtleRotatingBorderState();
 }
 
-class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProviderStateMixin {
+class _SubtleRotatingBorderState extends State<SubtleRotatingBorder>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -137,24 +140,12 @@ class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProv
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 4),
     )..repeat();
-
-    widget.focusNode.addListener(_updateAnimationSpeed);
-  }
-
-  void _updateAnimationSpeed() {
-    if (widget.focusNode.hasFocus) {
-      _controller.duration = const Duration(milliseconds: 3000);
-    } else {
-      _controller.duration = const Duration(seconds: 8);
-    }
-    _controller.repeat();
   }
 
   @override
   void dispose() {
-    widget.focusNode.removeListener(_updateAnimationSpeed);
     _controller.dispose();
     super.dispose();
   }
@@ -165,25 +156,15 @@ class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProv
       animation: _controller,
       builder: (context, child) {
         return Container(
-          padding: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(1.2), // 얇은 테두리
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(9999),
-            boxShadow: [
-              BoxShadow(
-                color: TizenStyles.cyan400.withValues(alpha: 0.3),
-                blurRadius: 8,
-                spreadRadius: 1,
-              ),
-            ],
             gradient: SweepGradient(
               center: Alignment.center,
-              startAngle: 0.0,
-              endAngle: math.pi * 2,
-              colors: const [
-                TizenStyles.blue900,
-                Color(0xFF0D9488),
-                TizenStyles.cyan400,
-                TizenStyles.blue900,
+              colors: [
+                Colors.white.withValues(alpha: 0.05),
+                Colors.white.withValues(alpha: 0.3),
+                Colors.white.withValues(alpha: 0.05),
               ],
               transform: GradientRotation(_controller.value * math.pi * 2),
             ),
@@ -194,6 +175,7 @@ class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProv
     );
   }
 }
+
 class _FocusableActionIcon extends StatefulWidget {
   final IconData icon;
   final double size;

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class DimOverlay extends StatelessWidget {
   final bool isVisible;
   final Duration duration;
+  final double opacity;
 
   const DimOverlay({
     super.key,
     required this.isVisible,
     this.duration = const Duration(milliseconds: 500),
+    this.opacity = 1.0,
   });
 
   @override
@@ -21,7 +23,7 @@ class DimOverlay extends StatelessWidget {
               duration: duration,
               curve: Curves.easeInOut,
               color: isVisible
-                  ? Colors.black.withValues(alpha: 0.7)
+                  ? Colors.black.withValues(alpha: 0.5 * opacity)
                   : Colors.transparent,
               child: isVisible
                   ? Container(
@@ -30,9 +32,9 @@ class DimOverlay extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.black.withValues(alpha: 0.5),
-                            Colors.black.withValues(alpha: 0.7),
-                            Colors.black.withValues(alpha: 1.0),
+                            Colors.black.withValues(alpha: 0.3 * opacity),
+                            Colors.black.withValues(alpha: 0.5 * opacity),
+                            Colors.black.withValues(alpha: 0.7 * opacity),
                           ],
                         ),
                       ),
