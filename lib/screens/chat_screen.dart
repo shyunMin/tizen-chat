@@ -9,6 +9,7 @@ import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import '../services/carbon_grpc_service.dart';
+import '../features/http_message_overlay/http_message_bus.dart';
 
 class TizenChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
@@ -59,7 +60,19 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       });
     }
 
-    _externalSubscription = widget.externalMessageStream?.listen((msg) {
+    _initMessageBus();
+  }
+
+  Future<void> _initMessageBus() async {
+    try {
+      await HttpMessageBus.instance.acquire();
+    } catch (e) {
+      print('[TizenChatScreen] HttpMessageBus acquire failed: $e');
+    }
+    
+    // Listen to global bus or the passed stream. 
+    // Usually HttpMessageBus.instance.stream is preferred as it's the source.
+    _externalSubscription = HttpMessageBus.instance.stream.listen((msg) {
       if (mounted) _handleUserMessage(msg);
     });
   }
@@ -244,6 +257,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   @override
   void dispose() {
     _externalSubscription?.cancel();
+    HttpMessageBus.instance.release();
     _controller.dispose();
     _focusNode.dispose();
     _keyboardFocusNode.dispose();

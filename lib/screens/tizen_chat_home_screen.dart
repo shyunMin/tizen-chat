@@ -15,10 +15,7 @@ enum ScreenState { initial, chat, generativeUI, overlay }
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
-  const TizenChatHomeScreen({
-    super.key,
-    this.enableHttpMessageBus = true,
-  });
+  const TizenChatHomeScreen({super.key, this.enableHttpMessageBus = true});
 
   @override
   State<TizenChatHomeScreen> createState() => _TizenChatHomeScreenState();
@@ -53,7 +50,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocusNode.requestFocus();
-      
+
       // 앱 시작 후 약간의 지연 시간 뒤에 Prompt Bar가 올라오는 애니메이션 실행
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
@@ -163,7 +160,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 type: MessageType.received,
                 uiCode: null,
               );
-              print('DEBUG: [TizenChatHomeScreen] Adding received message to list');
+              print(
+                'DEBUG: [TizenChatHomeScreen] Adding received message to list',
+              );
               _messages.add(receivedMsg);
             });
 
@@ -208,8 +207,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
   }
 
-
-
   @override
   void dispose() {
     _messageBusSubscription?.cancel();
@@ -238,23 +235,27 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             pageBuilder: (context, animation, secondaryAnimation) => screen,
             transitionDuration: const Duration(milliseconds: 400),
             reverseTransitionDuration: const Duration(milliseconds: 300),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              final slideAnimation = Tween<Offset>(
-                begin: const Offset(0.0, 0.3), // Starting slightly lower
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              ));
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  final slideAnimation =
+                      Tween<Offset>(
+                        begin: const Offset(
+                          0.0,
+                          0.3,
+                        ), // Starting slightly lower
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        ),
+                      );
 
-              return SlideTransition(
-                position: slideAnimation,
-                child: FadeTransition(
-                  opacity: animation,
-                  child: child,
-                ),
-              );
-            },
+                  return SlideTransition(
+                    position: slideAnimation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
           ),
         )
         .then((_) {
@@ -276,10 +277,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         canRequestFocus: _activeScreen != ScreenState.chat,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent && 
+          if (event is KeyDownEvent &&
               (event.logicalKey == LogicalKeyboardKey.escape ||
-               event.logicalKey == LogicalKeyboardKey.goBack ||
-               event.logicalKey == LogicalKeyboardKey.browserBack)) {
+                  event.logicalKey == LogicalKeyboardKey.goBack ||
+                  event.logicalKey == LogicalKeyboardKey.browserBack)) {
             SystemNavigator.pop();
             return KeyEventResult.handled;
           }
@@ -344,11 +345,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withValues(alpha: 0.8),
+                                  color: Colors.blueAccent.withValues(
+                                    alpha: 0.8,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.blueAccent.withValues(alpha: 0.3),
+                                      color: Colors.blueAccent.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       blurRadius: 10,
                                       spreadRadius: 2,
                                     ),
