@@ -65,7 +65,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   }
 
   void _addMessage(ChatMessage message) {
-    print('DEBUG: [UI Message Added] type: ${message.type}, text: ${message.text.length > 20 ? "${message.text.substring(0, 20)}..." : message.text}');
+    print(
+      'DEBUG: [UI Message Added] type: ${message.type}, text: ${message.text.length > 20 ? "${message.text.substring(0, 20)}..." : message.text}',
+    );
     setState(() {
       _messages.add(message);
     });
@@ -99,10 +101,10 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     try {
       String accumulatedText = '';
       String? activeToolName;
-      
+
       // 자리 마련을 위한 빈 응답 메시지는 스트림 시작 직전이 아닌,
       // 실제 텍스트 데이터(delta)가 올 때 생성하도록 로직 변경
-      int replyIndex = -1; 
+      int replyIndex = -1;
 
       final stream = _grpcService.sendMessage(text);
 
@@ -110,20 +112,26 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         if (!mounted) break;
 
         if (_isTyping) {
-            setState(() { _isTyping = false; });
+          setState(() {
+            _isTyping = false;
+          });
         }
 
         switch (event) {
           case CarbonTextDelta(:final content):
             accumulatedText += content;
             if (replyIndex == -1) {
-               // 첫 데이터 수신 시점에 메시지 객체 생성
-               replyIndex = _messages.length;
-               _addMessage(ChatMessage(text: accumulatedText, type: MessageType.received));
+              // 첫 데이터 수신 시점에 메시지 객체 생성
+              replyIndex = _messages.length;
+              _addMessage(
+                ChatMessage(text: accumulatedText, type: MessageType.received),
+              );
             } else {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
-                  text: activeToolName != null ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText' : accumulatedText,
+                  text: activeToolName != null
+                      ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText'
+                      : accumulatedText,
                   type: MessageType.received,
                 );
               });
@@ -156,7 +164,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           case CarbonTurnComplete():
             setState(() {
               if (activeToolName == null && accumulatedText.trim().isEmpty) {
-                 accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+                accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
               }
               if (replyIndex != -1) {
                 _messages[replyIndex] = ChatMessage(
@@ -165,7 +173,12 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                 );
               } else {
                 // 한 번도 데이터가 안 왔을 경우 예외 처리
-                _addMessage(ChatMessage(text: accumulatedText, type: MessageType.received));
+                _addMessage(
+                  ChatMessage(
+                    text: accumulatedText,
+                    type: MessageType.received,
+                  ),
+                );
               }
             });
             _scrollToBottom();
@@ -178,7 +191,12 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                   type: MessageType.received,
                 );
               } else {
-                _addMessage(ChatMessage(text: 'Error: $message', type: MessageType.received));
+                _addMessage(
+                  ChatMessage(
+                    text: 'Error: $message',
+                    type: MessageType.received,
+                  ),
+                );
               }
             });
             if (fatal) await _grpcService.reconnect();
@@ -217,16 +235,18 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return KeyboardListener(
+    return Focus(
       focusNode: _keyboardFocusNode,
       autofocus: true,
-      onKeyEvent: (KeyEvent event) {
+      onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.escape ||
                 event.logicalKey == LogicalKeyboardKey.goBack ||
                 event.logicalKey == LogicalKeyboardKey.browserBack)) {
           Navigator.of(context).pop();
+          return KeyEventResult.handled;
         }
+        return KeyEventResult.ignored;
       },
       child: Scaffold(
         backgroundColor: TizenStyles.slate950,
@@ -239,52 +259,36 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               children: [
                 // Custom Header
                 const Padding(
-                  padding:
-                      EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 12.0,
+                    horizontal: 20.0,
+                  ),
                   child: Center(
-                    child: Text('Tizen AI', style: TizenStyles.headerText),
+                    child: GradientText(
+                      'Tizen AI',
+                      style: TizenStyles.headerText,
+                    ),
                   ),
                 ),
                 // Chat Content
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(20.0),
-                    itemCount: _messages.length + 1 + (_isTyping ? 1 : 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30.0,
+                      vertical: 20.0,
+                    ),
+                    itemCount: _messages.length + (_isTyping ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return Column(
-                          children: [
-                            Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: TizenStyles.slate800.withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Text(
-                                  'TODAY',
-                                  style: TizenStyles.dateText,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                        );
-                      }
-
                       // Show typing indicator at the end
-                      if (_isTyping && index == _messages.length + 1) {
+                      if (_isTyping && index == _messages.length) {
                         return const Padding(
                           padding: EdgeInsets.only(bottom: 24.0),
                           child: TypingIndicator(showAvatar: true),
                         );
                       }
 
-                      final message = _messages[index - 1];
+                      final message = _messages[index];
                       Widget messageWidget;
 
                       switch (message.type) {

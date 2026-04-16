@@ -3,16 +3,22 @@ import 'screens/tizen_chat_home_screen.dart';
 import 'package:flutter/material.dart';
 
 void main() {
+  const bool enableHttpBus = bool.fromEnvironment(
+    'ENABLE_HTTP_BUS',
+    defaultValue: true,
+  );
+
   FlutterError.onError = (FlutterErrorDetails details) {
     print('FLUTTER ERROR: ${details.exception}');
   };
-  runApp(const TizenChatApp());
+  runApp(TizenChatApp(enableHttpMessageBus: enableHttpBus));
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class TizenChatApp extends StatelessWidget {
-  const TizenChatApp({super.key});
+  final bool enableHttpMessageBus;
+  const TizenChatApp({super.key, this.enableHttpMessageBus = true});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +42,7 @@ class TizenChatApp extends StatelessWidget {
             await SystemNavigator.pop();
           }
         },
-        child: const TizenChatHomeScreen(),
+        child: TizenChatHomeScreen(enableHttpMessageBus: enableHttpMessageBus),
       ),
     );
   }

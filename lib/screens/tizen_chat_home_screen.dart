@@ -14,7 +14,11 @@ import '../features/http_message_overlay/http_message_bus.dart';
 enum ScreenState { initial, chat, generativeUI, overlay }
 
 class TizenChatHomeScreen extends StatefulWidget {
-  const TizenChatHomeScreen({super.key});
+  final bool enableHttpMessageBus;
+  const TizenChatHomeScreen({
+    super.key,
+    this.enableHttpMessageBus = true,
+  });
 
   @override
   State<TizenChatHomeScreen> createState() => _TizenChatHomeScreenState();
@@ -42,7 +46,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void initState() {
     super.initState();
     _initializeServices();
-    _startHttpMessageBus();
+    if (widget.enableHttpMessageBus) {
+      _startHttpMessageBus();
+    }
 
     // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -266,9 +272,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         canRequestFocus: _activeScreen != ScreenState.chat,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
-          print(
-            'DEBUG: [Key] ${event.logicalKey} (${event.runtimeType})',
-          );
+          if (event is KeyDownEvent && 
+              (event.logicalKey == LogicalKeyboardKey.escape ||
+               event.logicalKey == LogicalKeyboardKey.goBack ||
+               event.logicalKey == LogicalKeyboardKey.browserBack)) {
+            SystemNavigator.pop();
+            return KeyEventResult.handled;
+          }
           return KeyEventResult.ignored;
         },
         child: SizedBox.expand(

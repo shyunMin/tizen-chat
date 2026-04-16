@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import '../theme/tizen_styles.dart';
 
-class TizenChatInput extends StatelessWidget {
+class TizenChatInput extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final Function(String) onSend;
@@ -16,12 +16,27 @@ class TizenChatInput extends StatelessWidget {
     required this.onSend,
   });
 
+  @override
+  State<TizenChatInput> createState() => _TizenChatInputState();
+}
+
+class _TizenChatInputState extends State<TizenChatInput> {
+  final FocusNode _micFocusNode = FocusNode();
+  final FocusNode _sendFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _micFocusNode.dispose();
+    _sendFocusNode.dispose();
+    super.dispose();
+  }
+
   void _handleSend() {
-    final text = controller.text.trim();
+    final text = widget.controller.text.trim();
     if (text.isNotEmpty) {
-      onSend(text);
-      controller.clear();
-      focusNode.requestFocus();
+      widget.onSend(text);
+      widget.controller.text = ""; // clear
+      widget.focusNode.requestFocus();
     }
   }
 
@@ -31,7 +46,7 @@ class TizenChatInput extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 26.0),
+          padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 26.0),
           decoration: BoxDecoration(
             color: Colors.transparent,
           ),
@@ -39,9 +54,12 @@ class TizenChatInput extends StatelessWidget {
             children: [
               Expanded(
                 child: GlowInputBorder(
-                  focusNode: focusNode,
+                  focusNode: widget.focusNode,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: TizenStyles.slate900,
                       borderRadius: BorderRadius.circular(9999),
@@ -50,53 +68,42 @@ class TizenChatInput extends StatelessWidget {
                       children: [
                         Expanded(
                           child: TextField(
-                            controller: controller,
-                            focusNode: focusNode,
+                            controller: widget.controller,
+                            focusNode: widget.focusNode,
                             onSubmitted: (_) => _handleSend(),
                             autofocus: true,
-                            keyboardType: TextInputType.none, // Hide virtual keyboard
-                            showCursor: true, // Keep cursor visible for hardware keyboard
+                            keyboardType: TextInputType.none,
+                            showCursor: true,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: TizenStyles.baseFontSize,
                             ),
                             decoration: const InputDecoration(
                               hintText: 'Type a message...',
-                              hintStyle: TextStyle(color: TizenStyles.slate500),
+                              hintStyle: TextStyle(
+                                color: TizenStyles.slate500,
+                                fontSize: 18,
+                              ),
                               border: InputBorder.none,
                               isDense: true,
                             ),
                           ),
                         ),
-                        const Icon(
-                          Icons.sentiment_satisfied_alt,
-                          color: TizenStyles.cyan400,
+                        _FocusableActionIcon(
+                          icon: Icons.mic_rounded,
+                          size: 24,
+                          focusNode: _micFocusNode,
+                          onTap: () {},
+                          isEnabled: false,
+                        ),
+                        _FocusableActionIcon(
+                          icon: Icons.send_rounded,
                           size: 22,
+                          focusNode: _sendFocusNode,
+                          onTap: _handleSend,
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: _handleSend,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: TizenStyles.accentGradient,
-                    boxShadow: [
-                      BoxShadow(
-                        color: TizenStyles.cyan400.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.send_rounded, color: Colors.white, size: 22),
                   ),
                 ),
               ),
@@ -184,6 +191,135 @@ class _GlowInputBorderState extends State<GlowInputBorder> with SingleTickerProv
           child: widget.child,
         );
       },
+    );
+  }
+}
+class _FocusableActionIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final FocusNode focusNode;
+  final VoidCallback onTap;
+  final bool isEnabled;
+
+  const _FocusableActionIcon({
+    required this.icon,
+    required this.size,
+    required this.focusNode,
+    required this.onTap,
+    this.isEnabled = true,
+  });
+
+  @override
+  State<_FocusableActionIcon> createState() => _FocusableActionIconState();
+}
+
+class _FocusableActionIconState extends State<_FocusableActionIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressController;
+  late Animation<double> _scaleAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = true);
+    _pressController.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = false);
+    _pressController.reverse();
+  }
+
+  void _handleTapCancel() {
+    if (!widget.isEnabled) return;
+    setState(() => _isPressed = false);
+    _pressController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: widget.focusNode,
+      onKeyEvent: (node, event) {
+        if (!widget.isEnabled) return KeyEventResult.ignored;
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          _pressController.forward().then((_) => _pressController.reverse());
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTapDown: _handleTapDown,
+        onTapUp: _handleTapUp,
+        onTapCancel: _handleTapCancel,
+        onTap: widget.isEnabled ? widget.onTap : null,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: AnimatedBuilder(
+            animation: widget.focusNode,
+            builder: (context, child) {
+              final isFocused = widget.focusNode.hasFocus;
+              final active = widget.isEnabled && (isFocused || _isPressed);
+
+              Color iconColor;
+              if (!widget.isEnabled) {
+                iconColor = Colors.white.withValues(alpha: 0.3);
+              } else if (active) {
+                iconColor = Colors.white;
+              } else {
+                iconColor = TizenStyles.cyan400;
+              }
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: active
+                      ? TizenStyles.cyan400.withValues(alpha: 0.25)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: TizenStyles.cyan400.withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  widget.icon,
+                  color: iconColor,
+                  size: widget.size,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
