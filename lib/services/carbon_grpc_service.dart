@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
 import '../generated/carbon/v1/agent.pbgrpc.dart';
 
@@ -78,9 +79,7 @@ class CarbonGrpcService {
       _client = AgentServiceClient(_channel!);
       _requestStreamController = StreamController<ClientMessage>();
 
-      final responseStream = _client!.session(
-        _requestStreamController!.stream,
-      );
+      final responseStream = _client!.session(_requestStreamController!.stream);
       final handshakeCompleter = Completer<void>();
 
       _responseSubscription = responseStream.listen(
@@ -111,9 +110,25 @@ class CarbonGrpcService {
         },
       );
 
+      // Get app-specific storage path for workspace
+      final appDir = await getApplicationSupportDirectory();
+      final workspacePath = p.join(appDir.path, 'tizen_ai');
+
+      // Ensure directory exists
+      final workspaceDir = Directory(workspacePath);
+      if (!await workspaceDir.exists()) {
+        await workspaceDir.create(recursive: true);
+      }
+      print('DEBUG: [CarbonGrpc] Using workspace path: $workspacePath');
+
       // Send the handshake
       _requestStreamController!.add(
-        ClientMessage(createSession: CreateSessionRequest(product: "claw")),
+        ClientMessage(
+          createSession: CreateSessionRequest(
+            product: "claw",
+            config: {"workspace": workspacePath},
+          ),
+        ),
       );
 
       await handshakeCompleter.future.timeout(const Duration(seconds: 3));

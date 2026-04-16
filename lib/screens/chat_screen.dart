@@ -111,7 +111,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
       await for (final event in stream) {
         if (!mounted) break;
 
-        if (_isTyping) {
+        // 실제 화면에 메시지 말풍선이 생겼을 때만 타이핑 인디케이터 중지
+        if (_isTyping && replyIndex != -1) {
           setState(() {
             _isTyping = false;
           });
@@ -126,6 +127,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               _addMessage(
                 ChatMessage(text: accumulatedText, type: MessageType.received),
               );
+              setState(() {
+                _isTyping = false;
+              });
             } else {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
@@ -140,7 +144,19 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
             break;
           case CarbonToolUseStart(:final toolName):
             activeToolName = toolName;
-            if (replyIndex != -1) {
+            if (replyIndex == -1) {
+              // 도구 실행 시작 시점에 메시지 객체 생성 (아무런 텍스트가 없을 때 대응)
+              replyIndex = _messages.length;
+              _addMessage(
+                ChatMessage(
+                  text: '[🔧 $activeToolName 실행 중...]',
+                  type: MessageType.received,
+                ),
+              );
+              setState(() {
+                _isTyping = false;
+              });
+            } else {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
                   text: '[🔧 $activeToolName 실행 중...]\n$accumulatedText',
@@ -155,7 +171,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
             if (replyIndex != -1) {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
-                  text: accumulatedText,
+                  text: accumulatedText.isNotEmpty
+                      ? accumulatedText
+                      : '도구 실행을 완료했습니다.',
                   type: MessageType.received,
                 );
               });

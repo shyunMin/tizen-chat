@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 void main() {
   const bool enableHttpBus = bool.fromEnvironment(
     'ENABLE_HTTP_BUS',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   FlutterError.onError = (FlutterErrorDetails details) {

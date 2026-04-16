@@ -18,6 +18,7 @@ dependencies:
   webview_flutter_tizen: ^0.9.7
   grpc: ^4.0.0
   protobuf: any
+  path: ^1.8.0
   genui:
     path: /home/jay/github/genui/packages/genui
 
