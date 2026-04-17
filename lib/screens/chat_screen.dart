@@ -10,6 +10,7 @@ import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import '../services/carbon_grpc_service.dart';
 import '../features/http_message_overlay/http_message_bus.dart';
+import '../services/agent_response_parser.dart';
 
 class TizenChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
@@ -205,21 +206,31 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               if (activeToolName == null && accumulatedText.trim().isEmpty) {
                 accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
               }
+
+              // [NEW] 에이전트 응답 파싱
+              final parsedResponse = AgentResponseParser.parse(accumulatedText);
+              print('DEBUG: [TizenChatScreen] Response Complete. display_type: ${parsedResponse.displayType}');
+              
               if (replyIndex != -1) {
                 _messages[replyIndex] = ChatMessage(
-                  text: accumulatedText,
+                  text: parsedResponse.content,
+                  displayType: parsedResponse.displayType,
                   type: MessageType.received,
                   isWaiting: false,
+                  uiCode: parsedResponse.uiCode,
                 );
               } else {
                 // 한 번도 데이터가 안 왔을 경우 예외 처리
                 _addMessage(
                   ChatMessage(
-                    text: accumulatedText,
+                    text: parsedResponse.content,
+                    displayType: parsedResponse.displayType,
                     type: MessageType.received,
+                    uiCode: parsedResponse.uiCode,
                   ),
                 );
               }
+              _isTyping = false; // Turn 종료 시 타이핑 상태 해제
             });
             _scrollToBottom();
             break;
@@ -393,6 +404,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                                   avatarInitial: message.senderInitial,
                                   uiCode: message.uiCode,
                                   isWaiting: message.isWaiting,
+                                  displayType: message.displayType,
                                 );
                                 break;
                               case MessageType.richCard:

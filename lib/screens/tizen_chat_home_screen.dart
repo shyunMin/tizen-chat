@@ -10,6 +10,7 @@ import 'chat_screen.dart';
 import '../features/http_message_overlay/http_message_overlay_screen.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
+import '../services/agent_response_parser.dart';
 
 enum ScreenState { initial, chat, generativeUI, overlay }
 
@@ -153,16 +154,20 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               if (activeToolName == null && accumulatedText.trim().isEmpty) {
                 accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
               }
-              _currentText = accumulatedText;
+              
+              // [NEW] 에이전트 응답 파싱
+              final parsedResponse = AgentResponseParser.parse(accumulatedText);
+              _currentText = parsedResponse.content;
 
               final receivedMsg = ChatMessage(
                 text: _currentText,
+                displayType: parsedResponse.displayType,
                 type: MessageType.received,
-                uiCode: null,
+                uiCode: parsedResponse.displayType == 'ui' ? _currentText : null,
               );
-              print(
-                'DEBUG: [TizenChatHomeScreen] Adding received message to list',
-              );
+              
+              print('DEBUG: [TizenChatHomeScreen] Response Complete. display_type: ${parsedResponse.displayType}');
+              
               _messages.add(receivedMsg);
             });
 

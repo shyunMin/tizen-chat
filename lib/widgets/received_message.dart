@@ -8,6 +8,7 @@ class ReceivedMessage extends StatelessWidget {
   final String avatarInitial;
   final String? uiCode;
   final bool isWaiting;
+  final String displayType;
 
   const ReceivedMessage({
     super.key,
@@ -15,7 +16,24 @@ class ReceivedMessage extends StatelessWidget {
     required this.avatarInitial,
     this.uiCode,
     this.isWaiting = false,
+    this.displayType = 'text',
   });
+
+  Color _getAvatarColor() {
+    switch (displayType) {
+      case 'ui':
+        return Colors.deepPurpleAccent; // UI/GenUI 타입
+      case 'text':
+        return Colors.blueAccent; // JSON 기반 일반 텍스트
+      case 'device_control':
+        return Colors.orangeAccent; // 기기 제어 타입 (Yellow/Orange)
+      case 'hidden':
+        return Colors.tealAccent; // 숨김/시스템 동작 타입
+      case 'fallback':
+      default:
+        return TizenStyles.slate800; // 일반 원본 텍스트(JSON 없음)
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,15 +49,21 @@ class ReceivedMessage extends StatelessWidget {
                 height: 38,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(TizenStyles.cyan400.withValues(alpha: 0.8)),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    TizenStyles.cyan400.withValues(alpha: 0.8),
+                  ),
                 ),
               ),
             CircleAvatar(
               radius: 16,
-              backgroundColor: TizenStyles.slate800,
+              backgroundColor: _getAvatarColor(),
               child: Text(
                 avatarInitial,
-                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
