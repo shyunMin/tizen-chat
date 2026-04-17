@@ -1,0 +1,165 @@
+<Signature Id="DistributorSignature" xmlns="http://www.w3.org/2000/09/xmldsig#">
+  <SignedInfo>
+    <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+    <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512" />
+    <Reference URI="tizen-manifest.xml">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>2+3GfpabPVffST6nSaRcxiPZiRTdbIt8hmJ8PeSYsPYh+AFYyny/94Gpzv6a3eoIWX/DkFG7Lew0bKInNCDtqg==</DigestValue>
+    </Reference>
+    <Reference URI="shared%2Fres%2Fic_launcher.png">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>NBEvet7alQHU5w3jrKhHYncSBjjKxSOaanoMWVvtD77rsBP5hX4Vx+qXP2Ky37SQTXW2d3vH62E8KZnDqsMxkg==</DigestValue>
+    </Reference>
+    <Reference URI="Runner.deps.json">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>cnFkuqgSXeFfKDYvsF4cfsPCuRflsskYE699bIkZJeyOrIocZBMvQuDIB2u4TSjVMbhug+6L3zIf4/RM/0+hEg==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Ficudtl.dat">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>19P/+0FXbPLJDNJgcnzA6iPFpMRY+EsBQmwqRXgAS5QWgEfHKCIi6f+t4vCC4YnPFnFGzDMDvX27slKlkyNpZw==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2Fshaders%2Fstretch_effect.frag">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>kqP5Out7RpksJfQS80ZTK/h15uM8KC5nrsgW8PyzRKnB+cfpW7XLTDLTpDgfHt4D+dgu+anKZLUWlZvAoogbjg==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2Fshaders%2Fink_sparkle.frag">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>T6sVzENSF7kmiugxTDCsSLn4ICCEvidy5MFaSrNSz3FJZsRLAmGSS64oPnbRXEgt3u7jzH+UaezkqO5blO4mGw==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2FNOTICES.Z">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>d8bRT0ascT78tEmVVl9HBSRNrLCwNQjJ7BiDmpWdt5JHbxH2l5vj2RfG0C9o1HA8Xp3JwLHWNc9cBXjUi3or4Q==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2Ffonts%2FMaterialIcons-Regular.otf">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>tU40ZXUgQcdx+C/q9qihF51a+8ieALdu0PUzuLvhRieBECh85kOAjozd37jYzagb5LTnZ7QBhxdWBxSN6zRBaQ==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2FFontManifest.json">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>Blnb3IBCdozm51xeNv7x+T/egg3O1eLPB/CUnlmyX4fAFgf5fBkmp5Lb2ijr1+QzStlC3+83guXOth3ok/jfZw==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2Fassets%2Fimages%2Fbixby.png">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>5J3CR2Y6oNiwI4xDQdYLZzK065iomMFYFYz9UaqUT8UuaSYy9xQur4Elp80Ptbujxkc32pexzNNXMsrluYTEeA==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2FAssetManifest.bin">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>l4FH98pYGjz2eAdq+0NnOjNDvJiMjgDfL0LkcjlFMLLyaz5y/OeHOLCX0dcLSy1lJPH6zP3c8bBxNp2DAMmI4A==</DigestValue>
+    </Reference>
+    <Reference URI="res%2Fflutter_assets%2F.app.deps.json">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>uicfmFtX0vzFM93lHDoNkcG0O7vNwxiMwxl8Nh7DdWjpiccy13bg2DUhBfIzIWUCOtWsrRt+iivGmvt31KFk6Q==</DigestValue>
+    </Reference>
+    <Reference URI="lib%2Flibflutter_tizen.so">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>PfxjH2eEOfjyf1RVq8vPkrhrNPwg20xYgxMOzG4YlhdUyF08fx8cKiZXxSWZzGAUsdI4/B/XgXYHdHOYi++03A==</DigestValue>
+    </Reference>
+    <Reference URI="lib%2Flibflutter_plugins.so">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>QIlC2PxVsv0BKJHPy6yv7z5UB4KNL51aQexYWN3Ijkc5gS/c0vVIlWNI04sFvcErMm7mXC7ch9SVN9TZKWNF+w==</DigestValue>
+    </Reference>
+    <Reference URI="lib%2Flibflutter_engine.so">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>TqpR4nP+rsp3UY/S6TMOoSdXTECeU3rgSa9GxjA6L0kh95MOwpjDDV116uhs0+SbBrE/YN7uEx2lEfDrgXIoPA==</DigestValue>
+    </Reference>
+    <Reference URI="lib%2Flibapp.so">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>OhY3zK/1y5PYQ0d0Xm0s3FeMPeXB5obN8H7y1ecVOwnoVe2INLvw4regvJi+gMS9/jEx9srhzQnsiPRJyeUP1w==</DigestValue>
+    </Reference>
+    <Reference URI="bin%2FTizen.Flutter.Embedding.xml">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>KdFHKfrpDeVyGoogBpugiICis7/hlufYyaZH1P6j3nO75N0nyQX54p7O3ENQB6XNev2OKqyU+olGVxjYlzwFAw==</DigestValue>
+    </Reference>
+    <Reference URI="bin%2FTizen.Flutter.Embedding.pdb">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>tCsQ+0D6W57q9DKJuhldhCS3CVI6eH1zgfVlTNAxt1qikRDjZp6yNmDlH0hOiaojJcfEeI8vSA93FdzPkCOhfQ==</DigestValue>
+    </Reference>
+    <Reference URI="bin%2FTizen.Flutter.Embedding.dll">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>cEhJ9QFOeKhGcqo2eAthrCYT1b0eGlNRaPX4YULDxaEX7oDWHHwglxTZ0Mn4g+4rwmAnJ+uZmI+oyozc8Z+gPw==</DigestValue>
+    </Reference>
+    <Reference URI="bin%2FRunner.pdb">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>fLHT4DauEOcEB32UOOs7LpPN+QkdDgf/52xoH2GvC68x5SG0P0BT3o63jIWsj9WwOv9hR0GYqO/uExqGZlW4rQ==</DigestValue>
+    </Reference>
+    <Reference URI="bin%2FRunner.dll">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>FUIa6qwK1RnN1w9nfgHL3MCb6QpaDllqvarrmOJzJBttYvbWZl18zy+DyEfrwJ1a351RCpGWZ2IRx6XeRFoQmA==</DigestValue>
+    </Reference>
+    <Reference URI="author-signature.xml">
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>gb0cBacW+dkX6G3KWyJlPelMzdpOdmf7jLHGxW2nGfqAhN7uO7OfPf7Bl9LdHjmvmBVnxGFW9XkZ44MMnBkm9w==</DigestValue>
+    </Reference>
+    <Reference URI="#prop">
+      <Transforms>
+        <Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+      </Transforms>
+      <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512" />
+      <DigestValue>5YPt7Bw2TSPBQKkKOFPZNFjzt+iifSVhnCWKlLr+/5f/JEGy9SqkT543A8UCz08tYLBNiokj1/ZsXG4PeC92qQ==</DigestValue>
+    </Reference>
+  </SignedInfo>
+  <SignatureValue>
+OT+Y3ipNPiFaV0X+NUdTg4Ovil4YyZ8AkMRHt8s4Smsu8sgjSPd4d+uRPrEDO7Bq+eiCjNNAzKqL
+yuGg9uhD/U+mui/Whx7WDwkuN5RLxtALasdmlhYzRRHiU3XgAJ/iUXt0Go34BSjvuRgel2fTyks6
+puCK2m5Zboy1uA1S6/R+iQ5rwzYrE3rGIEdV3AeuSC8FqCQJD04/AFcxfu/sZak8M5atnGi+I8jr
+J0J6H5q0u7YVgF+PvVSCaHOkk5DkoUtICFyiHVDjxYAwCIbrFV/CKODUNanFcYx3Oidi0ayb5T0I
+gpmU1uv4lzUlGT95KDrHva1H61xETJJbyyUPRw==
+</SignatureValue>
+  <KeyInfo>
+    <X509Data>
+      <X509Certificate>
+MIIDxjCCAq6gAwIBAgIGAYQISmdOMA0GCSqGSIb3DQEBDQUAMIGaMQswCQYDVQQGEwJLUjEaMBgG
+A1UECAwRUmVwdWJsaWMgb2YgS29yZWExEzARBgNVBAcMClNlb3VsIENpdHkxGjAYBgNVBAoMEVRp
+emVuIEFzc29jaWF0aW9uMRUwEwYDVQQLDAxUaXplbiBTdHVkaW8xJzAlBgNVBAMMHlRpemVuIFN0
+dWRpbyBQbGF0Zm9ybSBDQSBDbGFzczAeFw0yMjEwMjQwNDQwMDRaFw0zMjEwMjQwNDQwMDRaMIGY
+MQswCQYDVQQGEwJLUjEaMBgGA1UECAwRUmVwdWJsaWMgb2YgS29yZWExEzARBgNVBAcMClNlb3Vs
+IENpdHkxGjAYBgNVBAoMEVRpemVuIEFzc29jaWF0aW9uMRUwEwYDVQQLDAxUaXplbiBTdHVkaW8x
+JTAjBgNVBAMMHFRpemVuIFN0dWRpbyBQbGF0Zm9ybSBTaWduZXIwggEiMA0GCSqGSIb3DQEBAQUA
+A4IBDwAwggEKAoIBAQCIeuzOkDrV9ZR7NLk15qbQdyzEEMiW1IH9u0W0/tHlGQq6zQlSqI6SA2y2
++33wrhB/ghGvycyIr5YW5YeLOlQR5W/5LQ1d6J1dZAgnSIlZq/pZyKDN97Q5TInX+LalzEi1A8hz
+GXDCnep4v28VxcJE18MomTkW+Vozdm7QP0msENZO+pt9IUIZc86T2LwQqDSVnTBQYD/LpDNQ3Aye
+mwKJ/y/9fM7g/VD4MqNFjooBwIDn+uCA77KMuVT+KznJnM0x4wtT9/INqJj5cQQUA/Q6V0MqSjy8
+CvFh7dn732azbLopedGOFxeUFJjIWqiZ525F1EvEc2vOr9DFk/bXEvgzAgMBAAGjEjAQMA4GA1Ud
+DwEB/wQEAwIHgDANBgkqhkiG9w0BAQ0FAAOCAQEAVF9esbyY+iMe1xbuCuHOtroql9KsSwIm4Hdv
+hMjnR9KsZhDOlDLMF3DHVO7+MYW4ZPtuvvMh41Iqd5hLhomaCE5zs9aYYx9dVHcGvGKJVPJP+3S8
+sPek5DdL4e99MZNbku9IJJx/TkZggt/Cp2ZylLxEjjACyGmb52Fy69bYTSj3DbNESNEruzkWzAM1
+3V02Rn8jDK7RDIhD8kpf6v3WgQrkdgDl6x9/gUqC7u5nkSpheQApLv3o+KkBoB5xPRujVprPyPqN
+6bMtIRuRA51HJgyA+kxJVOCLlpmmA+KQEesfprhZVTjZ9fVW/pHKPW/1ute4JOJaz7g8LuWuxhrn
+Hg==
+</X509Certificate>
+      <X509Certificate>
+MIID2zCCAsOgAwIBAgIGAYQISE2FMA0GCSqGSIb3DQEBDQUAMIGcMQswCQYDVQQGEwJLUjEaMBgG
+A1UECAwRUmVwdWJsaWMgb2YgS29yZWExEzARBgNVBAcMClNlb3VsIENpdHkxGjAYBgNVBAoMEVRp
+emVuIEFzc29jaWF0aW9uMRUwEwYDVQQLDAxUaXplbiBTdHVkaW8xKTAnBgNVBAMMIFRpemVuIFN0
+dWRpbyBQbGF0Zm9ybSBSb290IENsYXNzMB4XDTIyMTAyNDA0Mzc0N1oXDTMyMTAyNTA0Mzc0N1ow
+gZoxCzAJBgNVBAYTAktSMRowGAYDVQQIDBFSZXB1YmxpYyBvZiBLb3JlYTETMBEGA1UEBwwKU2Vv
+dWwgQ2l0eTEaMBgGA1UECgwRVGl6ZW4gQXNzb2NpYXRpb24xFTATBgNVBAsMDFRpemVuIFN0dWRp
+bzEnMCUGA1UEAwweVGl6ZW4gU3R1ZGlvIFBsYXRmb3JtIENBIENsYXNzMIIBIjANBgkqhkiG9w0B
+AQEFAAOCAQ8AMIIBCgKCAQEAm6NcILEkS9i9JFTz6QaPpg2xYnUI1BHEDG6b2Kr3L1EsrB6hFO3z
+JdIIBN9Z+a2cwtJTaW626V/QOEiNif4VvzEeATWyvacfn3QZ5wnr0YjW7/aQSgVwRXjoA1PBvEJr
+HIB3UejtWi4p5239wFjXuTo1u0Lc50mJpIUkUHbw+BsmC4JazfUc1OpaATMlB8EFxOy4ASQ72iBK
+GzoA4l4c36bJ9pHMUSsX+mhgydLVDL5zou3BrrgmYVikIq4FK5Svr2/MjvSZvCmzokSHZ4GDPRcg
+m1RJJ3/Hu6NIThlPKU0W40Wr0yiOgJrMfvURE10BUbO1l0MJ2+2RAv3zhfciBQIDAQABoyMwITAP
+BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBBjANBgkqhkiG9w0BAQ0FAAOCAQEAY04o8TVt
++nqcVdRijgWKB/H3IYkGXODufOtCr1EPj2cShcJFUH/ScQxekXsdZ71gdwiK2tniBdfOdEv3m96N
+U0wpdMlaOsh4lbL8XCl9PlBumCCLI5oF8cRa/UXc7eX0EeunyXmSSKS3gRLBWgRgrPCR9fOAKOS6
+NBn/YFvxFY9zTarUAtDfqQ57BDZApMhyxsjYmJwLu0p6Q/yZf1xzEjE7N74CuQgmfeQ2EHzR9OB9
+kvvC3iuo292YNgP0OnX9pJMz4WPoxlfFOgToo5JUbrKKCSit/DU4WFhlUpmZ+HtbYbZHXn+8IJVq
+NIhMXp1jSRk1zrPWGNEk/a1Tv269wg==
+</X509Certificate>
+    </X509Data>
+  </KeyInfo>
+  <Object Id="prop">
+    <SignatureProperties xmlns:dsp="http://www.w3.org/2009/xmldsig-properties">
+      <SignatureProperty Id="profile" Target="#DistributorSignature">
+        <dsp:Profile URI="http://www.w3.org/ns/widgets-digsig#profile" />
+      </SignatureProperty>
+      <SignatureProperty Id="role" Target="#DistributorSignature">
+        <dsp:Role URI="http://www.w3.org/ns/widgets-digsig#role-distributor" />
+      </SignatureProperty>
+      <SignatureProperty Id="identifier" Target="#DistributorSignature">
+        <dsp:Identifier />
+      </SignatureProperty>
+    </SignatureProperties>
+  </Object>
+</Signature>
