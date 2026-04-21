@@ -8,14 +8,16 @@
 graph LR
     User(["사용자 음성 입력"]) --> ChatUI["ChatUI app"]
     
-    subgraph STT_Process [음성-텍스트 변환]
+    subgraph STT_Process [1. 음성-텍스트 변환]
         ChatUI -- "음성 데이터 전송" --> VCD["voice-control daemon"]
         VCD -- "변환된 텍스트 반환" --> ChatUI
     end
-    
-    ChatUI -- "요청 전달 (gRPC)" --> Agent(("ai agent\n(Carbon 기반)"))
-    Agent -- "1. 진행 상태 알림\n(emit_progress hook -> D-Bus)" --> HUD["HUD app"]
-    Agent -- "2. 최종 응답 데이터 UI\n(D-Bus)" --> HUD
+
+    subgraph AI_Progress [2. 진행 상황 및 결과 리턴]
+        ChatUI -- "요청 전달 (gRPC)" --> Agent(("ai agent\n(Carbon 기반)"))
+        Agent -- "진행 상태 알림\n(emit_progress)" --> HUD["HUD app"]
+        Agent -- "최종 응답 데이터" --> HUD
+    end
     
     classDef app fill:#e1f5fe;
     classDef agent fill:#e8f5e9;
