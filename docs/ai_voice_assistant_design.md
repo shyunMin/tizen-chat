@@ -6,7 +6,7 @@
 ### 개념적 아키텍처 흐름도 (Conceptual Flow)
 ```mermaid
 graph LR
-    User(["사용자 음성 입력"]) --> ChatUI["chat-ui app"]
+    User(["사용자 음성 입력"]) --> ChatUI["ChatUI app"]
     
     subgraph STT_Process [음성-텍스트 변환]
         ChatUI -- "음성 데이터 전송" --> VCD["voice-control daemon"]
