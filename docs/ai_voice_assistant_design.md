@@ -14,13 +14,13 @@ graph LR
     end
     
     ChatUI -- "요청 전달 (gRPC)" --> Agent(("ai agent\n(Carbon 기반)"))
-    Agent -- "1. 진행 상태 알림\n(emit_progress hook -> D-Bus)" --> HUD["HUD app\n(개발 범위 외)"]
+    Agent -- "1. 진행 상태 알림\n(emit_progress hook -> D-Bus)" --> HUD["HUD app"]
     Agent -- "2. 최종 응답 데이터 UI\n(D-Bus)" --> HUD
     
-    classDef app fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
-    classDef agent fill:#e8f5e9,stroke:#4caf50,stroke-width:2px;
-    classDef daemon fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef outscope fill:#f5f5f5,stroke:#9e9e9e,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef app fill:#e1f5fe;
+    classDef agent fill:#e8f5e9;
+    classDef daemon fill:#fff9c4;
+    classDef outscope fill:#f5f5f5;
     
     class ChatUI app;
     class Agent agent;
