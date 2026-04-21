@@ -19,7 +19,7 @@
 ```mermaid
 flowchart LR
     AppA["ChatUI\ngRPC 클라이언트"]
-    AppB["HUD\n진행 상황 UI"]:::new
+    AppB["HUD\n진행 상황 UI"]
 
     subgraph Daemon["carbon-daemon"]
         Svc["service.rs\nAgentServiceImpl"]:::modified
