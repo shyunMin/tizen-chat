@@ -99,10 +99,10 @@ class ReceivedMessage extends StatelessWidget {
                   h3: TizenStyles.headerText.copyWith(fontSize: 16),
                 ),
               ),
-              if (uiCode != null && uiCode!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                GenerativeWebView(uiCode: uiCode!, isInline: true),
-              ],
+              // if (uiCode != null && uiCode!.isNotEmpty) ...[
+              //   const SizedBox(height: 12),
+              //   GenerativeWebView(uiCode: uiCode!, isInline: true),
+              // ],
             ],
           ),
         ),

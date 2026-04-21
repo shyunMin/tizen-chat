@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 class PromptBar extends StatefulWidget {
   final bool isVisible;
   final bool isWaiting;
+  final bool hasChatStarted;
   final Function(String)? onSend;
 
   const PromptBar({
@@ -13,6 +14,7 @@ class PromptBar extends StatefulWidget {
     required this.isVisible,
     this.onSend,
     this.isWaiting = false,
+    this.hasChatStarted = false,
   });
 
   @override
@@ -21,6 +23,7 @@ class PromptBar extends StatefulWidget {
 
 class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
   bool _isExpanded = false;
+  bool _hasSentOnce = false; // Track if at least one message has been sent
   String _displayText = "";
   final String _fullText = "How can I help you?";
   int _charIndex = 0;
@@ -74,6 +77,13 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
         }
       });
     }
+
+    // 응답 완료 시 입력 필드에 자동 포커스
+    if (!widget.isWaiting && oldWidget.isWaiting) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) _inputFocusNode.requestFocus();
+      });
+    }
   }
 
   void _reset() {
@@ -120,48 +130,62 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutCubic,
-          width: _isExpanded
-              ? MediaQuery.of(context).size.width * 0.7 // 채팅창 너비와 동일하게 70%로 수정
-              : 84,
-          height: 84,
+          width: _isExpanded ? MediaQuery.of(context).size.width * 0.7 : 64,
+          height: 56,
           child: Container(
-            padding: const EdgeInsets.all(2), // Increased thickness
+            padding: widget.hasChatStarted
+                ? EdgeInsets.zero
+                : EdgeInsets.all(_hasSentOnce ? 1 : 2),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(42),
-              gradient: SweepGradient(
-                center: Alignment.center,
-                colors: [
-                  Colors.blueAccent.withValues(alpha: 0.3),
-                  Colors.cyanAccent.withValues(alpha: 0.3),
-                  Colors.purpleAccent.withValues(alpha: 0.3),
-                  Colors.blueAccent.withValues(alpha: 0.3),
-                ],
-                transform: GradientRotation(
-                  _rotationController.value * 2 * 3.14159,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blueAccent.withValues(
-                    alpha: 0.5 * _glowAnimation.value,
-                  ),
-                  blurRadius: 25 * _glowAnimation.value,
-                  spreadRadius: 3 * _glowAnimation.value,
-                ),
-                BoxShadow(
-                  color: Colors.purpleAccent.withValues(
-                    alpha: 0.2 * _glowAnimation.value,
-                  ),
-                  blurRadius: 40 * _glowAnimation.value,
-                ),
-              ],
+              borderRadius: BorderRadius.circular(32),
+              gradient: widget.hasChatStarted
+                  ? null
+                  : SweepGradient(
+                      center: Alignment.center,
+                      colors: _hasSentOnce
+                          ? [
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.3),
+                              Colors.white.withValues(alpha: 0.05),
+                            ]
+                          : [
+                              Colors.blueAccent.withValues(alpha: 0.3),
+                              Colors.cyanAccent.withValues(alpha: 0.3),
+                              Colors.purpleAccent.withValues(alpha: 0.3),
+                              Colors.blueAccent.withValues(alpha: 0.3),
+                            ],
+                      transform: GradientRotation(
+                        _rotationController.value * 2 * 3.14159,
+                      ),
+                    ),
+              boxShadow: widget.hasChatStarted
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: (_hasSentOnce ? Colors.white : Colors.blueAccent)
+                            .withValues(
+                              alpha:
+                                  (_hasSentOnce ? 0.1 : 0.5) *
+                                  _glowAnimation.value,
+                            ),
+                        blurRadius:
+                            (_hasSentOnce ? 8 : 25) * _glowAnimation.value,
+                        spreadRadius:
+                            (_hasSentOnce ? 1 : 3) * _glowAnimation.value,
+                      ),
+                      if (!_hasSentOnce)
+                        BoxShadow(
+                          color: Colors.purpleAccent.withValues(
+                            alpha: 0.2 * _glowAnimation.value,
+                          ),
+                          blurRadius: 40 * _glowAnimation.value,
+                        ),
+                    ],
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(
-                  41,
-                ), // Adjusted for 2px border
+                color: Colors.grey[900]!.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(_hasSentOnce ? 31 : 30),
               ),
               clipBehavior: Clip.antiAlias,
               child: BackdropFilter(
@@ -170,78 +194,76 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                   sigmaY: 25,
                 ), // Stronger blur
                 child: SizedBox(
-                  height: 80, // 84 - (2 * 2)
+                  height: 52, // 56 - (2 * 2)
                   child: Stack(
+                    alignment: Alignment.centerLeft,
                     children: [
-                      // Continuous Icon for stability
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeOutCubic,
-                        left: _isExpanded ? 25 : (42 - 16),
+                        left: _isExpanded ? 25 : (32 - 10),
                         top: 0,
                         bottom: 0,
                         child: Center(
                           child: Image.asset(
                             'assets/images/bixby.png',
-                            width: 30,
-                            height: 30,
+                            width: 20,
+                            height: 20,
                           ),
                         ),
                       ),
 
-                      // Expanded Content
                       AnimatedOpacity(
                         duration: const Duration(milliseconds: 300),
                         opacity: _isExpanded ? 1.0 : 0.0,
                         child: Container(
-                          height: 80, // Matches inner height
+                          height: 52,
                           padding: const EdgeInsets.only(
-                            left: 72.0,
-                            right: 25.0,
+                            left: 60.0,
+                            right: 16.0,
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Expanded(
-                                child: Transform.translate(
-                                  offset: const Offset(
-                                    0,
-                                    -3,
-                                  ), // visually centering text
-                                  child: TextField(
-                                    controller: _textController,
-                                    focusNode: _inputFocusNode,
-                                    autofocus: false,
-                                    keyboardType: TextInputType.none,
-                                    textAlignVertical: TextAlignVertical.center,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w400,
-                                      fontFamily: 'Roboto',
-                                      letterSpacing: 0.5,
+                                child: TextField(
+                                  controller: _textController,
+                                  focusNode: _inputFocusNode,
+                                  autofocus: false,
+                                  keyboardType: TextInputType.none,
+                                  textAlignVertical: TextAlignVertical.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w400,
+                                    fontFamily: 'Roboto',
+                                    letterSpacing: 0.3,
+                                  ),
+                                  decoration: InputDecoration(
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.only(
+                                      bottom: 3,
                                     ),
-                                    decoration: InputDecoration(
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      hintText: _charIndex < _fullText.length
-                                          ? _displayText
-                                          : _fullText,
-                                      hintStyle: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                    hintText: _charIndex < _fullText.length
+                                        ? _displayText
+                                        : _fullText,
+                                    hintStyle: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.3,
                                       ),
                                     ),
-                                    readOnly: _charIndex < _fullText.length || widget.isWaiting,
-                                    onSubmitted: (value) {
-                                      if (value.isNotEmpty &&
-                                          widget.onSend != null) {
-                                        widget.onSend!(value);
-                                      }
-                                    },
                                   ),
+                                  readOnly: _charIndex < _fullText.length,
+                                  onSubmitted: (value) {
+                                    if (value.isNotEmpty &&
+                                        widget.onSend != null &&
+                                        !widget.isWaiting) {
+                                      setState(() => _hasSentOnce = true);
+                                      widget.onSend!(value);
+                                      _textController.clear();
+                                    }
+                                  },
                                 ),
                               ),
                               if (_charIndex >= _fullText.length)
@@ -250,23 +272,24 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
                                   children: [
                                     _FocusableActionIcon(
                                       icon: Icons.mic_rounded,
-                                      size: 34,
+                                      size: 24,
                                       focusNode: _micFocusNode,
-                                      isEnabled: false, // Mic is always disabled for now, but also check waiting if needed
-                                      onTap: () {
-                                        // Handle Mic Tap
-                                      },
+                                      isEnabled: false,
+                                      onTap: () {},
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 6),
                                     _FocusableActionIcon(
                                       icon: Icons.send_rounded,
-                                      size: 30,
+                                      size: 24,
                                       focusNode: _sendFocusNode,
                                       isEnabled: !widget.isWaiting,
                                       onTap: () {
                                         if (_textController.text.isNotEmpty &&
-                                            widget.onSend != null) {
+                                            widget.onSend != null &&
+                                            !widget.isWaiting) {
+                                          setState(() => _hasSentOnce = true);
                                           widget.onSend!(_textController.text);
+                                          _textController.clear();
                                         }
                                       },
                                     ),
@@ -376,7 +399,7 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
             builder: (context, child) {
               final isFocused = widget.focusNode.hasFocus;
               final active = widget.isEnabled && (isFocused || _isPressed);
-              
+
               Color iconColor;
               if (!widget.isEnabled) {
                 iconColor = Colors.white.withValues(alpha: 0.3);
@@ -404,11 +427,7 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
                         ]
                       : null,
                 ),
-                child: Icon(
-                  widget.icon,
-                  color: iconColor,
-                  size: widget.size,
-                ),
+                child: Icon(widget.icon, color: iconColor, size: widget.size),
               );
             },
           ),

@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
 import '../widgets/dim_overlay.dart';
 import '../widgets/prompt_bar.dart';
 import '../widgets/typing_indicator.dart';
-import '../widgets/generative_ui_screen.dart';
+import '../widgets/received_message.dart';
+import '../widgets/sent_message.dart';
 import '../services/carbon_grpc_service.dart';
 import '../models/chat_message.dart';
-import 'chat_screen.dart';
-import '../features/http_message_overlay/http_message_overlay_screen.dart';
+import '../services/agent_response_parser.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
-import '../services/agent_response_parser.dart';
-
-enum ScreenState { initial, chat, generativeUI, overlay }
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -24,21 +22,22 @@ class TizenChatHomeScreen extends StatefulWidget {
 
 class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     with TickerProviderStateMixin {
+  // ── UI 상태 ──────────────────────────────────────────────────
   bool _isVisible = false;
   bool _isWaiting = false;
   bool _shouldSlideDown = true;
-  String _responseMessage = "";
-  String _statusMessage = "";
 
-  ScreenState _activeScreen = ScreenState.initial;
-  String _currentText = "";
+  // ── 대화창 상태 ──────────────────────────────────────────────
+  bool _hasChatStarted = false;
+  bool _isTyping = false;
   final List<ChatMessage> _messages = [];
+  String _sessionTitle = '';
+  final ScrollController _scrollController = ScrollController();
 
+  // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
-  final StreamController<String> _externalMessageController =
-      StreamController<String>.broadcast();
 
   @override
   void initState() {
@@ -48,27 +47,21 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _startHttpMessageBus();
     }
 
-    // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocusNode.requestFocus();
-
-      // 앱 시작 후 약간의 지연 시간 뒤에 Prompt Bar가 올라오는 애니메이션 실행
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
-          setState(() {
-            _isVisible = true;
-          });
+          setState(() => _isVisible = true);
         }
       });
     });
   }
 
   Future<void> _initializeServices() async {
-    // Only try once at startup as requested
     try {
       await _grpcService.connect();
     } catch (e) {
-      print('DEBUG: Initial status check failed: $e');
+      print('DEBUG: Initial connect failed: $e');
     }
   }
 
@@ -76,116 +69,142 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     try {
       await HttpMessageBus.instance.acquire();
     } catch (e) {
-      // 서버 시작 실패 → UI에 영향 없이 무시
       print('[REQ_006] HttpMessageBus acquire failed: $e');
     }
     _messageBusSubscription = HttpMessageBus.instance.stream.listen((msg) {
       if (!mounted) return;
-      if (_activeScreen == ScreenState.overlay) return; // overlay가 자체 처리
-      if (_activeScreen == ScreenState.initial && _isVisible) {
-        // 첫 화면에서 메시지 수신 시 바로 채팅창으로 전환하며 자동 전송
-        _pushScreen(
-          TizenChatScreen(
-            autoSendText: msg,
-            externalMessageStream: _externalMessageController.stream,
-          ),
-        );
-        return;
-      }
-      if (_activeScreen == ScreenState.chat) {
-        _externalMessageController.add(msg);
-        return;
-      }
-      // 그 외 상태: 무시
+      _handleSend(msg); // 사용자 입력과 동일하게 처리
     });
   }
 
+  // ────────────────────────────────────────────────────────────
+  // 메시지 전송 및 gRPC 스트리밍 처리
+  // ────────────────────────────────────────────────────────────
   Future<void> _handleSend(String text) async {
-    if (_isWaiting) return; // Prevent duplicate execution
-
-    // Explicitly request focus to handle keyboard events after PromptBar hides
+    if (_isWaiting) return;
     _keyboardFocusNode.requestFocus();
 
+    // 첫 메시지일 때만 세션 초기화, 이후는 대화 이어가기
     setState(() {
-      _shouldSlideDown = false; // Stay at current height
-      _isVisible = true; // Keep visible and let PromptBar expand via isWaiting
+      if (!_hasChatStarted) {
+        _sessionTitle = text.length > 20 ? '${text.substring(0, 20)}...' : text;
+        _hasChatStarted = true;
+      }
       _isWaiting = true;
-      _responseMessage = "";
+      _isTyping = true;
+      _shouldSlideDown = false;
+      _messages.add(ChatMessage(text: text, type: MessageType.sent));
     });
+    _scrollToBottom();
 
     try {
-      setState(() {
-        _messages.clear();
-        _messages.add(ChatMessage(text: text, type: MessageType.sent));
-      });
-
       String accumulatedText = '';
       String? activeToolName;
+      int replyIndex = -1;
 
       final stream = _grpcService.sendMessage(text);
       await for (final event in stream) {
         if (!mounted) break;
 
+        // 응답 말풍선이 생겼을 때 타이핑 인디케이터 중지
+        if (_isTyping && replyIndex != -1) {
+          setState(() => _isTyping = false);
+        }
+
         switch (event) {
           case CarbonTextDelta(:final content):
             accumulatedText += content;
-            // Generative UI format detect logic mock or usage
-            if (accumulatedText.contains('```dart')) {
-              // naive extraction if you wanted, but genui expects rawText usually
+            if (replyIndex == -1) {
+              replyIndex = _messages.length;
+              setState(() {
+                _isTyping = false;
+                _messages.add(
+                  ChatMessage(
+                    text: accumulatedText,
+                    type: MessageType.received,
+                    isWaiting: true,
+                  ),
+                );
+              });
+            } else {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: activeToolName != null
+                      ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText'
+                      : accumulatedText,
+                  type: MessageType.received,
+                  isWaiting: true,
+                );
+              });
             }
-            setState(() {
-              _currentText = accumulatedText;
-            });
+            _scrollToBottom();
             break;
+
           case CarbonToolUseStart(:final toolName):
             activeToolName = toolName;
-            setState(() {
-              _statusMessage = '🔧 $toolName 실행 중...';
-            });
+            if (replyIndex == -1) {
+              replyIndex = _messages.length;
+              setState(() {
+                _isTyping = false;
+                _messages.add(
+                  ChatMessage(
+                    text: '[🔧 $toolName 실행 중...]',
+                    type: MessageType.received,
+                    isWaiting: true,
+                  ),
+                );
+              });
+            } else {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: '[🔧 $toolName 실행 중...]\n$accumulatedText',
+                  type: MessageType.received,
+                  isWaiting: true,
+                );
+              });
+            }
+            _scrollToBottom();
             break;
+
           case CarbonToolResult():
-            setState(() {
-              _statusMessage = '';
-            });
+            activeToolName = null;
             break;
+
           case CarbonTurnComplete():
+            final parsedResponse = AgentResponseParser.parse(accumulatedText);
             setState(() {
               _isWaiting = false;
-              if (activeToolName == null && accumulatedText.trim().isEmpty) {
-                accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
+              _isTyping = false;
+              if (replyIndex != -1) {
+                _messages[replyIndex] = ChatMessage(
+                  text: parsedResponse.content,
+                  displayType: parsedResponse.displayType,
+                  type: MessageType.received,
+                  isWaiting: false,
+                  uiCode: parsedResponse.uiCode,
+                );
+              } else {
+                _messages.add(
+                  ChatMessage(
+                    text: parsedResponse.content,
+                    displayType: parsedResponse.displayType,
+                    type: MessageType.received,
+                    uiCode: parsedResponse.uiCode,
+                  ),
+                );
               }
-              
-              // [NEW] 에이전트 응답 파싱
-              final parsedResponse = AgentResponseParser.parse(accumulatedText);
-              _currentText = parsedResponse.content;
-
-              final receivedMsg = ChatMessage(
-                text: _currentText,
-                displayType: parsedResponse.displayType,
-                type: MessageType.received,
-                uiCode: parsedResponse.displayType == 'ui' ? _currentText : null,
-              );
-              
-              print('DEBUG: [TizenChatHomeScreen] Response Complete. display_type: ${parsedResponse.displayType}');
-              
-              _messages.add(receivedMsg);
             });
-
-            _pushScreen(
-              TizenChatScreen(
-                initialMessages: List.from(_messages),
-                externalMessageStream: _externalMessageController.stream,
-              ),
-            );
+            _scrollToBottom();
             return;
+
           case CarbonError(:final fatal, :final message):
             setState(() {
               _isWaiting = false;
-              _responseMessage = '오류: $message';
+              _isTyping = false;
             });
             if (fatal) await _grpcService.reconnect();
-            _hideErrorDelay();
             return;
+
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
@@ -195,19 +214,20 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (mounted) {
         setState(() {
           _isWaiting = false;
-          _responseMessage = "오류 발생: ${e.toString()}";
+          _isTyping = false;
         });
-        _hideErrorDelay();
       }
     }
   }
 
-  void _hideErrorDelay() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _responseMessage = "";
-        });
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -215,71 +235,25 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   @override
   void dispose() {
     _messageBusSubscription?.cancel();
-    _externalMessageController.close();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _pushScreen(Widget screen) {
-    // Reset visibility to true so it's active when returning
-    setState(() {
-      _isVisible = true;
-      _shouldSlideDown = true;
-      if (screen is TizenChatScreen) {
-        _activeScreen = ScreenState.chat;
-      } else if (screen is GenerativeUIScreen) {
-        _activeScreen = ScreenState.generativeUI;
-      }
-    });
-
-    Navigator.of(context)
-        .pushReplacement(
-          PageRouteBuilder(
-            opaque: false,
-            pageBuilder: (context, animation, secondaryAnimation) => screen,
-            transitionDuration: const Duration(milliseconds: 400),
-            reverseTransitionDuration: const Duration(milliseconds: 300),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  final slideAnimation =
-                      Tween<Offset>(
-                        begin: const Offset(
-                          0.0,
-                          0.3,
-                        ), // Starting slightly lower
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                        ),
-                      );
-
-                  return SlideTransition(
-                    position: slideAnimation,
-                    child: FadeTransition(opacity: animation, child: child),
-                  );
-                },
-          ),
-        )
-        .then((_) {
-          if (mounted) {
-            setState(() {
-              _messages.clear();
-            });
-          }
-        });
-  }
-
+  // ────────────────────────────────────────────────────────────
+  // Build
+  // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Focus(
         focusNode: _keyboardFocusNode,
         autofocus: true,
-        canRequestFocus: _activeScreen != ScreenState.chat,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent &&
@@ -294,14 +268,116 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // Dim Screen Overlay
-              DimOverlay(
-                isVisible: _isVisible || _isWaiting,
-                opacity: _activeScreen == ScreenState.chat ? 0.4 : 1.0,
-              ),
+              // ── 1. Dim Overlay ─────────────────────────────
+              DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
 
-              // Prompt Bar with Animation
+              // ── 2. 대화창 (첫 메시지 전송 후 표시) ─────────
+              if (_hasChatStarted)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                  bottom:
+                      138, // 60(PromptBar bottom) + 70(PromptBar height) + 8(gap)
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: screenWidth * 0.7,
+                        maxHeight: screenHeight * 0.65,
+                      ),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.bottomCenter,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900]?.withValues(alpha: 0.95),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                blurRadius: 24,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // 세션 헤더
+                              _SessionHeader(title: _sessionTitle),
+
+                              // 메시지 목록
+                              Flexible(
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    4,
+                                    12,
+                                    12,
+                                  ),
+                                  itemCount:
+                                      _messages.length + (_isTyping ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    // 타이핑 인디케이터
+                                    if (_isTyping &&
+                                        index == _messages.length) {
+                                      return const Padding(
+                                        padding: EdgeInsets.only(bottom: 10),
+                                        child: TypingIndicator(
+                                          showAvatar: true,
+                                        ),
+                                      );
+                                    }
+
+                                    final message = _messages[index];
+                                    Widget messageWidget;
+
+                                    switch (message.type) {
+                                      case MessageType.sent:
+                                        messageWidget = SentMessage(
+                                          text: message.text,
+                                        );
+                                        break;
+                                      case MessageType.received:
+                                        messageWidget = ReceivedMessage(
+                                          text: message.text,
+                                          avatarInitial: message.senderInitial,
+                                          isWaiting: message.isWaiting,
+                                          displayType: message.displayType,
+                                        );
+                                        break;
+                                      default:
+                                        messageWidget = SentMessage(
+                                          text: message.text,
+                                        );
+                                    }
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
+                                      child: messageWidget,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── 3. PromptBar ────────────────────────────────
               AnimatedPositioned(
+                key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 600),
                 curve: Curves.easeOutCubic,
                 bottom: (_isVisible || !_shouldSlideDown) ? 60 : -150,
@@ -313,75 +389,62 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: SizedBox(
-                      height: 84,
+                      height: 70,
                       child: PromptBar(
                         isVisible: _isVisible,
                         isWaiting: _isWaiting,
+                        hasChatStarted: _hasChatStarted,
                         onSend: _handleSend,
                       ),
                     ),
                   ),
                 ),
               ),
-
-              // Waiting Animation or Response Message (Layered over PromptBar)
-              if (_isWaiting || _responseMessage.isNotEmpty)
-                Positioned(
-                  bottom: 60,
-                  left: 0,
-                  right: 0,
-                  child: SizedBox(
-                    height: 84,
-                    child: Center(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 100),
-                        opacity: (_isWaiting || _responseMessage.isNotEmpty)
-                            ? 1.0
-                            : 0.0,
-                        child: _isWaiting
-                            ? const TypingIndicator(
-                                showAvatar: false,
-                                showBubble: false,
-                                dotSize: 10.0,
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blueAccent.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      blurRadius: 10,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  _statusMessage.isNotEmpty
-                                      ? _statusMessage
-                                      : _responseMessage,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────
+// 세션 헤더 위젯
+// 추후 세션 목록 탭으로 확장 가능하도록 title/sessionId 파라미터 분리
+// ────────────────────────────────────────────────────────────────
+class _SessionHeader extends StatelessWidget {
+  final String title;
+
+  const _SessionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: Colors.blueAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
