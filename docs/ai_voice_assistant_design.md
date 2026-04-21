@@ -15,9 +15,9 @@ graph LR
 
     subgraph AI_Progress [2. 진행 상황 및 결과 리턴]
         ChatUI -- "요청 전달 (gRPC)" --> Agent(("ai agent\n(Carbon 기반)"))
-        Agent -- "진행 상태 알림\n(emit_progress)" --> HUD["HUD app"]
-        Agent -- "최종 응답 데이터" --> HUD
     end
+    Agent -- "진행 상태 알림\n(emit_progress)" --> HUD["HUD app"]
+    Agent -- "최종 응답 데이터" --> HUD["HUD app"]
     
     classDef app fill:#e1f5fe;
     classDef agent fill:#e8f5e9;
@@ -26,7 +26,7 @@ graph LR
     
     class ChatUI app;
     class Agent agent;
-    class VCD daemon;
+    class VCD outscope;
     class HUD outscope;
 ```
 
