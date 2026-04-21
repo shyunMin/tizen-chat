@@ -18,8 +18,8 @@
 
 ```mermaid
 flowchart LR
-    AppA["App A\ngRPC 클라이언트"]
-    AppB["App B\n진행 상황 UI"]:::new
+    AppA["ChatUI\ngRPC 클라이언트"]
+    AppB["HUD\n진행 상황 UI"]:::new
 
     subgraph Daemon["carbon-daemon"]
         Svc["service.rs\nAgentServiceImpl"]:::modified
@@ -37,12 +37,11 @@ flowchart LR
         Bash["bash"]
         RW["read / write\nglob / grep"]
         SkillT["SkillTool"]
-        UP["update_plan\n(인터셉트)"]
-        EP["emit_progress\n(인터셉트)"]:::new
+        UP["update_plan"]
+        EP["emit_progress"]:::new
     end
 
     SkillFS["SKILL.md\n파일시스템"]
-    DBus["D-Bus"]:::new
 
     AppA     -->  |"UserMessage"| Svc
     Svc      -->  AM
@@ -53,15 +52,14 @@ flowchart LR
     Turn     -->  |"execute"| Bash
     Turn     -->  |"execute"| RW
     Turn     -->  |"execute"| SkillT
-    Turn     -->  |"인터셉트"| UP
+    Turn     -->  |"Hook"| UP
     SkillT   -->  |"read"| SkillFS
     Turn     -->  |"AgentEvent"| Svc
     Svc      -->  |"ServerEvent"| AppA
 
-    Turn     -.-> |"인터셉트"| EP
+    Turn     -.-> |"Hook"| EP
     EP       -.-> |"AgentEvent::\nProgressUpdate"| Svc
-    Svc      -.-> |"D-Bus signal"| DBus
-    DBus     -.-> |"신호"| AppB
+    Svc      -.-> |"D-Bus signal"| AppB
 
     classDef new      fill:#d4edda,stroke:#28a745,color:#155724,font-weight:bold
     classDef modified fill:#fff3cd,stroke:#ffc107,color:#856404,font-weight:bold
@@ -73,7 +71,7 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-    actor AppA as App A
+    actor AppA as ChatUI
     participant Svc as service.rs
     participant AM as agent_main()
     participant Turn as run_turn_inner()
@@ -144,8 +142,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor AppA as App A
-    actor AppB as App B (진행 상황 UI)
+    actor AppA as ChatUI
+    actor AppB as HUD (진행 상황 UI)
     participant Svc as service.rs
     participant AM as agent_main()
     participant Turn as run_turn_inner()
@@ -188,7 +186,7 @@ sequenceDiagram
             EP-->>Turn: ToolResult("ok")
             Note over Turn: AgentEvent::ProgressUpdate 생성 (신규 variant)
             Turn->>Svc: AgentEvent::ProgressUpdate
-            Note over Svc: ProgressUpdate → App A 전달 안 함 (라우팅 수정)
+            Note over Svc: ProgressUpdate → ChatUI 전달 안 함 (라우팅 수정)
             Svc->>DBus: emit_signal({ session_id, step, message })
             DBus->>AppB: 진행 상황 알림
         end
@@ -252,7 +250,7 @@ if name == "emit_progress" {
 Some(event) = event_rx.recv() => {
     match &event {
         AgentEvent::ProgressUpdate { step, message } => {
-            // App A로 전달하지 않음 — D-Bus signal 발신만
+            // ChatUI로 전달하지 않음 — D-Bus signal 발신만
             if let Ok(conn) = zbus::blocking::Connection::session() {
                 let _ = conn.emit_signal(
                     None::<()>,
