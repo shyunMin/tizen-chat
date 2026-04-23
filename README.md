@@ -1,6 +1,7 @@
 # Tizen Chat UI
 
 Tizen 플랫폼을 위한 채팅 UI 애플리케이션입니다.
+
 <img src="https://github.sec.samsung.net/Tizen-AIOS/chat-ui/assets/18491/dab4aad5-23b5-4cc6-ae6d-6794d002d5ae" width=640/>
 
 ## 개요
