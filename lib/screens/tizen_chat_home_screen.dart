@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:ui';
+import 'dart:convert';
 import '../widgets/dim_overlay.dart';
 import '../widgets/prompt_bar.dart';
 import '../widgets/typing_indicator.dart';
@@ -42,6 +44,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   @override
   void initState() {
     super.initState();
+    AppControl.onAppControl.listen(_onAppControlReceived);
+
     _initializeServices();
     if (widget.enableHttpMessageBus) {
       _startHttpMessageBus();
@@ -55,6 +59,61 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
       });
     });
+  }
+
+  void _onAppControlReceived(ReceivedAppControl appControl) async {
+    debugPrint(
+      '_onAppControlReceived caller: ${appControl.callerAppId}, extraData: ${appControl.extraData}',
+    );
+
+    try {
+      final extraData = appControl.extraData;
+      String? messageText;
+
+      // If it's directly passed as key-value like --extra message "hello"
+      if (extraData.containsKey('message')) {
+        final msg = extraData['message'];
+        if (msg is List && msg.isNotEmpty) {
+          messageText = msg.first.toString();
+        } else {
+          messageText = msg.toString();
+        }
+      } else {
+        // If a JSON string is passed as one of the values or keys
+        for (var entry in extraData.entries) {
+          final keyStr = entry.key;
+          final valStr = entry.value is List && entry.value.isNotEmpty
+              ? entry.value.first.toString()
+              : entry.value.toString();
+
+          try {
+            final decodedVal = jsonDecode(valStr);
+            if (decodedVal is Map && decodedVal.containsKey('message')) {
+              messageText = decodedVal['message'];
+              break;
+            }
+          } catch (_) {}
+
+          try {
+            final decodedKey = jsonDecode(keyStr);
+            if (decodedKey is Map && decodedKey.containsKey('message')) {
+              messageText = decodedKey['message'];
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (messageText != null && messageText.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _handleSend(messageText!);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error processing appControl.extraData: $e');
+    }
   }
 
   Future<void> _initializeServices() async {
