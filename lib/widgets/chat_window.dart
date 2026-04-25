@@ -15,12 +15,14 @@ class ChatWindow extends StatefulWidget {
   final List<ChatMessage> messages;
   final bool isTyping;
   final String sessionTitle;
+  final VoidCallback? onHeaderTap; // 세션 헤더 탭 콜백 (추후 세션 목록 연결)
 
   const ChatWindow({
     super.key,
     required this.messages,
     required this.isTyping,
     required this.sessionTitle,
+    this.onHeaderTap,
   });
 
   @override
@@ -84,7 +86,11 @@ class ChatWindowState extends State<ChatWindow> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── 세션 헤더 ────────────────────────────────
-                _SessionHeader(title: widget.sessionTitle),
+                _SessionHeader(
+                  title: widget.sessionTitle,
+                  onTap: widget.onHeaderTap,
+                ),
+
 
                 // ── 메시지 목록 ──────────────────────────────
                 Flexible(
@@ -142,37 +148,48 @@ class ChatWindowState extends State<ChatWindow> {
 // ──────────────────────────────────────────────────────────────────────────
 class _SessionHeader extends StatelessWidget {
   final String title;
+  final VoidCallback? onTap;
 
-  const _SessionHeader({required this.title});
+  const _SessionHeader({required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.blueAccent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.3,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+        child: Row(
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: Colors.blueAccent,
+                shape: BoxShape.circle,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.3,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // 세션 목록 접근 힌트 아이콘 (추후 취함)
+            Icon(
+              Icons.expand_more,
+              size: 14,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+          ],
+        ),
       ),
     );
   }

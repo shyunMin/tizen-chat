@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../widgets/dim_overlay.dart';
 import '../widgets/chat_window.dart';
 import '../services/carbon_grpc_service.dart';
+import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -125,9 +126,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   Future<void> _initializeServices() async {
     try {
-      await _grpcService.connect();
+      // 1. 오늘 날짜로 세션 확보 + 로컈 목록에 기록
+      final sessionName = await SessionRepository.instance.ensureTodaySession();
+      debugPrint('[Init] Session name: $sessionName');
+
+      // 2. UI 타이틀 설정
+      if (mounted) setState(() => _sessionTitle = sessionName);
+
+      // 3. 세션 이름으로 gRPC 연결
+      await _grpcService.connect(sessionName: sessionName);
     } catch (e) {
-      print('DEBUG: Initial connect failed: $e');
+      debugPrint('[Init] Error: $e');
     }
   }
 
@@ -157,9 +166,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
-        _sessionTitle = text.length > 20 ? '${text.substring(0, 20)}...' : text;
-        debugPrint('[Chat] First message! Session title: $_sessionTitle');
+        // _sessionTitle은 날짜 기반으로 이미 설정됨 (_initializeServices에서)
+        debugPrint('[Chat] First message! Session: $_sessionTitle');
       }
+
       _isVisible = true;
       _isWaiting = true;
       _isTyping = true;
@@ -409,7 +419,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     messages: _messages,
                     isTyping: _isTyping,
                     sessionTitle: _sessionTitle,
+                    onHeaderTap: () {
+                      // TODO: 세션 목록 팝업 (추후 구현)
+                      debugPrint('[SessionHeader] tapped — session picker not yet implemented');
+                    },
                   ),
+
                 ),
 
               // ── 3. PromptBar ────────────────────────────────

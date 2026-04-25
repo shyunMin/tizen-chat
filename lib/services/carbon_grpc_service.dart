@@ -59,9 +59,12 @@ class CarbonGrpcService {
   String? _sessionId;
   String? get sessionId => _sessionId;
 
-  Future<void> connect() async {
+  String? _sessionName; // 연결 시 사용한 세션 이름 (reconnect에서 재사용)
+
+  Future<void> connect({String? sessionName}) async {
     if (_isConnected || _isConnecting) return;
     _isConnecting = true;
+    _sessionName = sessionName;
 
     final endpoint = '/run/user/5001/carbon/carbon.sock';
 
@@ -126,7 +129,11 @@ class CarbonGrpcService {
         ClientMessage(
           createSession: CreateSessionRequest(
             product: "claw",
-            config: {"workspace": workspacePath},
+            config: {
+              "workspace": workspacePath,
+              if (_sessionName != null) "session": _sessionName!,
+              if (_sessionName != null) "session_date": _sessionName!,
+            },
           ),
         ),
       );
@@ -209,8 +216,9 @@ class CarbonGrpcService {
   }
 
   Future<void> reconnect() async {
+    final savedSessionName = _sessionName; // 재연결 전에 보존
     await disconnect();
-    await connect();
+    await connect(sessionName: savedSessionName);
   }
 
   Stream<CarbonEvent> sendMessage(String text) async* {
