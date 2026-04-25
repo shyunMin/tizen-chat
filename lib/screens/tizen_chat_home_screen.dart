@@ -411,9 +411,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: 138,
-                  left: 0,
-                  right: 0,
+                  bottom: 40,
+                  left: 10,
                   child: ChatWindow(
                     key: _chatWindowKey,
                     messages: _messages,
@@ -426,6 +425,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   ),
 
                 ),
+
 
               // ── 3. PromptBar ────────────────────────────────
               // AnimatedPositioned(
