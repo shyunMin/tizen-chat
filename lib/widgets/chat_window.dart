@@ -37,6 +37,17 @@ class ChatWindowState extends State<ChatWindow> {
 
   static const double _scrollStep = 120.0;
 
+  @override
+  void initState() {
+    super.initState();
+    // 채팅창이 표시될 때 자동으로 포커스 획득
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scrollFocusNode.requestFocus();
+      }
+    });
+  }
+
   /// 부모에서 호웘: 리스트 최하단으로 스크롤
   void scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
