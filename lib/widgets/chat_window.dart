@@ -1,0 +1,179 @@
+import 'package:flutter/material.dart';
+import '../models/chat_message.dart';
+import 'typing_indicator.dart';
+import 'received_message.dart';
+import 'sent_message.dart';
+
+// ──────────────────────────────────────────────────────────────────────────
+// ChatWindow
+//
+// 대화창 전체를 담당하는 독립 위젯.
+//  - messages / isTyping / sessionTitle: 부모에서 주입
+//  - ScrollController: 내부 소유 (scrollToBottom() 메서드 제공)
+// ──────────────────────────────────────────────────────────────────────────
+class ChatWindow extends StatefulWidget {
+  final List<ChatMessage> messages;
+  final bool isTyping;
+  final String sessionTitle;
+
+  const ChatWindow({
+    super.key,
+    required this.messages,
+    required this.isTyping,
+    required this.sessionTitle,
+  });
+
+  @override
+  State<ChatWindow> createState() => ChatWindowState();
+}
+
+class ChatWindowState extends State<ChatWindow> {
+  final ScrollController _scrollController = ScrollController();
+
+  /// 부모에서 호출: 리스트 최하단으로 스크롤
+  void scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    final itemCount = widget.messages.length + (widget.isTyping ? 1 : 0);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: screenWidth * 0.7,
+          maxHeight: screenHeight * 0.65,
+        ),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[900]?.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── 세션 헤더 ────────────────────────────────
+                _SessionHeader(title: widget.sessionTitle),
+
+                // ── 메시지 목록 ──────────────────────────────
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) {
+                      // 타이핑 인디케이터
+                      if (widget.isTyping && index == widget.messages.length) {
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 10),
+                          child: TypingIndicator(showAvatar: true),
+                        );
+                      }
+
+                      final message = widget.messages[index];
+                      final Widget messageWidget;
+
+                      switch (message.type) {
+                        case MessageType.sent:
+                          messageWidget = SentMessage(text: message.text);
+                          break;
+                        case MessageType.received:
+                          messageWidget = ReceivedMessage(
+                            text: message.text,
+                            avatarInitial: message.senderInitial,
+                            isWaiting: message.isWaiting,
+                            displayType: message.displayType,
+                          );
+                          break;
+                        default:
+                          messageWidget = SentMessage(text: message.text);
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: messageWidget,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// _SessionHeader
+// ──────────────────────────────────────────────────────────────────────────
+class _SessionHeader extends StatelessWidget {
+  final String title;
+
+  const _SessionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: Colors.blueAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
