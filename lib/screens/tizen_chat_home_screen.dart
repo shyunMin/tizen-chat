@@ -1,3 +1,4 @@
+import 'package:ai_chat/widgets/prompt_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tizen_app_control/tizen_app_control.dart';
@@ -5,6 +6,7 @@ import 'dart:convert';
 import '../widgets/dim_overlay.dart';
 import '../widgets/chat_window.dart';
 import '../services/carbon_grpc_service.dart';
+import '../generated/carbon/v1/agent.pbenum.dart';
 import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
@@ -24,14 +26,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ── UI 상태 ──────────────────────────────────────────────────
   bool _isVisible = false;
   bool _isWaiting = false;
-  bool _shouldSlideDown = true;
+  bool _isVoiceKeyPressed = false;
 
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
   bool _isTyping = false;
   final List<ChatMessage> _messages = [];
   String _sessionTitle = '';
-  final GlobalKey<ChatWindowState> _chatWindowKey = GlobalKey<ChatWindowState>();
+  final GlobalKey<ChatWindowState> _chatWindowKey =
+      GlobalKey<ChatWindowState>();
 
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -75,8 +78,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           messageText = msg.toString();
         }
         debugPrint('[AppControl] Found message in direct key: $messageText');
-      } 
-      
+      }
+
       // 2. JSON 형태나 기타 키 순회 확인 (위에서 못 찾은 경우)
       if (messageText == null || messageText.isEmpty) {
         for (var entry in extraData.entries) {
@@ -90,7 +93,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             final decodedVal = jsonDecode(valStr);
             if (decodedVal is Map && decodedVal.containsKey('message')) {
               messageText = decodedVal['message'];
-              debugPrint('[AppControl] Found message in decoded value: $messageText');
+              debugPrint(
+                '[AppControl] Found message in decoded value: $messageText',
+              );
               break;
             }
           } catch (_) {}
@@ -100,7 +105,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             final decodedKey = jsonDecode(keyStr);
             if (decodedKey is Map && decodedKey.containsKey('message')) {
               messageText = decodedKey['message'];
-              debugPrint('[AppControl] Found message in decoded key: $messageText');
+              debugPrint(
+                '[AppControl] Found message in decoded key: $messageText',
+              );
               break;
             }
           } catch (_) {}
@@ -116,7 +123,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         debugPrint('[AppControl] No message content found in extraData.');
         // 만약 메시지는 없지만 앱이 깨어났다면, 최소한 점이라도 표시하거나 화면을 활성화할지 결정
         setState(() {
-          _isVisible = true; 
+          _isVisible = true;
         });
       }
     } catch (e) {
@@ -173,15 +180,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _isVisible = true;
       _isWaiting = true;
       _isTyping = true;
-      _shouldSlideDown = false;
       _messages.add(ChatMessage(text: text, type: MessageType.sent));
     });
-    debugPrint('[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible');
+    debugPrint(
+      '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
+    );
     _scrollToBottom();
 
     try {
-      String accumulatedText = '';
-      String? activeToolName;
+      // 중간 단계마다 리셋되는 텍스트 버퍼. TurnComplete 시점의 값이 최종 메시지.
+      String currentSegmentText = '';
       int replyIndex = -1;
 
       final stream = _grpcService.sendMessage(text);
@@ -195,14 +203,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
         switch (event) {
           case CarbonTextDelta(:final content):
-            accumulatedText += content;
+            currentSegmentText += content;
             if (replyIndex == -1) {
               replyIndex = _messages.length;
               setState(() {
                 _isTyping = false;
                 _messages.add(
                   ChatMessage(
-                    text: accumulatedText,
+                    text: currentSegmentText,
                     type: MessageType.received,
                     isWaiting: true,
                   ),
@@ -211,9 +219,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             } else {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
-                  text: activeToolName != null
-                      ? '[🔧 $activeToolName 실행 중...]\n$accumulatedText'
-                      : accumulatedText,
+                  text: currentSegmentText,
                   type: MessageType.received,
                   isWaiting: true,
                 );
@@ -223,14 +229,19 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             break;
 
           case CarbonToolUseStart(:final toolName):
-            activeToolName = toolName;
+            // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
+            final toolMessage = currentSegmentText.trim();
+            currentSegmentText = '';
+            final toolText = toolMessage.isNotEmpty
+                ? '🔧 $toolName 실행 중...\n$toolMessage'
+                : '🔧 $toolName 실행 중...';
             if (replyIndex == -1) {
               replyIndex = _messages.length;
               setState(() {
                 _isTyping = false;
                 _messages.add(
                   ChatMessage(
-                    text: '[🔧 $toolName 실행 중...]',
+                    text: toolText,
                     type: MessageType.received,
                     isWaiting: true,
                   ),
@@ -239,7 +250,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             } else {
               setState(() {
                 _messages[replyIndex] = ChatMessage(
-                  text: '[🔧 $toolName 실행 중...]\n$accumulatedText',
+                  text: toolText,
                   type: MessageType.received,
                   isWaiting: true,
                 );
@@ -249,15 +260,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             break;
 
           case CarbonToolResult():
-            activeToolName = null;
             break;
 
           case CarbonTurnComplete():
-            final parsedResponse = AgentResponseParser.parse(accumulatedText);
+            final parsedResponse = AgentResponseParser.parse(
+              currentSegmentText,
+            );
             setState(() {
               _isWaiting = false;
               _isTyping = false;
               if (replyIndex != -1) {
+                // 스트리밍 버블을 최종 내용으로 확정 (스피너 종료)
                 _messages[replyIndex] = ChatMessage(
                   text: parsedResponse.content,
                   displayType: parsedResponse.displayType,
@@ -265,7 +278,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   isWaiting: false,
                   uiCode: parsedResponse.uiCode,
                 );
-              } else {
+              } else if (parsedResponse.content.trim().isNotEmpty) {
+                // 스트리밍 버블이 없는 경우에만 새 버블 추가
                 _messages.add(
                   ChatMessage(
                     text: parsedResponse.content,
@@ -279,17 +293,46 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             _scrollToBottom();
             return;
 
-          case CarbonError(:final fatal, :final message):
+          case CarbonError(:final code, :final fatal):
             setState(() {
               _isWaiting = false;
               _isTyping = false;
+              if (replyIndex != -1) {
+                // 에러나 취소가 발생했을 때 해당 메시지의 로딩 상태를 해제
+                _messages[replyIndex] = ChatMessage(
+                  text: currentSegmentText.isEmpty ? '요청이 취소되었습니다.' : '$currentSegmentText\n\n(요청 중단됨)',
+                  type: MessageType.received,
+                  isWaiting: false,
+                );
+              } else if (code == 'cancelled') {
+                _messages.add(
+                  ChatMessage(
+                    text: '요청이 취소되었습니다.',
+                    type: MessageType.received,
+                    isWaiting: false,
+                  ),
+                );
+              }
             });
-            if (fatal) await _grpcService.reconnect();
+            _scrollToBottom();
+            
+            // "cancelled"는 interruptTurn()으로 인한 정상 중단이므로
+            // reconnect 없이 대기 상태만 해제한다.
+            if (fatal && code != 'cancelled') await _grpcService.reconnect();
             return;
 
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
+
+          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+            debugPrint(
+              '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
+            );
+            _grpcService.approveToolCall(
+              toolCallId,
+              ApprovalDecision.APPROVAL_DECISION_APPROVE,
+            );
         }
       }
     } catch (e) {
@@ -319,7 +362,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    debugPrint('[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}');
+    debugPrint(
+      '[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}',
+    );
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -330,11 +375,29 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         autofocus: true,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
+          debugPrint(
+            "[Chat] Key event received: ${event.logicalKey.keyLabel}, ${event.logicalKey.keyId}",
+          );
+          if (event.logicalKey.keyLabel == 'XF86BTVoice' ||
+              event.logicalKey.debugName == 'XF86BTVoice' ||
+              event.logicalKey.keyId == 137438953472) {
+            if (event is KeyDownEvent && !_isVoiceKeyPressed) {
+              setState(() => _isVoiceKeyPressed = true);
+            } else if (event is KeyUpEvent && _isVoiceKeyPressed) {
+              setState(() => _isVoiceKeyPressed = false);
+            }
+            return KeyEventResult.ignored;
+          }
+
           if (event is KeyDownEvent) {
             if (event.logicalKey == LogicalKeyboardKey.escape ||
                 event.logicalKey == LogicalKeyboardKey.goBack ||
                 event.logicalKey == LogicalKeyboardKey.browserBack) {
-              SystemNavigator.pop();
+              if (_isWaiting) {
+                _grpcService.interruptTurn();
+              } else {
+                SystemNavigator.pop();
+              }
               return KeyEventResult.handled;
             }
 
@@ -373,45 +436,72 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // ── 0. 실시간 상태 표시 (초록색 동그라미) ─────────
-              if (!_hasChatStarted)
-                Positioned(
-                  top: 30,
-                  right: 30,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent.withValues(alpha: 0.9),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.greenAccent.withValues(alpha: 0.6),
-                          blurRadius: 15,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.mic_none,
-                        size: 18,
-                        color: Colors.black87,
+              // ── 3. PromptBar ────────────────────────────────
+              AnimatedPositioned(
+                key: const ValueKey('prompt-bar'),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutCubic,
+                bottom: _isVisible ? 10 : -150,
+                left: 10,
+                right: 0,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 500),
+                  opacity: (_isVisible && !_isVoiceKeyPressed) ? 1.0 : 0.0,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: SizedBox(
+                      height: 80,
+                      child: PromptBar(
+                        isVisible: _isVisible,
+                        isWaiting: _isWaiting,
+                        hasChatStarted: _hasChatStarted,
+                        onSend: _handleSend,
+                        onCancel: () {
+                          _grpcService.interruptTurn();
+                        },
                       ),
                     ),
                   ),
                 ),
+              ),
+              // ── 0. 실시간 상태 표시 (초록색 동그라미) ─────────
+              // Positioned(
+              //   top: 30,
+              //   right: 30,
+              //   child: Container(
+              //     width: 15,
+              //     height: 15,
+              //     decoration: BoxDecoration(
+              //       color: Colors.greenAccent.withValues(alpha: 0.9),
+              //       shape: BoxShape.circle,
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.greenAccent.withValues(alpha: 0.6),
+              //           blurRadius: 15,
+              //           spreadRadius: 5,
+              //         ),
+              //       ],
+              //     ),
+              //     child: const Center(
+              //       child: Icon(
+              //         Icons.mic_none,
+              //         size: 9,
+              //         color: Colors.black87,
+              //       ),
+              //     ),
+              //   ),
+              // ),
 
               // ── 1. Dim Overlay ─────────────────────────────
-              if (_hasChatStarted)
-                DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
+              // if (_hasChatStarted)
+              //   DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
 
               // ── 2. 대화창 (첫 메시지 전송 후 표시) ─────────
               if (_hasChatStarted)
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: 40,
+                  bottom: 100,
                   left: 10,
                   child: ChatWindow(
                     key: _chatWindowKey,
@@ -420,12 +510,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     sessionTitle: _sessionTitle,
                     onHeaderTap: () {
                       // TODO: 세션 목록 팝업 (추후 구현)
-                      debugPrint('[SessionHeader] tapped — session picker not yet implemented');
+                      debugPrint(
+                        '[SessionHeader] tapped — session picker not yet implemented',
+                      );
                     },
                   ),
-
                 ),
-
 
               // ── 3. PromptBar ────────────────────────────────
               // AnimatedPositioned(
@@ -459,4 +549,3 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     );
   }
 }
-

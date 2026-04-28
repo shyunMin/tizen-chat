@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,11 +7,13 @@ class PromptBar extends StatefulWidget {
   final bool isWaiting;
   final bool hasChatStarted;
   final Function(String)? onSend;
+  final VoidCallback? onCancel;
 
   const PromptBar({
     super.key,
     required this.isVisible,
     this.onSend,
+    this.onCancel,
     this.isWaiting = false,
     this.hasChatStarted = false,
   });
@@ -21,17 +22,12 @@ class PromptBar extends StatefulWidget {
   State<PromptBar> createState() => _PromptBarState();
 }
 
-class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
+class _PromptBarState extends State<PromptBar> {
   bool _isExpanded = false;
-  bool _hasSentOnce = false; // Track if at least one message has been sent
   String _displayText = "";
   final String _fullText = "How can I help you?";
   int _charIndex = 0;
   Timer? _typingTimer;
-
-  late AnimationController _glowController;
-  late Animation<double> _glowAnimation;
-  late AnimationController _rotationController;
 
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
@@ -41,19 +37,18 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-
-    _glowAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 5),
-    )..repeat();
+    _inputFocusNode.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          _sendFocusNode.requestFocus();
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          FocusScope.of(context).focusInDirection(TraversalDirection.up);
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
   }
 
   @override
@@ -113,8 +108,6 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
   @override
   void dispose() {
     _typingTimer?.cancel();
-    _glowController.dispose();
-    _rotationController.dispose();
     _textController.dispose();
     _inputFocusNode.dispose();
     _micFocusNode.dispose();
@@ -124,189 +117,122 @@ class _PromptBarState extends State<PromptBar> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_glowAnimation, _rotationController]),
-      builder: (context, child) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOutCubic,
-          width: _isExpanded ? MediaQuery.of(context).size.width * 0.7 : 64,
-          height: 56,
-          child: Container(
-            padding: widget.hasChatStarted
-                ? EdgeInsets.zero
-                : EdgeInsets.all(_hasSentOnce ? 1 : 2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
-              gradient: widget.hasChatStarted
-                  ? null
-                  : SweepGradient(
-                      center: Alignment.center,
-                      colors: _hasSentOnce
-                          ? [
-                              Colors.white.withValues(alpha: 0.05),
-                              Colors.white.withValues(alpha: 0.3),
-                              Colors.white.withValues(alpha: 0.05),
-                            ]
-                          : [
-                              Colors.blueAccent.withValues(alpha: 0.3),
-                              Colors.cyanAccent.withValues(alpha: 0.3),
-                              Colors.purpleAccent.withValues(alpha: 0.3),
-                              Colors.blueAccent.withValues(alpha: 0.3),
-                            ],
-                      transform: GradientRotation(
-                        _rotationController.value * 2 * 3.14159,
-                      ),
-                    ),
-              boxShadow: widget.hasChatStarted
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: (_hasSentOnce ? Colors.white : Colors.blueAccent)
-                            .withValues(
-                              alpha:
-                                  (_hasSentOnce ? 0.1 : 0.5) *
-                                  _glowAnimation.value,
-                            ),
-                        blurRadius:
-                            (_hasSentOnce ? 8 : 25) * _glowAnimation.value,
-                        spreadRadius:
-                            (_hasSentOnce ? 1 : 3) * _glowAnimation.value,
-                      ),
-                      if (!_hasSentOnce)
-                        BoxShadow(
-                          color: Colors.purpleAccent.withValues(
-                            alpha: 0.2 * _glowAnimation.value,
-                          ),
-                          blurRadius: 40 * _glowAnimation.value,
-                        ),
-                    ],
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[900]!.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(_hasSentOnce ? 31 : 30),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: 25,
-                  sigmaY: 25,
-                ), // Stronger blur
-                child: SizedBox(
-                  height: 52, // 56 - (2 * 2)
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutCubic,
-                        left: _isExpanded ? 25 : (32 - 10),
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: Image.asset(
-                            'assets/images/bixby.png',
-                            width: 20,
-                            height: 20,
-                          ),
-                        ),
-                      ),
-
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 300),
-                        opacity: _isExpanded ? 1.0 : 0.0,
-                        child: Container(
-                          height: 52,
-                          padding: const EdgeInsets.only(
-                            left: 60.0,
-                            right: 16.0,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _textController,
-                                  focusNode: _inputFocusNode,
-                                  autofocus: false,
-                                  keyboardType: TextInputType.none,
-                                  textAlignVertical: TextAlignVertical.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w400,
-                                    fontFamily: 'Roboto',
-                                    letterSpacing: 0.3,
-                                  ),
-                                  decoration: InputDecoration(
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.only(
-                                      bottom: 3,
-                                    ),
-                                    hintText: _charIndex < _fullText.length
-                                        ? _displayText
-                                        : _fullText,
-                                    hintStyle: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
-                                  readOnly: _charIndex < _fullText.length,
-                                  onSubmitted: (value) {
-                                    if (value.isNotEmpty &&
-                                        widget.onSend != null &&
-                                        !widget.isWaiting) {
-                                      setState(() => _hasSentOnce = true);
-                                      widget.onSend!(value);
-                                      _textController.clear();
-                                    }
-                                  },
-                                ),
-                              ),
-                              if (_charIndex >= _fullText.length)
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _FocusableActionIcon(
-                                      icon: Icons.mic_rounded,
-                                      size: 24,
-                                      focusNode: _micFocusNode,
-                                      isEnabled: false,
-                                      onTap: () {},
-                                    ),
-                                    const SizedBox(width: 6),
-                                    _FocusableActionIcon(
-                                      icon: Icons.send_rounded,
-                                      size: 24,
-                                      focusNode: _sendFocusNode,
-                                      isEnabled: !widget.isWaiting,
-                                      onTap: () {
-                                        if (_textController.text.isNotEmpty &&
-                                            widget.onSend != null &&
-                                            !widget.isWaiting) {
-                                          setState(() => _hasSentOnce = true);
-                                          widget.onSend!(_textController.text);
-                                          _textController.clear();
-                                        }
-                                      },
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      width: _isExpanded ? MediaQuery.of(context).size.width / 2 : 64,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 24,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            left: _isExpanded ? 25 : (32 - 10),
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Image.asset(
+                'assets/images/bixby.png',
+                width: 20,
+                height: 20,
               ),
             ),
           ),
-        );
-      },
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: _isExpanded ? 1.0 : 0.0,
+            child: Container(
+              height: 52,
+              padding: const EdgeInsets.only(left: 80.0, right: 16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _inputFocusNode,
+                      autofocus: false,
+                      keyboardType: TextInputType.none,
+                      textAlignVertical: TextAlignVertical.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w400,
+                        fontFamily: 'Roboto',
+                        letterSpacing: 0.3,
+                      ),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.only(bottom: 3),
+                        hintText: _charIndex < _fullText.length
+                            ? _displayText
+                            : _fullText,
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      readOnly: _charIndex < _fullText.length || widget.isWaiting,
+                      onSubmitted: (value) {
+                        if (value.isNotEmpty &&
+                            widget.onSend != null &&
+                            !widget.isWaiting) {
+                          widget.onSend!(value);
+                          _textController.clear();
+                        }
+                      },
+                    ),
+                  ),
+                  if (_charIndex >= _fullText.length)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // _FocusableActionIcon(
+                        //   icon: Icons.mic_rounded,
+                        //   size: 24,
+                        //   focusNode: _micFocusNode,
+                        //   isEnabled: false,
+                        //   onTap: () {},
+                        // ),
+                        const SizedBox(width: 6),
+                        _FocusableActionIcon(
+                          icon: widget.isWaiting ? Icons.stop_rounded : Icons.send_rounded,
+                          size: 24,
+                          focusNode: _sendFocusNode,
+                          isEnabled: true,
+                          onTap: () {
+                            if (widget.isWaiting) {
+                              if (widget.onCancel != null) widget.onCancel!();
+                            } else {
+                              if (_textController.text.isNotEmpty && widget.onSend != null) {
+                                widget.onSend!(_textController.text);
+                                _textController.clear();
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

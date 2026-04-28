@@ -5,7 +5,6 @@ import 'typing_indicator.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
 
-
 // ──────────────────────────────────────────────────────────────────────────
 // ChatWindow
 //
@@ -64,7 +63,10 @@ class ChatWindowState extends State<ChatWindow> {
   void _scrollUp() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
-      (_scrollController.offset - _scrollStep).clamp(0.0, _scrollController.position.maxScrollExtent),
+      (_scrollController.offset - _scrollStep).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
     );
@@ -73,19 +75,32 @@ class ChatWindowState extends State<ChatWindow> {
   void _scrollDown() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
-      (_scrollController.offset + _scrollStep).clamp(0.0, _scrollController.position.maxScrollExtent),
+      (_scrollController.offset + _scrollStep).clamp(
+        0.0,
+        _scrollController.position.maxScrollExtent,
+      ),
       duration: const Duration(milliseconds: 150),
       curve: Curves.easeOut,
     );
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      _scrollUp();
+      if (_scrollController.hasClients && _scrollController.offset > 0.0) {
+        _scrollUp();
+      }
       return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      _scrollDown();
+      if (_scrollController.hasClients) {
+        if (_scrollController.offset >= _scrollController.position.maxScrollExtent - 0.1) {
+          FocusScope.of(context).focusInDirection(TraversalDirection.down);
+        } else {
+          _scrollDown();
+        }
+      }
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -122,7 +137,7 @@ class ChatWindowState extends State<ChatWindow> {
             alignment: Alignment.bottomCenter,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
@@ -152,7 +167,8 @@ class ChatWindowState extends State<ChatWindow> {
                       itemCount: itemCount,
                       itemBuilder: (context, index) {
                         // 타이핑 인디케이터
-                        if (widget.isTyping && index == widget.messages.length) {
+                        if (widget.isTyping &&
+                            index == widget.messages.length) {
                           return const Padding(
                             padding: EdgeInsets.only(bottom: 10),
                             child: TypingIndicator(showAvatar: true),
@@ -194,7 +210,6 @@ class ChatWindowState extends State<ChatWindow> {
     );
   }
 }
-
 
 // ──────────────────────────────────────────────────────────────────────────
 // _SessionHeader

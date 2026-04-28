@@ -7,6 +7,7 @@ import '../widgets/rich_card_message.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../services/carbon_grpc_service.dart';
+import '../generated/carbon/v1/agent.pbenum.dart';
 import '../features/http_message_overlay/http_message_bus.dart';
 import '../services/agent_response_parser.dart';
 
@@ -249,6 +250,13 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
+
+          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+            debugPrint('[Chat] ToolApprovalRequest for $toolName — auto-approving');
+            _grpcService.approveToolCall(
+              toolCallId,
+              ApprovalDecision.APPROVAL_DECISION_APPROVE,
+            );
         }
       }
     } catch (e) {
