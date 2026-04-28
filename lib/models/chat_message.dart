@@ -9,9 +9,11 @@ class ChatMessage {
   final String? subtitle;
   final String? uiCode;
   final DateTime timestamp;
+  final String displayType;
   bool isWaiting;
 
   ChatMessage({
+    this.displayType = 'text',
     required this.text,
     this.senderInitial = 'T',
     required this.type,

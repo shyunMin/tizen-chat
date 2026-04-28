@@ -44,6 +44,21 @@ class CarbonSessionEnded extends CarbonEvent {
   CarbonSessionEnded(this.reason);
 }
 
+class CarbonToolApprovalRequest extends CarbonEvent {
+  final String toolCallId;
+  final String toolName;
+  final String argumentsJson;
+  final String reason;
+  final int timeoutSecs;
+  CarbonToolApprovalRequest(
+    this.toolCallId,
+    this.toolName,
+    this.argumentsJson,
+    this.reason,
+    this.timeoutSecs,
+  );
+}
+
 class CarbonGrpcService {
   static final CarbonGrpcService instance = CarbonGrpcService._();
   CarbonGrpcService._();
@@ -59,9 +74,27 @@ class CarbonGrpcService {
   String? _sessionId;
   String? get sessionId => _sessionId;
 
-  Future<void> connect() async {
-    if (_isConnected || _isConnecting) return;
+  String? _sessionName; // 연결 시 사용한 세션 이름 (reconnect에서 재사용)
+
+  Future<void>? _connectFuture;
+
+  Future<void> connect({String? sessionName}) async {
+    if (_isConnected) return;
+    if (_connectFuture != null) {
+      await _connectFuture;
+      return;
+    }
+    _connectFuture = _doConnect(sessionName: sessionName);
+    try {
+      await _connectFuture;
+    } finally {
+      _connectFuture = null;
+    }
+  }
+
+  Future<void> _doConnect({String? sessionName}) async {
     _isConnecting = true;
+    _sessionName = sessionName;
 
     final endpoint = '/run/user/5001/carbon/carbon.sock';
 
@@ -126,7 +159,11 @@ class CarbonGrpcService {
         ClientMessage(
           createSession: CreateSessionRequest(
             product: "claw",
-            config: {"workspace": workspacePath},
+            config: {
+              "workspace": workspacePath,
+              if (_sessionName != null) "session": _sessionName!,
+              if (_sessionName != null) "session_date": _sessionName!,
+            }.entries,
           ),
         ),
       );
@@ -188,7 +225,59 @@ class CarbonGrpcService {
     } else if (event.hasSessionEnded()) {
       _eventController.add(CarbonSessionEnded(event.sessionEnded.reason));
       _isConnected = false;
+    } else if (event.hasToolApprovalRequest()) {
+      final req = event.toolApprovalRequest;
+      print(
+        'DEBUG: [CarbonGrpc] Event -> ToolApprovalRequest: ${req.toolName}',
+      );
+      _eventController.add(
+        CarbonToolApprovalRequest(
+          req.toolCallId,
+          req.toolName,
+          req.argumentsJson,
+          req.reason,
+          req.timeoutSecs,
+        ),
+      );
+    } else if (event.hasTurnStarted()) {
+      print(
+        'DEBUG: [CarbonGrpc] Event -> TurnStarted: ${event.turnStarted.source}',
+      );
+    } else if (event.hasThreadComplete()) {
+      print('DEBUG: [CarbonGrpc] Event -> ThreadComplete');
+    } else if (event.hasScheduleEvent()) {
+      print(
+        'DEBUG: [CarbonGrpc] Event -> ScheduleEvent: ${event.scheduleEvent.status}',
+      );
     }
+  }
+
+  /// 도구 실행 승인/거부 전송.
+  /// [decision]: ApprovalDecision.APPROVAL_DECISION_APPROVE 등
+  void approveToolCall(String toolCallId, ApprovalDecision decision) {
+    if (_sessionId == null || _requestStreamController == null) return;
+    print('DEBUG: [CarbonGrpc] Sending ToolApproval: $toolCallId -> $decision');
+    _requestStreamController!.add(
+      ClientMessage(
+        toolApproval: ToolApproval(
+          sessionId: _sessionId,
+          toolCallId: toolCallId,
+          decision: decision,
+        ),
+      ),
+    );
+  }
+
+  /// 진행 중인 턴만 중단 (세션은 유지).
+  void interruptTurn() {
+    if (_sessionId == null || _requestStreamController == null) return;
+    print('DEBUG: [CarbonGrpc] Sending InterruptTurn');
+    _requestStreamController!.add(
+      ClientMessage(interruptTurn: InterruptTurnRequest(sessionId: _sessionId)),
+    );
+    // 로컬에서 즉시 emit: sendMessage()의 await for를 즉시 종료시켜
+    // UI 피드백 지연 및 hang을 방지한다.
+    _eventController.add(CarbonError("cancelled", "interrupted by user", true));
   }
 
   void _broadcastError(String message, {bool fatal = false}) {
@@ -209,8 +298,9 @@ class CarbonGrpcService {
   }
 
   Future<void> reconnect() async {
+    final savedSessionName = _sessionName; // 재연결 전에 보존
     await disconnect();
-    await connect();
+    await connect(sessionName: savedSessionName);
   }
 
   Stream<CarbonEvent> sendMessage(String text) async* {

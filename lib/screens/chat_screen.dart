@@ -4,12 +4,12 @@ import 'dart:async';
 import '../widgets/received_message.dart';
 import '../widgets/sent_message.dart';
 import '../widgets/rich_card_message.dart';
-import '../widgets/tizen_chat_input.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
-import '../theme/tizen_styles.dart';
 import '../services/carbon_grpc_service.dart';
+import '../generated/carbon/v1/agent.pbenum.dart';
 import '../features/http_message_overlay/http_message_bus.dart';
+import '../services/agent_response_parser.dart';
 
 class TizenChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
@@ -28,8 +28,6 @@ class TizenChatScreen extends StatefulWidget {
 }
 
 class _TizenChatScreenState extends State<TizenChatScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -46,12 +44,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
-      // Use a small delay to ensure the screen is fully pushed before requesting focus
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _focusNode.requestFocus();
-        }
-      });
     });
 
     if (widget.autoSendText != null) {
@@ -69,8 +61,8 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
     } catch (e) {
       print('[TizenChatScreen] HttpMessageBus acquire failed: $e');
     }
-    
-    // Listen to global bus or the passed stream. 
+
+    // Listen to global bus or the passed stream.
     // Usually HttpMessageBus.instance.stream is preferred as it's the source.
     _externalSubscription = HttpMessageBus.instance.stream.listen((msg) {
       if (mounted) _handleUserMessage(msg);
@@ -205,21 +197,33 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
               if (activeToolName == null && accumulatedText.trim().isEmpty) {
                 accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
               }
+
+              // [NEW] 에이전트 응답 파싱
+              final parsedResponse = AgentResponseParser.parse(accumulatedText);
+              print(
+                'DEBUG: [TizenChatScreen] Response Complete. display_type: ${parsedResponse.displayType}',
+              );
+
               if (replyIndex != -1) {
                 _messages[replyIndex] = ChatMessage(
-                  text: accumulatedText,
+                  text: parsedResponse.content,
+                  displayType: parsedResponse.displayType,
                   type: MessageType.received,
                   isWaiting: false,
+                  uiCode: parsedResponse.uiCode,
                 );
               } else {
                 // 한 번도 데이터가 안 왔을 경우 예외 처리
                 _addMessage(
                   ChatMessage(
-                    text: accumulatedText,
+                    text: parsedResponse.content,
+                    displayType: parsedResponse.displayType,
                     type: MessageType.received,
+                    uiCode: parsedResponse.uiCode,
                   ),
                 );
               }
+              _isTyping = false; // Turn 종료 시 타이핑 상태 해제
             });
             _scrollToBottom();
             break;
@@ -246,6 +250,13 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
+
+          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+            debugPrint('[Chat] ToolApprovalRequest for $toolName — auto-approving');
+            _grpcService.approveToolCall(
+              toolCallId,
+              ApprovalDecision.APPROVAL_DECISION_APPROVE,
+            );
         }
       }
     } catch (e) {
@@ -268,8 +279,6 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   void dispose() {
     _externalSubscription?.cancel();
     HttpMessageBus.instance.release();
-    _controller.dispose();
-    _focusNode.dispose();
     _keyboardFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -352,16 +361,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Custom Header
-                      const Padding(
-                        padding: EdgeInsets.all(10.0), // 일괄 여백 10
-                        child: Center(
-                          child: GradientText(
-                            'Tizen AI',
-                            style: TizenStyles.headerText,
-                          ),
-                        ),
-                      ),
+
                       // Chat Content
                       Flexible(
                         child: ListView.builder(
@@ -393,6 +393,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                                   avatarInitial: message.senderInitial,
                                   uiCode: message.uiCode,
                                   isWaiting: message.isWaiting,
+                                  displayType: message.displayType,
                                 );
                                 break;
                               case MessageType.richCard:
@@ -415,12 +416,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
                         ),
                       ),
 
-                      // Chat Input
-                      TizenChatInput(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        onSend: _handleUserMessage,
-                      ),
+
                     ],
                   ),
                 ),
@@ -433,18 +429,3 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
   }
 }
 
-class GradientText extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-
-  const GradientText(this.text, {super.key, required this.style});
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) =>
-          TizenStyles.headerGradient.createShader(bounds),
-      child: Text(text, style: style),
-    );
-  }
-}

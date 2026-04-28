@@ -15,10 +15,10 @@ class TizenStyles {
   static const Color blue900 = Color(0xFF1E3A8A);
 
   // Text Sizes
-  static const double baseFontSize = 17.0; // Increased
+  static const double baseFontSize = 14.0;   // 17 → 14 (한 단계 축소)
   static const double smallFontSize = 14.0;
   static const double tinyFontSize = 12.0;
-  static const double headerFontSize = 18.0; // Increased
+  static const double headerFontSize = 17.0;  // 18 → 17 (한 단계 축소)
 
   // Text Styles
   static const TextStyle bodyText = TextStyle(

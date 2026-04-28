@@ -1,17 +1,17 @@
+import 'package:ai_chat/widgets/prompt_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:tizen_app_control/tizen_app_control.dart';
+import 'dart:convert';
 import '../widgets/dim_overlay.dart';
-import '../widgets/prompt_bar.dart';
-import '../widgets/typing_indicator.dart';
-import '../widgets/generative_ui_screen.dart';
+import '../widgets/chat_window.dart';
 import '../services/carbon_grpc_service.dart';
+import '../generated/carbon/v1/agent.pbenum.dart';
+import '../services/session_repository.dart';
 import '../models/chat_message.dart';
-import 'chat_screen.dart';
-import '../features/http_message_overlay/http_message_overlay_screen.dart';
+import '../services/agent_response_parser.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
-
-enum ScreenState { initial, chat, generativeUI, overlay }
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -23,51 +23,129 @@ class TizenChatHomeScreen extends StatefulWidget {
 
 class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     with TickerProviderStateMixin {
+  // ── UI 상태 ──────────────────────────────────────────────────
   bool _isVisible = false;
   bool _isWaiting = false;
-  bool _shouldSlideDown = true;
-  String _responseMessage = "";
-  String _statusMessage = "";
+  bool _isVoiceKeyPressed = false;
 
-  ScreenState _activeScreen = ScreenState.initial;
-  String _currentText = "";
+  // ── 대화창 상태 ──────────────────────────────────────────────
+  bool _hasChatStarted = false;
+  bool _isTyping = false;
   final List<ChatMessage> _messages = [];
+  String _sessionTitle = '';
+  final GlobalKey<ChatWindowState> _chatWindowKey =
+      GlobalKey<ChatWindowState>();
 
+  // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
+  final FocusNode _promptBarFocusNode = FocusNode();
+  final FocusNode _chatScrollFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
-  final StreamController<String> _externalMessageController =
-      StreamController<String>.broadcast();
 
   @override
   void initState() {
     super.initState();
+    AppControl.onAppControl.listen(_onAppControlReceived);
+
     _initializeServices();
     if (widget.enableHttpMessageBus) {
       _startHttpMessageBus();
     }
 
-    // Ensure focus is requested after initial build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _keyboardFocusNode.requestFocus();
-
-      // 앱 시작 후 약간의 지연 시간 뒤에 Prompt Bar가 올라오는 애니메이션 실행
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
-          setState(() {
-            _isVisible = true;
-          });
+          setState(() => _isVisible = true);
+          _promptBarFocusNode.requestFocus();
         }
       });
     });
   }
 
-  Future<void> _initializeServices() async {
-    // Only try once at startup as requested
+  void _onAppControlReceived(ReceivedAppControl appControl) async {
+    debugPrint('[AppControl] Received! caller: ${appControl.callerAppId}');
+    debugPrint('[AppControl] extraData: ${appControl.extraData}');
+
     try {
-      await _grpcService.connect();
+      final extraData = appControl.extraData;
+      String? messageText;
+
+      // 1. 직접적인 'message' 키 확인
+      if (extraData.containsKey('message')) {
+        final msg = extraData['message'];
+        if (msg is List && msg.isNotEmpty) {
+          messageText = msg.first.toString();
+        } else {
+          messageText = msg.toString();
+        }
+        debugPrint('[AppControl] Found message in direct key: $messageText');
+      }
+
+      // 2. JSON 형태나 기타 키 순회 확인 (위에서 못 찾은 경우)
+      if (messageText == null || messageText.isEmpty) {
+        for (var entry in extraData.entries) {
+          final keyStr = entry.key;
+          final valStr = entry.value is List && entry.value.isNotEmpty
+              ? entry.value.first.toString()
+              : entry.value.toString();
+
+          // Value가 JSON인 경우
+          try {
+            final decodedVal = jsonDecode(valStr);
+            if (decodedVal is Map && decodedVal.containsKey('message')) {
+              messageText = decodedVal['message'];
+              debugPrint(
+                '[AppControl] Found message in decoded value: $messageText',
+              );
+              break;
+            }
+          } catch (_) {}
+
+          // Key가 JSON인 경우
+          try {
+            final decodedKey = jsonDecode(keyStr);
+            if (decodedKey is Map && decodedKey.containsKey('message')) {
+              messageText = decodedKey['message'];
+              debugPrint(
+                '[AppControl] Found message in decoded key: $messageText',
+              );
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (messageText != null && messageText.isNotEmpty) {
+        debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
+        if (mounted) {
+          _handleSend(messageText!);
+        }
+      } else {
+        debugPrint('[AppControl] No message content found in extraData.');
+        // 만약 메시지는 없지만 앱이 깨어났다면, 최소한 점이라도 표시하거나 화면을 활성화할지 결정
+        setState(() {
+          _isVisible = true;
+        });
+      }
     } catch (e) {
-      print('DEBUG: Initial status check failed: $e');
+      debugPrint('[AppControl] Error processing extraData: $e');
+    }
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      // 1. 오늘 날짜로 세션 확보 + 로컈 목록에 기록
+      final sessionName = await SessionRepository.instance.ensureTodaySession();
+      debugPrint('[Init] Session name: $sessionName');
+
+      // 2. UI 타이틀 설정
+      if (mounted) setState(() => _sessionTitle = sessionName);
+
+      // 3. 세션 이름으로 gRPC 연결
+      await _grpcService.connect(sessionName: sessionName);
+    } catch (e) {
+      debugPrint('[Init] Error: $e');
     }
   }
 
@@ -75,305 +153,409 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     try {
       await HttpMessageBus.instance.acquire();
     } catch (e) {
-      // 서버 시작 실패 → UI에 영향 없이 무시
       print('[REQ_006] HttpMessageBus acquire failed: $e');
     }
     _messageBusSubscription = HttpMessageBus.instance.stream.listen((msg) {
       if (!mounted) return;
-      if (_activeScreen == ScreenState.overlay) return; // overlay가 자체 처리
-      if (_activeScreen == ScreenState.initial && _isVisible) {
-        // 첫 화면에서 메시지 수신 시 바로 채팅창으로 전환하며 자동 전송
-        _pushScreen(
-          TizenChatScreen(
-            autoSendText: msg,
-            externalMessageStream: _externalMessageController.stream,
-          ),
-        );
-        return;
-      }
-      if (_activeScreen == ScreenState.chat) {
-        _externalMessageController.add(msg);
-        return;
-      }
-      // 그 외 상태: 무시
+      _handleSend(msg); // 사용자 입력과 동일하게 처리
     });
   }
 
+  // ────────────────────────────────────────────────────────────
+  // 메시지 전송 및 gRPC 스트리밍 처리
+  // ────────────────────────────────────────────────────────────
   Future<void> _handleSend(String text) async {
-    if (_isWaiting) return; // Prevent duplicate execution
+    debugPrint('[Chat] _handleSend called with text: $text');
+    if (_isWaiting) {
+      debugPrint('[Chat] Already waiting, ignoring...');
+      return;
+    }
 
-    // Explicitly request focus to handle keyboard events after PromptBar hides
-    _keyboardFocusNode.requestFocus();
-
+    // 메시지 전송 시점의 상태 갱신
     setState(() {
-      _shouldSlideDown = false; // Stay at current height
-      _isVisible = true; // Keep visible and let PromptBar expand via isWaiting
+      if (!_hasChatStarted) {
+        _hasChatStarted = true;
+        // _sessionTitle은 날짜 기반으로 이미 설정됨 (_initializeServices에서)
+        debugPrint('[Chat] First message! Session: $_sessionTitle');
+      }
+
+      _isVisible = true;
       _isWaiting = true;
-      _responseMessage = "";
+      _isTyping = true;
+      _messages.add(ChatMessage(text: text, type: MessageType.sent));
     });
+    debugPrint(
+      '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
+    );
+    _scrollToBottom();
 
     try {
-      setState(() {
-        _messages.clear();
-        _messages.add(ChatMessage(text: text, type: MessageType.sent));
-      });
-
-      String accumulatedText = '';
-      String? activeToolName;
+      // 중간 단계마다 리셋되는 텍스트 버퍼. TurnComplete 시점의 값이 최종 메시지.
+      String currentSegmentText = '';
+      int replyIndex = -1;
 
       final stream = _grpcService.sendMessage(text);
       await for (final event in stream) {
         if (!mounted) break;
 
+        // 응답 말풍선이 생겼을 때 타이핑 인디케이터 중지
+        if (_isTyping && replyIndex != -1) {
+          setState(() => _isTyping = false);
+        }
+
         switch (event) {
           case CarbonTextDelta(:final content):
-            accumulatedText += content;
-            // Generative UI format detect logic mock or usage
-            if (accumulatedText.contains('```dart')) {
-              // naive extraction if you wanted, but genui expects rawText usually
+            currentSegmentText += content;
+            if (replyIndex == -1) {
+              replyIndex = _messages.length;
+              setState(() {
+                _isTyping = false;
+                _messages.add(
+                  ChatMessage(
+                    text: currentSegmentText,
+                    type: MessageType.received,
+                    isWaiting: true,
+                  ),
+                );
+              });
+            } else {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: currentSegmentText,
+                  type: MessageType.received,
+                  isWaiting: true,
+                );
+              });
             }
-            setState(() {
-              _currentText = accumulatedText;
-            });
+            _scrollToBottom();
             break;
+
           case CarbonToolUseStart(:final toolName):
-            activeToolName = toolName;
-            setState(() {
-              _statusMessage = '🔧 $toolName 실행 중...';
-            });
+            // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
+            final toolMessage = currentSegmentText.trim();
+            currentSegmentText = '';
+            final toolText = toolMessage.isNotEmpty
+                ? '🔧 $toolName 실행 중...\n$toolMessage'
+                : '🔧 $toolName 실행 중...';
+            if (replyIndex == -1) {
+              replyIndex = _messages.length;
+              setState(() {
+                _isTyping = false;
+                _messages.add(
+                  ChatMessage(
+                    text: toolText,
+                    type: MessageType.received,
+                    isWaiting: true,
+                  ),
+                );
+              });
+            } else {
+              setState(() {
+                _messages[replyIndex] = ChatMessage(
+                  text: toolText,
+                  type: MessageType.received,
+                  isWaiting: true,
+                );
+              });
+            }
+            _scrollToBottom();
             break;
+
           case CarbonToolResult():
-            setState(() {
-              _statusMessage = '';
-            });
             break;
+
           case CarbonTurnComplete():
-            setState(() {
-              _isWaiting = false;
-              if (activeToolName == null && accumulatedText.trim().isEmpty) {
-                accumulatedText = '에이전트로부터 응답을 받지 못했습니다. (Empty response)';
-              }
-              _currentText = accumulatedText;
-
-              final receivedMsg = ChatMessage(
-                text: _currentText,
-                type: MessageType.received,
-                uiCode: null,
-              );
-              print(
-                'DEBUG: [TizenChatHomeScreen] Adding received message to list',
-              );
-              _messages.add(receivedMsg);
-            });
-
-            _pushScreen(
-              TizenChatScreen(
-                initialMessages: List.from(_messages),
-                externalMessageStream: _externalMessageController.stream,
-              ),
+            final parsedResponse = AgentResponseParser.parse(
+              currentSegmentText,
             );
-            return;
-          case CarbonError(:final fatal, :final message):
             setState(() {
               _isWaiting = false;
-              _responseMessage = '오류: $message';
+              _isTyping = false;
+              if (replyIndex != -1) {
+                // 스트리밍 버블을 최종 내용으로 확정 (스피너 종료)
+                _messages[replyIndex] = ChatMessage(
+                  text: parsedResponse.content,
+                  displayType: parsedResponse.displayType,
+                  type: MessageType.received,
+                  isWaiting: false,
+                  uiCode: parsedResponse.uiCode,
+                );
+              } else if (parsedResponse.content.trim().isNotEmpty) {
+                // 스트리밍 버블이 없는 경우에만 새 버블 추가
+                _messages.add(
+                  ChatMessage(
+                    text: parsedResponse.content,
+                    displayType: parsedResponse.displayType,
+                    type: MessageType.received,
+                    uiCode: parsedResponse.uiCode,
+                  ),
+                );
+              }
             });
-            if (fatal) await _grpcService.reconnect();
-            _hideErrorDelay();
+            _scrollToBottom();
+            _chatScrollFocusNode.requestFocus();
             return;
+
+          case CarbonError(:final code, :final fatal):
+            setState(() {
+              _isWaiting = false;
+              _isTyping = false;
+              if (replyIndex != -1) {
+                // 에러나 취소가 발생했을 때 해당 메시지의 로딩 상태를 해제
+                _messages[replyIndex] = ChatMessage(
+                  text: currentSegmentText.isEmpty
+                      ? '요청이 취소되었습니다.'
+                      : '$currentSegmentText\n\n(요청 중단됨)',
+                  type: MessageType.received,
+                  isWaiting: false,
+                );
+              } else if (code == 'cancelled') {
+                _messages.add(
+                  ChatMessage(
+                    text: '요청이 취소되었습니다.',
+                    type: MessageType.received,
+                    isWaiting: false,
+                  ),
+                );
+              }
+            });
+            _scrollToBottom();
+            _chatScrollFocusNode.requestFocus();
+
+            // "cancelled"는 interruptTurn()으로 인한 정상 중단이므로
+            // reconnect 없이 대기 상태만 해제한다.
+            if (fatal && code != 'cancelled') await _grpcService.reconnect();
+            return;
+
           case CarbonSessionEnded():
             await _grpcService.reconnect();
             return;
+
+          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+            debugPrint(
+              '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
+            );
+            _grpcService.approveToolCall(
+              toolCallId,
+              ApprovalDecision.APPROVAL_DECISION_APPROVE,
+            );
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isWaiting = false;
-          _responseMessage = "오류 발생: ${e.toString()}";
+          _isTyping = false;
         });
-        _hideErrorDelay();
+        _chatScrollFocusNode.requestFocus();
       }
     }
   }
 
-  void _hideErrorDelay() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _responseMessage = "";
-        });
-      }
-    });
+  void _scrollToBottom() {
+    _chatWindowKey.currentState?.scrollToBottom();
   }
 
   @override
   void dispose() {
     _messageBusSubscription?.cancel();
-    _externalMessageController.close();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
+    _promptBarFocusNode.dispose();
+    _chatScrollFocusNode.dispose();
     super.dispose();
   }
 
-  void _pushScreen(Widget screen) {
-    // Reset visibility to true so it's active when returning
-    setState(() {
-      _isVisible = true;
-      _shouldSlideDown = true;
-      if (screen is TizenChatScreen) {
-        _activeScreen = ScreenState.chat;
-      } else if (screen is GenerativeUIScreen) {
-        _activeScreen = ScreenState.generativeUI;
-      }
-    });
-
-    Navigator.of(context)
-        .pushReplacement(
-          PageRouteBuilder(
-            opaque: false,
-            pageBuilder: (context, animation, secondaryAnimation) => screen,
-            transitionDuration: const Duration(milliseconds: 400),
-            reverseTransitionDuration: const Duration(milliseconds: 300),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  final slideAnimation =
-                      Tween<Offset>(
-                        begin: const Offset(
-                          0.0,
-                          0.3,
-                        ), // Starting slightly lower
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                        ),
-                      );
-
-                  return SlideTransition(
-                    position: slideAnimation,
-                    child: FadeTransition(opacity: animation, child: child),
-                  );
-                },
-          ),
-        )
-        .then((_) {
-          if (mounted) {
-            setState(() {
-              _messages.clear();
-            });
-          }
-        });
-  }
-
+  // ────────────────────────────────────────────────────────────
+  // Build
+  // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    debugPrint(
+      '[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}',
+    );
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Focus(
         focusNode: _keyboardFocusNode,
         autofocus: true,
-        canRequestFocus: _activeScreen != ScreenState.chat,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              (event.logicalKey == LogicalKeyboardKey.escape ||
-                  event.logicalKey == LogicalKeyboardKey.goBack ||
-                  event.logicalKey == LogicalKeyboardKey.browserBack)) {
-            SystemNavigator.pop();
-            return KeyEventResult.handled;
+          if (event.logicalKey.keyLabel == 'XF86BTVoice' ||
+              event.logicalKey.debugName == 'XF86BTVoice' ||
+              event.logicalKey.keyId == 137438953472) {
+            if (event is KeyDownEvent && !_isVoiceKeyPressed) {
+              setState(() => _isVoiceKeyPressed = true);
+            } else if (event is KeyUpEvent && _isVoiceKeyPressed) {
+              setState(() => _isVoiceKeyPressed = false);
+            }
+            return KeyEventResult.ignored;
+          }
+
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.escape ||
+                event.logicalKey == LogicalKeyboardKey.goBack ||
+                event.logicalKey == LogicalKeyboardKey.browserBack) {
+              if (_isWaiting) {
+                _grpcService.interruptTurn();
+              } else {
+                SystemNavigator.pop();
+              }
+              return KeyEventResult.handled;
+            }
+
+            // // 리모컨 상/하 키로 스크롤 처리
+            // if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            //   if (_scrollController.hasClients) {
+            //     final newOffset = (_scrollController.offset - 150).clamp(
+            //       0.0,
+            //       _scrollController.position.maxScrollExtent,
+            //     );
+            //     _scrollController.animateTo(
+            //       newOffset,
+            //       duration: const Duration(milliseconds: 200),
+            //       curve: Curves.easeOut,
+            //     );
+            //     return KeyEventResult.handled;
+            //   }
+            // }
+            // if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            //   if (_scrollController.hasClients) {
+            //     final newOffset = (_scrollController.offset + 150).clamp(
+            //       0.0,
+            //       _scrollController.position.maxScrollExtent,
+            //     );
+            //     _scrollController.animateTo(
+            //       newOffset,
+            //       duration: const Duration(milliseconds: 200),
+            //       curve: Curves.easeOut,
+            //     );
+            //     return KeyEventResult.handled;
+            //   }
+            // }
           }
           return KeyEventResult.ignored;
         },
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // Dim Screen Overlay
-              DimOverlay(
-                isVisible: _isVisible || _isWaiting,
-                opacity: _activeScreen == ScreenState.chat ? 0.4 : 1.0,
-              ),
-
-              // Prompt Bar with Animation
+              // ── 3. PromptBar ────────────────────────────────
               AnimatedPositioned(
+                key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 600),
                 curve: Curves.easeOutCubic,
-                bottom: (_isVisible || !_shouldSlideDown) ? 60 : -150,
-                left: 0,
+                bottom: _isVisible ? 10 : -150,
+                left: 10,
                 right: 0,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
-                  opacity: _isVisible ? 1.0 : 0.0,
+                  opacity: (_isVisible && !_isVoiceKeyPressed) ? 1.0 : 0.0,
                   child: Align(
-                    alignment: Alignment.bottomCenter,
+                    alignment: Alignment.bottomLeft,
                     child: SizedBox(
-                      height: 84,
+                      height: 80,
                       child: PromptBar(
+                        outerFocusNode: _promptBarFocusNode,
+                        onArrowUp: () {
+                          if (_hasChatStarted)
+                            _chatScrollFocusNode.requestFocus();
+                        },
                         isVisible: _isVisible,
                         isWaiting: _isWaiting,
+                        hasChatStarted: _hasChatStarted,
                         onSend: _handleSend,
+                        onCancel: () {
+                          _grpcService.interruptTurn();
+                        },
                       ),
                     ),
                   ),
                 ),
               ),
+              // ── 0. 실시간 상태 표시 (초록색 동그라미) ─────────
+              // Positioned(
+              //   top: 30,
+              //   right: 30,
+              //   child: Container(
+              //     width: 15,
+              //     height: 15,
+              //     decoration: BoxDecoration(
+              //       color: Colors.greenAccent.withValues(alpha: 0.9),
+              //       shape: BoxShape.circle,
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.greenAccent.withValues(alpha: 0.6),
+              //           blurRadius: 15,
+              //           spreadRadius: 5,
+              //         ),
+              //       ],
+              //     ),
+              //     child: const Center(
+              //       child: Icon(
+              //         Icons.mic_none,
+              //         size: 9,
+              //         color: Colors.black87,
+              //       ),
+              //     ),
+              //   ),
+              // ),
 
-              // Waiting Animation or Response Message (Layered over PromptBar)
-              if (_isWaiting || _responseMessage.isNotEmpty)
-                Positioned(
-                  bottom: 60,
-                  left: 0,
-                  right: 0,
-                  child: SizedBox(
-                    height: 84,
-                    child: Center(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 100),
-                        opacity: (_isWaiting || _responseMessage.isNotEmpty)
-                            ? 1.0
-                            : 0.0,
-                        child: _isWaiting
-                            ? const TypingIndicator(
-                                showAvatar: false,
-                                showBubble: false,
-                                dotSize: 10.0,
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blueAccent.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      blurRadius: 10,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  _statusMessage.isNotEmpty
-                                      ? _statusMessage
-                                      : _responseMessage,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ),
+              // ── 1. Dim Overlay ─────────────────────────────
+              // if (_hasChatStarted)
+              //   DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
+
+              // ── 2. 대화창 (첫 메시지 전송 후 표시) ─────────
+              if (_hasChatStarted)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                  bottom: 100,
+                  left: 10,
+                  child: ChatWindow(
+                    key: _chatWindowKey,
+                    focusNode: _chatScrollFocusNode,
+                    onScrolledToBottomDown: () =>
+                        _promptBarFocusNode.requestFocus(),
+                    messages: _messages,
+                    isTyping: _isTyping,
+                    sessionTitle: _sessionTitle,
+                    onHeaderTap: () {
+                      // TODO: 세션 목록 팝업 (추후 구현)
+                      debugPrint(
+                        '[SessionHeader] tapped — session picker not yet implemented',
+                      );
+                    },
                   ),
                 ),
+
+              // ── 3. PromptBar ────────────────────────────────
+              // AnimatedPositioned(
+              //   key: const ValueKey('prompt-bar'),
+              //   duration: const Duration(milliseconds: 600),
+              //   curve: Curves.easeOutCubic,
+              //   bottom: (_isVisible || !_shouldSlideDown) ? 60 : -150,
+              //   left: 0,
+              //   right: 0,
+              //   child: AnimatedOpacity(
+              //     duration: const Duration(milliseconds: 200),
+              //     opacity: _isVisible ? 1.0 : 0.0,
+              //     child: Align(
+              //       alignment: Alignment.bottomCenter,
+              //       child: SizedBox(
+              //         height: 70,
+              //         child: PromptBar(
+              //           isVisible: _isVisible,
+              //           isWaiting: _isWaiting,
+              //           hasChatStarted: _hasChatStarted,
+              //           onSend: _handleSend,
+              //         ),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ),
