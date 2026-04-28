@@ -5,18 +5,13 @@ import 'typing_indicator.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
 
-// ──────────────────────────────────────────────────────────────────────────
-// ChatWindow
-//
-// 대화창 전체를 담당하는 독립 위젯.
-//  - messages / isTyping / sessionTitle: 부모에서 주입
-//  - ScrollController: 내부 소유 (scrollToBottom() 메서드 제공)
-// ──────────────────────────────────────────────────────────────────────────
 class ChatWindow extends StatefulWidget {
   final List<ChatMessage> messages;
   final bool isTyping;
   final String sessionTitle;
-  final VoidCallback? onHeaderTap; // 세션 헤더 탭 콜백 (추후 세션 목록 연결)
+  final VoidCallback? onHeaderTap;
+  final FocusNode? focusNode;
+  final VoidCallback? onScrolledToBottomDown;
 
   const ChatWindow({
     super.key,
@@ -24,6 +19,8 @@ class ChatWindow extends StatefulWidget {
     required this.isTyping,
     required this.sessionTitle,
     this.onHeaderTap,
+    this.focusNode,
+    this.onScrolledToBottomDown,
   });
 
   @override
@@ -32,22 +29,20 @@ class ChatWindow extends StatefulWidget {
 
 class ChatWindowState extends State<ChatWindow> {
   final ScrollController _scrollController = ScrollController();
-  final FocusNode _scrollFocusNode = FocusNode();
+  FocusNode? _internalFocusNode;
+
+  FocusNode get _scrollFocusNode =>
+      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
   static const double _scrollStep = 120.0;
 
   @override
   void initState() {
     super.initState();
-    // 채팅창이 표시될 때 자동으로 포커스 획득
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _scrollFocusNode.requestFocus();
-      }
-    });
+    // autofocus: true가 포커스 획득을 처리함
   }
 
-  /// 부모에서 호웘: 리스트 최하단으로 스크롤
+  /// 부모에서 호출: 리스트 최하단으로 스크롤
   void scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -95,8 +90,9 @@ class ChatWindowState extends State<ChatWindow> {
       return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       if (_scrollController.hasClients) {
-        if (_scrollController.offset >= _scrollController.position.maxScrollExtent - 0.1) {
-          FocusScope.of(context).focusInDirection(TraversalDirection.down);
+        if (_scrollController.offset >=
+            _scrollController.position.maxScrollExtent - 0.1) {
+          widget.onScrolledToBottomDown?.call();
         } else {
           _scrollDown();
         }
@@ -109,7 +105,7 @@ class ChatWindowState extends State<ChatWindow> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _scrollFocusNode.dispose();
+    _internalFocusNode?.dispose();
     super.dispose();
   }
 
@@ -129,7 +125,7 @@ class ChatWindowState extends State<ChatWindow> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: screenWidth / 2,
-            maxHeight: screenHeight,
+            maxHeight: screenHeight - 110,
           ),
           child: AnimatedSize(
             duration: const Duration(milliseconds: 400),
@@ -138,7 +134,7 @@ class ChatWindowState extends State<ChatWindow> {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.5),
@@ -152,13 +148,10 @@ class ChatWindowState extends State<ChatWindow> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── 세션 헤더 ────────────────────────────────
                   _SessionHeader(
                     title: widget.sessionTitle,
                     onTap: widget.onHeaderTap,
                   ),
-
-                  // ── 메시지 목록 ──────────────────────────────
                   Flexible(
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -166,7 +159,6 @@ class ChatWindowState extends State<ChatWindow> {
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                       itemCount: itemCount,
                       itemBuilder: (context, index) {
-                        // 타이핑 인디케이터
                         if (widget.isTyping &&
                             index == widget.messages.length) {
                           return const Padding(
@@ -211,9 +203,6 @@ class ChatWindowState extends State<ChatWindow> {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// _SessionHeader
-// ──────────────────────────────────────────────────────────────────────────
 class _SessionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onTap;
@@ -250,12 +239,6 @@ class _SessionHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            // 세션 목록 접근 힌트 아이콘 (추후 취함)
-            // Icon(
-            //   Icons.expand_more,
-            //   size: 14,
-            //   color: Colors.white.withValues(alpha: 0.3),
-            // ),
           ],
         ),
       ),

@@ -8,6 +8,8 @@ class PromptBar extends StatefulWidget {
   final bool hasChatStarted;
   final Function(String)? onSend;
   final VoidCallback? onCancel;
+  final FocusNode? outerFocusNode;
+  final VoidCallback? onArrowUp;
 
   const PromptBar({
     super.key,
@@ -16,13 +18,16 @@ class PromptBar extends StatefulWidget {
     this.onCancel,
     this.isWaiting = false,
     this.hasChatStarted = false,
+    this.outerFocusNode,
+    this.onArrowUp,
   });
 
   @override
   State<PromptBar> createState() => _PromptBarState();
 }
 
-class _PromptBarState extends State<PromptBar> {
+class _PromptBarState extends State<PromptBar>
+    with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
   String _displayText = "";
   final String _fullText = "How can I help you?";
@@ -31,19 +36,41 @@ class _PromptBarState extends State<PromptBar> {
 
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
-  final FocusNode _micFocusNode = FocusNode();
   final FocusNode _sendFocusNode = FocusNode();
+  FocusNode? _internalOuterFocusNode;
+  FocusNode? _listenedFocusNode;
+
+  late final AnimationController _shimmerController;
+  late final Animation<double> _shimmerAlpha;
+
+  FocusNode get _outerFocusNode =>
+      widget.outerFocusNode ?? (_internalOuterFocusNode ??= FocusNode());
 
   @override
   void initState() {
     super.initState();
+
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _shimmerAlpha = Tween<double>(begin: 0.15, end: 0.65).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
+
+    _listenedFocusNode = _outerFocusNode;
+    _listenedFocusNode!.addListener(_onOuterFocusChange);
+
     _inputFocusNode.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
         if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
           _sendFocusNode.requestFocus();
           return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          _outerFocusNode.requestFocus();
+          return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          FocusScope.of(context).focusInDirection(TraversalDirection.up);
+          widget.onArrowUp?.call();
           return KeyEventResult.handled;
         }
       }
@@ -51,32 +78,38 @@ class _PromptBarState extends State<PromptBar> {
     };
   }
 
+  void _onOuterFocusChange() {
+    if (_outerFocusNode.hasPrimaryFocus) {
+      _shimmerController.repeat(reverse: true);
+    } else {
+      _shimmerController.stop();
+      _shimmerController.reset();
+    }
+  }
+
   @override
   void didUpdateWidget(PromptBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (widget.outerFocusNode != oldWidget.outerFocusNode) {
+      _listenedFocusNode?.removeListener(_onOuterFocusChange);
+      _listenedFocusNode = _outerFocusNode;
+      _listenedFocusNode!.addListener(_onOuterFocusChange);
+    }
+
     if (widget.isVisible && !oldWidget.isVisible) {
-      // Trigger expansion and typing when becoming visible
       _reset();
       Future.delayed(const Duration(milliseconds: 200), () {
-        // Starts expansion as it finishes the rise for a more fluid feel
         if (mounted) {
           setState(() => _isExpanded = true);
           _startTyping();
         }
       });
     } else if (!widget.isVisible && oldWidget.isVisible) {
-      // Delay reset for fade-out period to avoid premature shrinking
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !widget.isVisible) {
           _reset();
         }
-      });
-    }
-
-    // 응답 완료 시 입력 필드에 자동 포커스
-    if (!widget.isWaiting && oldWidget.isWaiting) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) _inputFocusNode.requestFocus();
       });
     }
   }
@@ -100,7 +133,6 @@ class _PromptBarState extends State<PromptBar> {
         });
       } else {
         _typingTimer?.cancel();
-        _inputFocusNode.requestFocus();
       }
     });
   }
@@ -108,130 +140,181 @@ class _PromptBarState extends State<PromptBar> {
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _listenedFocusNode?.removeListener(_onOuterFocusChange);
+    _shimmerController.dispose();
     _textController.dispose();
     _inputFocusNode.dispose();
-    _micFocusNode.dispose();
     _sendFocusNode.dispose();
+    _internalOuterFocusNode?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
-      width: _isExpanded ? MediaQuery.of(context).size.width / 2 : 64,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 24,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        alignment: Alignment.centerLeft,
-        children: [
-          AnimatedPositioned(
+    return Focus(
+      focusNode: _outerFocusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter) {
+            if (_charIndex >= _fullText.length) {
+              _inputFocusNode.requestFocus();
+            }
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            widget.onArrowUp?.call();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedBuilder(
+        animation: _outerFocusNode,
+        builder: (context, child) {
+          final isOuterFocused = _outerFocusNode.hasPrimaryFocus;
+          return AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,
-            left: _isExpanded ? 25 : (32 - 10),
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Image.asset(
-                'assets/images/bixby.png',
-                width: 20,
-                height: 20,
-              ),
+            width: _isExpanded ? MediaQuery.of(context).size.width / 2 : 64,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ),
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: _isExpanded ? 1.0 : 0.0,
-            child: Container(
-              height: 52,
-              padding: const EdgeInsets.only(left: 80.0, right: 16.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      focusNode: _inputFocusNode,
-                      autofocus: false,
-                      keyboardType: TextInputType.none,
-                      textAlignVertical: TextAlignVertical.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w400,
-                        fontFamily: 'Roboto',
-                        letterSpacing: 0.3,
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                child!,
+                if (isOuterFocused)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _shimmerController,
+                        builder: (context, _) {
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: Colors.white
+                                    .withValues(alpha: _shimmerAlpha.value),
+                                width: 1.5,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.only(bottom: 3),
-                        hintText: _charIndex < _fullText.length
-                            ? _displayText
-                            : _fullText,
-                        hintStyle: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      readOnly: _charIndex < _fullText.length || widget.isWaiting,
-                      onSubmitted: (value) {
-                        if (value.isNotEmpty &&
-                            widget.onSend != null &&
-                            !widget.isWaiting) {
-                          widget.onSend!(value);
-                          _textController.clear();
-                        }
-                      },
                     ),
                   ),
-                  if (_charIndex >= _fullText.length)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // _FocusableActionIcon(
-                        //   icon: Icons.mic_rounded,
-                        //   size: 24,
-                        //   focusNode: _micFocusNode,
-                        //   isEnabled: false,
-                        //   onTap: () {},
-                        // ),
-                        const SizedBox(width: 6),
-                        _FocusableActionIcon(
-                          icon: widget.isWaiting ? Icons.stop_rounded : Icons.send_rounded,
-                          size: 24,
-                          focusNode: _sendFocusNode,
-                          isEnabled: true,
-                          onTap: () {
-                            if (widget.isWaiting) {
-                              if (widget.onCancel != null) widget.onCancel!();
-                            } else {
-                              if (_textController.text.isNotEmpty && widget.onSend != null) {
-                                widget.onSend!(_textController.text);
-                                _textController.clear();
-                              }
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                ],
+              ],
+            ),
+          );
+        },
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              left: _isExpanded ? 25 : (32 - 10),
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Image.asset(
+                  'assets/images/bixby.png',
+                  width: 20,
+                  height: 20,
+                ),
               ),
             ),
-          ),
-        ],
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _isExpanded ? 1.0 : 0.0,
+              child: Container(
+                height: 52,
+                padding: const EdgeInsets.only(left: 80.0, right: 16.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _inputFocusNode,
+                        autofocus: false,
+                        keyboardType: TextInputType.none,
+                        textAlignVertical: TextAlignVertical.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Roboto',
+                          letterSpacing: 0.3,
+                        ),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.only(bottom: 3),
+                          hintText: _charIndex < _fullText.length
+                              ? _displayText
+                              : _fullText,
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        readOnly:
+                            _charIndex < _fullText.length || widget.isWaiting,
+                        onSubmitted: (value) {
+                          if (value.isNotEmpty &&
+                              widget.onSend != null &&
+                              !widget.isWaiting) {
+                            widget.onSend!(value);
+                            _textController.clear();
+                          }
+                        },
+                      ),
+                    ),
+                    if (_charIndex >= _fullText.length)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(width: 6),
+                          _FocusableActionIcon(
+                            icon: widget.isWaiting
+                                ? Icons.stop_rounded
+                                : Icons.send_rounded,
+                            size: 24,
+                            focusNode: _sendFocusNode,
+                            isEnabled: true,
+                            onArrowLeft: () => _inputFocusNode.requestFocus(),
+                            onTap: () {
+                              if (widget.isWaiting) {
+                                if (widget.onCancel != null) widget.onCancel!();
+                              } else {
+                                if (_textController.text.isNotEmpty &&
+                                    widget.onSend != null) {
+                                  widget.onSend!(_textController.text);
+                                  _textController.clear();
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -242,6 +325,7 @@ class _FocusableActionIcon extends StatefulWidget {
   final double size;
   final FocusNode focusNode;
   final VoidCallback onTap;
+  final VoidCallback? onArrowLeft;
   final bool isEnabled;
 
   const _FocusableActionIcon({
@@ -249,6 +333,7 @@ class _FocusableActionIcon extends StatefulWidget {
     required this.size,
     required this.focusNode,
     required this.onTap,
+    this.onArrowLeft,
     this.isEnabled = true,
   });
 
@@ -304,12 +389,18 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
       focusNode: widget.focusNode,
       onKeyEvent: (node, event) {
         if (!widget.isEnabled) return KeyEventResult.ignored;
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter)) {
-          _pressController.forward().then((_) => _pressController.reverse());
-          widget.onTap();
-          return KeyEventResult.handled;
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.enter) {
+            _pressController.forward().then((_) => _pressController.reverse());
+            widget.onTap();
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+              widget.onArrowLeft != null) {
+            widget.onArrowLeft!();
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },

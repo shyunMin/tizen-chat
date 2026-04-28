@@ -38,6 +38,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
+  final FocusNode _promptBarFocusNode = FocusNode();
+  final FocusNode _chatScrollFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
 
@@ -52,12 +54,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // _keyboardFocusNode.requestFocus();
-      // Future.delayed(const Duration(milliseconds: 300), () {
-      //   if (mounted) {
-      //     setState(() => _isVisible = true);
-      //   }
-      // });
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() => _isVisible = true);
+          _promptBarFocusNode.requestFocus();
+        }
+      });
     });
   }
 
@@ -291,6 +293,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               }
             });
             _scrollToBottom();
+            _chatScrollFocusNode.requestFocus();
             return;
 
           case CarbonError(:final code, :final fatal):
@@ -300,7 +303,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               if (replyIndex != -1) {
                 // 에러나 취소가 발생했을 때 해당 메시지의 로딩 상태를 해제
                 _messages[replyIndex] = ChatMessage(
-                  text: currentSegmentText.isEmpty ? '요청이 취소되었습니다.' : '$currentSegmentText\n\n(요청 중단됨)',
+                  text: currentSegmentText.isEmpty
+                      ? '요청이 취소되었습니다.'
+                      : '$currentSegmentText\n\n(요청 중단됨)',
                   type: MessageType.received,
                   isWaiting: false,
                 );
@@ -315,7 +320,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               }
             });
             _scrollToBottom();
-            
+            _chatScrollFocusNode.requestFocus();
+
             // "cancelled"는 interruptTurn()으로 인한 정상 중단이므로
             // reconnect 없이 대기 상태만 해제한다.
             if (fatal && code != 'cancelled') await _grpcService.reconnect();
@@ -341,6 +347,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           _isWaiting = false;
           _isTyping = false;
         });
+        _chatScrollFocusNode.requestFocus();
       }
     }
   }
@@ -354,6 +361,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _messageBusSubscription?.cancel();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
+    _promptBarFocusNode.dispose();
+    _chatScrollFocusNode.dispose();
     super.dispose();
   }
 
@@ -375,9 +384,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         autofocus: true,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
-          debugPrint(
-            "[Chat] Key event received: ${event.logicalKey.keyLabel}, ${event.logicalKey.keyId}",
-          );
           if (event.logicalKey.keyLabel == 'XF86BTVoice' ||
               event.logicalKey.debugName == 'XF86BTVoice' ||
               event.logicalKey.keyId == 137438953472) {
@@ -445,13 +451,18 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 left: 10,
                 right: 0,
                 child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 500),
+                  duration: const Duration(milliseconds: 200),
                   opacity: (_isVisible && !_isVoiceKeyPressed) ? 1.0 : 0.0,
                   child: Align(
                     alignment: Alignment.bottomLeft,
                     child: SizedBox(
                       height: 80,
                       child: PromptBar(
+                        outerFocusNode: _promptBarFocusNode,
+                        onArrowUp: () {
+                          if (_hasChatStarted)
+                            _chatScrollFocusNode.requestFocus();
+                        },
                         isVisible: _isVisible,
                         isWaiting: _isWaiting,
                         hasChatStarted: _hasChatStarted,
@@ -505,6 +516,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   left: 10,
                   child: ChatWindow(
                     key: _chatWindowKey,
+                    focusNode: _chatScrollFocusNode,
+                    onScrolledToBottomDown: () =>
+                        _promptBarFocusNode.requestFocus(),
                     messages: _messages,
                     isTyping: _isTyping,
                     sessionTitle: _sessionTitle,
