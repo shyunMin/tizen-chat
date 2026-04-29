@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:convert';
-import '../widgets/dim_overlay.dart';
 import '../widgets/chat_window.dart';
+import '../widgets/action_button_bar.dart';
 import '../services/carbon_grpc_service.dart';
 import '../generated/carbon/v1/agent.pbenum.dart';
 import '../services/session_repository.dart';
@@ -36,6 +36,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   String _sessionTitle = '';
   final GlobalKey<ChatWindowState> _chatWindowKey =
       GlobalKey<ChatWindowState>();
+  final GlobalKey<ActionButtonBarState> _actionBarKey =
+      GlobalKey<ActionButtonBarState>();
 
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -60,7 +62,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
           setState(() => _isVisible = true);
-          _promptBarFocusNode.requestFocus();
+          // rebuild 완료 후 포커스 부여 (isVisible=true 상태에서 shimmer 표시 보장)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _promptBarFocusNode.requestFocus();
+          });
         }
       });
     });
@@ -287,6 +292,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   type: MessageType.received,
                   isWaiting: false,
                   uiCode: parsedResponse.uiCode,
+                  actionButtons: parsedResponse.actionButtons,
                 );
               } else if (parsedResponse.content.trim().isNotEmpty) {
                 // 스트리밍 버블이 없는 경우에만 새 버블 추가
@@ -296,6 +302,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     displayType: parsedResponse.displayType,
                     type: MessageType.received,
                     uiCode: parsedResponse.uiCode,
+                    actionButtons: parsedResponse.actionButtons,
                   ),
                 );
               }
@@ -362,6 +369,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   void _scrollToBottom() {
     _chatWindowKey.currentState?.scrollToBottom();
+  }
+
+  // 마지막 완료된 received 메시지의 버튼 목록 (대기 중이면 빈 리스트)
+  List<String> get _currentActionButtons {
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      final m = _messages[i];
+      if (m.type == MessageType.received) {
+        return m.isWaiting ? [] : m.actionButtons;
+      }
+    }
+    return [];
   }
 
   @override
@@ -450,10 +468,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // ── 3. PromptBar ────────────────────────────────
+              // ── PromptBar (bottom: 10, height: 80) ──────────
               AnimatedPositioned(
                 key: const ValueKey('prompt-bar'),
-                duration: const Duration(milliseconds: 600),
+                duration: const Duration(milliseconds: 400),
                 curve: Curves.easeOutCubic,
                 bottom: _isKeyboardFocused ? 270 : 10,
                 left: 10,
@@ -468,8 +486,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                       child: PromptBar(
                         outerFocusNode: _promptBarFocusNode,
                         onArrowUp: () {
-                          if (_hasChatStarted)
+                          if (!_hasChatStarted) return;
+                          if (_currentActionButtons.isNotEmpty) {
+                            _actionBarKey.currentState?.focusFirstButton();
+                          } else {
                             _chatScrollFocusNode.requestFocus();
+                          }
                         },
                         isVisible: _isVisible,
                         isWaiting: _isWaiting,
@@ -479,100 +501,61 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                           _grpcService.interruptTurn();
                         },
                         onKeyboardFocusChanged: (isFocused) {
-                          if (mounted) {
-                            setState(() {
-                              _isKeyboardFocused = isFocused;
-                            });
-                          }
+                          if (mounted) setState(() => _isKeyboardFocused = isFocused);
                         },
                       ),
                     ),
                   ),
                 ),
               ),
-              // ── 0. 실시간 상태 표시 (초록색 동그라미) ─────────
-              // Positioned(
-              //   top: 30,
-              //   right: 30,
-              //   child: Container(
-              //     width: 15,
-              //     height: 15,
-              //     decoration: BoxDecoration(
-              //       color: Colors.greenAccent.withValues(alpha: 0.9),
-              //       shape: BoxShape.circle,
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.greenAccent.withValues(alpha: 0.6),
-              //           blurRadius: 15,
-              //           spreadRadius: 5,
-              //         ),
-              //       ],
-              //     ),
-              //     child: const Center(
-              //       child: Icon(
-              //         Icons.mic_none,
-              //         size: 9,
-              //         color: Colors.black87,
-              //       ),
-              //     ),
-              //   ),
-              // ),
 
-              // ── 1. Dim Overlay ─────────────────────────────
-              // if (_hasChatStarted)
-              //   DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
-
-              // ── 2. 대화창 (첫 메시지 전송 후 표시) ─────────
-              AnimatedPositioned(
+              // ── ActionButtonBar (PromptBar 바로 위) ──────────
+              if (_hasChatStarted)
+                AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: _hasChatStarted
-                      ? (_isKeyboardFocused ? 370 : 100)
-                      : -screenHeight,
-                  left: 10,
-                  child: ChatWindow(
-                    key: _chatWindowKey,
-                    focusNode: _chatScrollFocusNode,
-                    onScrolledToBottomDown: () =>
-                        _promptBarFocusNode.requestFocus(),
-                    messages: _messages,
-                    isTyping: _isTyping,
-                    sessionTitle: _sessionTitle,
-                    onSendMessage: _handleSend,
-                    onHeaderTap: () {
-                      // TODO: 세션 목록 팝업 (추후 구현)
-                      debugPrint(
-                        '[SessionHeader] tapped — session picker not yet implemented',
-                      );
-                    },
+                  bottom: _isKeyboardFocused ? 358 : 98,
+                  left: 0,
+                  right: 0,
+                  child: ActionButtonBar(
+                    key: _actionBarKey,
+                    buttons: _currentActionButtons,
+                    onSend: _handleSend,
+                    onArrowUp: () => _chatScrollFocusNode.requestFocus(),
+                    onArrowDown: () => _promptBarFocusNode.requestFocus(),
                   ),
                 ),
 
-              // ── 3. PromptBar ────────────────────────────────
-              // AnimatedPositioned(
-              //   key: const ValueKey('prompt-bar'),
-              //   duration: const Duration(milliseconds: 600),
-              //   curve: Curves.easeOutCubic,
-              //   bottom: (_isVisible || !_shouldSlideDown) ? 60 : -150,
-              //   left: 0,
-              //   right: 0,
-              //   child: AnimatedOpacity(
-              //     duration: const Duration(milliseconds: 200),
-              //     opacity: _isVisible ? 1.0 : 0.0,
-              //     child: Align(
-              //       alignment: Alignment.bottomCenter,
-              //       child: SizedBox(
-              //         height: 70,
-              //         child: PromptBar(
-              //           isVisible: _isVisible,
-              //           isWaiting: _isWaiting,
-              //           hasChatStarted: _hasChatStarted,
-              //           onSend: _handleSend,
-              //         ),
-              //       ),
-              //     ),
-              //   ),
-              // ),
+              // ── ChatWindow ───────────────────────────────────
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                bottom: _hasChatStarted
+                    ? (_isKeyboardFocused
+                        ? (_currentActionButtons.isNotEmpty ? 418 : 358)
+                        : (_currentActionButtons.isNotEmpty ? 158 : 98))
+                    : -screenHeight,
+                left: 10,
+                child: ChatWindow(
+                  key: _chatWindowKey,
+                  focusNode: _chatScrollFocusNode,
+                  onScrolledToBottomDown: () {
+                    if (_currentActionButtons.isNotEmpty) {
+                      _actionBarKey.currentState?.focusFirstButton();
+                    } else {
+                      _promptBarFocusNode.requestFocus();
+                    }
+                  },
+                  messages: _messages,
+                  isTyping: _isTyping,
+                  sessionTitle: _sessionTitle,
+                  onHeaderTap: () {
+                    debugPrint(
+                      '[SessionHeader] tapped — session picker not yet implemented',
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
