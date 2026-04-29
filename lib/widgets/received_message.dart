@@ -143,19 +143,62 @@ class _ButtonLinkBuilder extends MarkdownElementBuilder {
     final String textContent = element.textContent;
     return Padding(
       padding: const EdgeInsets.only(top: 4, right: 4),
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.blueAccent,
-          side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          // FocusNode가 직접 제공되지 않으므로, 이 레벨에서 context를 통해 스크롤 처리
+        },
+        child: Builder(
+          builder: (context) {
+            final bool isFocused = Focus.of(context).hasFocus;
+
+            if (isFocused) {
+              // 포커스를 받았을 때 해당 위젯이 보이도록 스크롤 수행
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                Scrollable.ensureVisible(
+                  context,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  alignment: 0.5, // 중앙에 위치하도록 시도
+                );
+              });
+            }
+
+            return OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: isFocused
+                    ? Colors.blueAccent
+                    : Colors.transparent,
+                foregroundColor: Colors.white,
+                side: BorderSide(
+                  color: isFocused
+                      ? Colors.transparent
+                      : Colors.blueAccent.withOpacity(0.5),
+                  width: isFocused ? 2.0 : 1.0,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: isFocused ? 8 : 0,
+                shadowColor: Colors.blueAccent.withOpacity(0.4),
+              ),
+              onPressed: () => onCommand(textContent),
+              child: Text(
+                textContent,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isFocused ? FontWeight.w800 : FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            );
+          },
         ),
-        onPressed: () => onCommand(textContent),
-        child: Text(textContent, style: const TextStyle(fontSize: 13)),
       ),
     );
   }

@@ -1,1 +1,4 @@
-req/REQ_001_PromptBarMode.md
+ID: 002
+ALIAS: RemoteNavigation
+FILE: /home/jay/github/ai-chat/req/REQ_002_RemoteNavigation.md
+STATUS: Planned
