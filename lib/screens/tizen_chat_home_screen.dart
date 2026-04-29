@@ -27,6 +27,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _isVisible = false;
   bool _isWaiting = false;
   bool _isVoiceKeyPressed = false;
+  bool _isKeyboardFocused = false;
 
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
@@ -452,7 +453,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 600),
                 curve: Curves.easeOutCubic,
-                bottom: _isVisible ? 10 : -150,
+                bottom: _isVisible ? (_isKeyboardFocused ? 270 : 10) : -150,
                 left: 10,
                 right: 0,
                 child: AnimatedOpacity(
@@ -474,6 +475,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                         onSend: _handleSend,
                         onCancel: () {
                           _grpcService.interruptTurn();
+                        },
+                        onKeyboardFocusChanged: (isFocused) {
+                          if (mounted) {
+                            setState(() {
+                              _isKeyboardFocused = isFocused;
+                            });
+                          }
                         },
                       ),
                     ),
@@ -517,7 +525,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: 100,
+                  bottom: _isKeyboardFocused ? 370 : 100,
                   left: 10,
                   child: ChatWindow(
                     key: _chatWindowKey,

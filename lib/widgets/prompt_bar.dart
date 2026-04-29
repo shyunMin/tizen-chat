@@ -10,6 +10,7 @@ class PromptBar extends StatefulWidget {
   final VoidCallback? onCancel;
   final FocusNode? outerFocusNode;
   final VoidCallback? onArrowUp;
+  final Function(bool)? onKeyboardFocusChanged;
 
   const PromptBar({
     super.key,
@@ -20,6 +21,7 @@ class PromptBar extends StatefulWidget {
     this.hasChatStarted = false,
     this.outerFocusNode,
     this.onArrowUp,
+    this.onKeyboardFocusChanged,
   });
 
   @override
@@ -82,6 +84,14 @@ class _PromptBarState extends State<PromptBar>
       }
       return KeyEventResult.ignored;
     };
+
+    _inputFocusNode.addListener(_onInputFocusChange);
+  }
+
+  void _onInputFocusChange() {
+    if (widget.onKeyboardFocusChanged != null) {
+      widget.onKeyboardFocusChanged!(_inputFocusNode.hasFocus);
+    }
   }
 
   void _onOuterFocusChange() {
@@ -152,6 +162,7 @@ class _PromptBarState extends State<PromptBar>
 
   @override
   void dispose() {
+    _inputFocusNode.removeListener(_onInputFocusChange);
     _typingTimer?.cancel();
     _listenedFocusNode?.removeListener(_onOuterFocusChange);
     _shimmerController.dispose();
@@ -260,7 +271,7 @@ class _PromptBarState extends State<PromptBar>
                           _outerFocusNode.requestFocus();
                         },
                       )
-                    : const Icon(Icons.mic, color: Colors.white, size: 24),
+                    : const Icon(Icons.mic, color: Colors.blueAccent, size: 24),
               ),
             ),
             AnimatedOpacity(
