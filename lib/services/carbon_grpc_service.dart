@@ -191,7 +191,22 @@ class CarbonGrpcService {
   // Track if a turn is currently active to avoid duplicate processing of the same stream
   bool _isTurnActive = false;
 
+  // 취소 후 이전 턴의 잔여 이벤트를 다음 TurnStarted까지 버린다.
+  bool _discardingOldTurnEvents = false;
+
   void _handleServerEvent(ServerEvent event) {
+    if (_discardingOldTurnEvents) {
+      if (event.hasTurnStarted()) {
+        _discardingOldTurnEvents = false;
+        // fall through: TurnStarted는 정상 처리
+      } else if (event.hasSessionEnded() ||
+          (event.hasError() && event.error.fatal)) {
+        // 연결/세션 종료 이벤트는 항상 통과
+      } else {
+        return; // 이전 턴 잔여 이벤트 폐기
+      }
+    }
+
     if (event.hasTextDelta()) {
       _eventController.add(CarbonTextDelta(event.textDelta.content));
     } else if (event.hasToolUseStart()) {
@@ -278,6 +293,9 @@ class CarbonGrpcService {
     // 로컬에서 즉시 emit: sendMessage()의 await for를 즉시 종료시켜
     // UI 피드백 지연 및 hang을 방지한다.
     _eventController.add(CarbonError("cancelled", "interrupted by user", true));
+    // 취소 이후 이전 턴의 잔여 이벤트(Carbon이 비동기로 완료한 응답)를
+    // 다음 TurnStarted 전까지 버린다.
+    _discardingOldTurnEvents = true;
   }
 
   void _broadcastError(String message, {bool fatal = false}) {
