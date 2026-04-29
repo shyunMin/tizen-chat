@@ -221,7 +221,7 @@ class CarbonGrpcService {
       _eventController.add(
         CarbonError(event.error.code, event.error.message, event.error.fatal),
       );
-      if (event.error.fatal) _isConnected = false;
+      if (event.error.fatal && event.error.code != 'cancelled') _isConnected = false;
     } else if (event.hasSessionEnded()) {
       _eventController.add(CarbonSessionEnded(event.sessionEnded.reason));
       _isConnected = false;

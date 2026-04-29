@@ -44,6 +44,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
   final Completer<void> _initCompleter = Completer<void>();
+  bool _hasPendingAppControl = false;
 
   @override
   void initState() {
@@ -57,7 +58,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
+        if (mounted && !_hasPendingAppControl) {
           setState(() => _isVisible = true);
           _promptBarFocusNode.requestFocus();
         }
@@ -66,6 +67,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _onAppControlReceived(ReceivedAppControl appControl) async {
+    _hasPendingAppControl = true;
     await _initCompleter.future;
     debugPrint('[AppControl] Received! caller: ${appControl.callerAppId}');
     debugPrint('[AppControl] extraData: ${appControl.extraData}');
@@ -453,7 +455,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 600),
                 curve: Curves.easeOutCubic,
-                bottom: _isVisible ? (_isKeyboardFocused ? 270 : 10) : -150,
+                bottom: _isKeyboardFocused ? 270 : 10,
                 left: 10,
                 right: 0,
                 child: AnimatedOpacity(
@@ -521,11 +523,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               //   DimOverlay(isVisible: _isVisible || _isWaiting, opacity: 1.0),
 
               // ── 2. 대화창 (첫 메시지 전송 후 표시) ─────────
-              if (_hasChatStarted)
-                AnimatedPositioned(
+              AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: _isKeyboardFocused ? 370 : 100,
+                  bottom: _hasChatStarted
+                      ? (_isKeyboardFocused ? 370 : 100)
+                      : -screenHeight,
                   left: 10,
                   child: ChatWindow(
                     key: _chatWindowKey,
