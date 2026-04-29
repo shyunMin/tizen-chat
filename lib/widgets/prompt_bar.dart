@@ -29,6 +29,7 @@ class PromptBar extends StatefulWidget {
 class _PromptBarState extends State<PromptBar>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
+  bool _isKeyboardMode = false;
   String _displayText = "";
   final String _fullText = "How can I help you?";
   int _charIndex = 0;
@@ -37,6 +38,7 @@ class _PromptBarState extends State<PromptBar>
   final TextEditingController _textController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final FocusNode _sendFocusNode = FocusNode();
+  final FocusNode _micFocusNode = FocusNode();
   FocusNode? _internalOuterFocusNode;
   FocusNode? _listenedFocusNode;
 
@@ -67,7 +69,11 @@ class _PromptBarState extends State<PromptBar>
           _sendFocusNode.requestFocus();
           return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          _outerFocusNode.requestFocus();
+          if (_isKeyboardMode) {
+            _micFocusNode.requestFocus();
+          } else {
+            _outerFocusNode.requestFocus();
+          }
           return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           widget.onArrowUp?.call();
@@ -97,6 +103,12 @@ class _PromptBarState extends State<PromptBar>
       _listenedFocusNode!.addListener(_onOuterFocusChange);
     }
 
+    if (widget.isWaiting && !oldWidget.isWaiting) {
+      if (_isKeyboardMode) {
+        setState(() => _isKeyboardMode = false);
+      }
+    }
+
     if (widget.isVisible && !oldWidget.isVisible) {
       _reset();
       Future.delayed(const Duration(milliseconds: 200), () {
@@ -118,6 +130,7 @@ class _PromptBarState extends State<PromptBar>
     _typingTimer?.cancel();
     setState(() {
       _isExpanded = false;
+      _isKeyboardMode = false;
       _displayText = "";
       _charIndex = 0;
       _textController.clear();
@@ -145,6 +158,7 @@ class _PromptBarState extends State<PromptBar>
     _textController.dispose();
     _inputFocusNode.dispose();
     _sendFocusNode.dispose();
+    _micFocusNode.dispose();
     _internalOuterFocusNode?.dispose();
     super.dispose();
   }
@@ -157,8 +171,12 @@ class _PromptBarState extends State<PromptBar>
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.select ||
               event.logicalKey == LogicalKeyboardKey.enter) {
-            if (_charIndex >= _fullText.length) {
-              _inputFocusNode.requestFocus();
+            if (_isKeyboardMode) {
+              if (_charIndex >= _fullText.length) {
+                _inputFocusNode.requestFocus();
+              }
+            } else {
+              _sendFocusNode.requestFocus();
             }
             return KeyEventResult.handled;
           }
@@ -205,8 +223,9 @@ class _PromptBarState extends State<PromptBar>
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
-                                color: Colors.white
-                                    .withValues(alpha: _shimmerAlpha.value),
+                                color: Colors.white.withValues(
+                                  alpha: _shimmerAlpha.value,
+                                ),
                                 width: 1.5,
                               ),
                             ),
@@ -229,11 +248,19 @@ class _PromptBarState extends State<PromptBar>
               top: 0,
               bottom: 0,
               child: Center(
-                child: Image.asset(
-                  'assets/images/bixby.png',
-                  width: 20,
-                  height: 20,
-                ),
+                child: _isKeyboardMode
+                    ? _FocusableActionIcon(
+                        icon: Icons.mic,
+                        size: 24,
+                        focusNode: _micFocusNode,
+                        onArrowLeft: () => _outerFocusNode.requestFocus(),
+                        onArrowRight: () => _inputFocusNode.requestFocus(),
+                        onTap: () {
+                          setState(() => _isKeyboardMode = false);
+                          _outerFocusNode.requestFocus();
+                        },
+                      )
+                    : const Icon(Icons.mic, color: Colors.white, size: 24),
               ),
             ),
             AnimatedOpacity(
@@ -246,41 +273,59 @@ class _PromptBarState extends State<PromptBar>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _inputFocusNode,
-                        autofocus: false,
-                        keyboardType: TextInputType.none,
-                        textAlignVertical: TextAlignVertical.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w400,
-                          fontFamily: 'Roboto',
-                          letterSpacing: 0.3,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.only(bottom: 3),
-                          hintText: _charIndex < _fullText.length
-                              ? _displayText
-                              : _fullText,
-                          hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        readOnly:
-                            _charIndex < _fullText.length || widget.isWaiting,
-                        onSubmitted: (value) {
-                          if (value.isNotEmpty &&
-                              widget.onSend != null &&
-                              !widget.isWaiting) {
-                            widget.onSend!(value);
-                            _textController.clear();
-                          }
-                        },
-                      ),
+                      child: _isKeyboardMode
+                          ? TextField(
+                              controller: _textController,
+                              focusNode: _inputFocusNode,
+                              autofocus: false,
+                              keyboardType: TextInputType.text,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w400,
+                                fontFamily: 'Roboto',
+                                letterSpacing: 0.3,
+                              ),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.only(
+                                  bottom: 3,
+                                ),
+                                hintText: _charIndex < _fullText.length
+                                    ? _displayText
+                                    : _fullText,
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              readOnly:
+                                  _charIndex < _fullText.length ||
+                                  widget.isWaiting,
+                              onSubmitted: (value) {
+                                if (value.isNotEmpty &&
+                                    widget.onSend != null &&
+                                    !widget.isWaiting) {
+                                  setState(() => _isKeyboardMode = false);
+                                  widget.onSend!(value);
+                                  _textController.clear();
+                                }
+                              },
+                            )
+                          : Container(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                "리모컨의 마이크 버튼을 누른 상태로 질문하세요",
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w400,
+                                  fontFamily: 'Roboto',
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
                     ),
                     if (_charIndex >= _fullText.length)
                       Row(
@@ -288,22 +333,41 @@ class _PromptBarState extends State<PromptBar>
                         children: [
                           const SizedBox(width: 6),
                           _FocusableActionIcon(
-                            icon: widget.isWaiting
-                                ? Icons.stop_rounded
-                                : Icons.send_rounded,
+                            icon: _isKeyboardMode
+                                ? (widget.isWaiting
+                                      ? Icons.stop_rounded
+                                      : Icons.send_rounded)
+                                : Icons.keyboard,
                             size: 24,
                             focusNode: _sendFocusNode,
                             isEnabled: true,
-                            onArrowLeft: () => _inputFocusNode.requestFocus(),
-                            onTap: () {
-                              if (widget.isWaiting) {
-                                if (widget.onCancel != null) widget.onCancel!();
+                            onArrowLeft: () {
+                              if (_isKeyboardMode) {
+                                _inputFocusNode.requestFocus();
                               } else {
-                                if (_textController.text.isNotEmpty &&
-                                    widget.onSend != null) {
-                                  widget.onSend!(_textController.text);
-                                  _textController.clear();
+                                _outerFocusNode.requestFocus();
+                              }
+                            },
+                            onTap: () {
+                              if (_isKeyboardMode) {
+                                if (widget.isWaiting) {
+                                  if (widget.onCancel != null)
+                                    widget.onCancel!();
+                                  setState(() => _isKeyboardMode = false);
+                                } else {
+                                  if (_textController.text.isNotEmpty &&
+                                      widget.onSend != null) {
+                                    final text = _textController.text;
+                                    setState(() => _isKeyboardMode = false);
+                                    widget.onSend!(text);
+                                    _textController.clear();
+                                  }
                                 }
+                              } else {
+                                setState(() => _isKeyboardMode = true);
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _inputFocusNode.requestFocus();
+                                });
                               }
                             },
                           ),
@@ -326,6 +390,7 @@ class _FocusableActionIcon extends StatefulWidget {
   final FocusNode focusNode;
   final VoidCallback onTap;
   final VoidCallback? onArrowLeft;
+  final VoidCallback? onArrowRight;
   final bool isEnabled;
 
   const _FocusableActionIcon({
@@ -334,6 +399,7 @@ class _FocusableActionIcon extends StatefulWidget {
     required this.focusNode,
     required this.onTap,
     this.onArrowLeft,
+    this.onArrowRight,
     this.isEnabled = true,
   });
 
@@ -399,6 +465,11 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
           if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
               widget.onArrowLeft != null) {
             widget.onArrowLeft!();
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+              widget.onArrowRight != null) {
+            widget.onArrowRight!();
             return KeyEventResult.handled;
           }
         }
