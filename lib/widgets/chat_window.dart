@@ -27,9 +27,13 @@ class ChatWindow extends StatefulWidget {
   State<ChatWindow> createState() => ChatWindowState();
 }
 
-class ChatWindowState extends State<ChatWindow> {
+class ChatWindowState extends State<ChatWindow>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   FocusNode? _internalFocusNode;
+
+  late final AnimationController _shimmerController;
+  late final Animation<double> _shimmerAlpha;
 
   FocusNode get _scrollFocusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
@@ -39,7 +43,23 @@ class ChatWindowState extends State<ChatWindow> {
   @override
   void initState() {
     super.initState();
-    // autofocus: true가 포커스 획득을 처리함
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _shimmerAlpha = Tween<double>(begin: 0.15, end: 0.65).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
+    _scrollFocusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_scrollFocusNode.hasFocus) {
+      _shimmerController.repeat(reverse: true);
+    } else {
+      _shimmerController.stop();
+      _shimmerController.reset();
+    }
   }
 
   /// 부모에서 호출: 리스트 최하단으로 스크롤
@@ -104,6 +124,8 @@ class ChatWindowState extends State<ChatWindow> {
 
   @override
   void dispose() {
+    _scrollFocusNode.removeListener(_onFocusChange);
+    _shimmerController.dispose();
     _scrollController.dispose();
     _internalFocusNode?.dispose();
     super.dispose();
@@ -131,7 +153,35 @@ class ChatWindowState extends State<ChatWindow> {
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
             alignment: Alignment.bottomCenter,
-            child: Container(
+            child: AnimatedBuilder(
+              animation: _scrollFocusNode,
+              builder: (context, child) {
+                final isFocused = _scrollFocusNode.hasFocus;
+                return Stack(
+                  children: [
+                    child!,
+                    if (isFocused)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedBuilder(
+                            animation: _shimmerController,
+                            builder: (context, _) => DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Colors.white
+                                      .withValues(alpha: _shimmerAlpha.value),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+              child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(18),
@@ -199,7 +249,8 @@ class ChatWindowState extends State<ChatWindow> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

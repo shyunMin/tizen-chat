@@ -42,6 +42,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final FocusNode _chatScrollFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
+  final Completer<void> _initCompleter = Completer<void>();
 
   @override
   void initState() {
@@ -64,6 +65,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _onAppControlReceived(ReceivedAppControl appControl) async {
+    await _initCompleter.future;
     debugPrint('[AppControl] Received! caller: ${appControl.callerAppId}');
     debugPrint('[AppControl] extraData: ${appControl.extraData}');
 
@@ -144,8 +146,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
       // 3. 세션 이름으로 gRPC 연결
       await _grpcService.connect(sessionName: sessionName);
+
+      if (!_initCompleter.isCompleted) _initCompleter.complete();
     } catch (e) {
       debugPrint('[Init] Error: $e');
+      if (!_initCompleter.isCompleted) _initCompleter.complete();
     }
   }
 
