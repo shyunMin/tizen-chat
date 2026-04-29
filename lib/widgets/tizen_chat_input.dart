@@ -47,9 +47,7 @@ class _TizenChatInputState extends State<TizenChatInput> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(10.0), // 일괄 여백 10
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-          ),
+          decoration: BoxDecoration(color: Colors.transparent),
           child: Row(
             children: [
               Expanded(
@@ -59,18 +57,20 @@ class _TizenChatInputState extends State<TizenChatInput> {
                       horizontal: 16,
                       vertical: 4,
                     ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900]?.withValues(alpha: 0.9), // 채팅창 배경색과 동일하게 수정
-                    borderRadius: BorderRadius.circular(9999),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Row(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900]?.withValues(
+                        alpha: 0.9,
+                      ), // 채팅창 배경색과 동일하게 수정
+                      borderRadius: BorderRadius.circular(9999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Row(
                       children: [
                         Expanded(
                           child: TextField(
@@ -78,7 +78,7 @@ class _TizenChatInputState extends State<TizenChatInput> {
                             focusNode: widget.focusNode,
                             onSubmitted: (_) => _handleSend(),
                             autofocus: true,
-                            keyboardType: TextInputType.none,
+                            keyboardType: TextInputType.text,
                             showCursor: true,
                             style: const TextStyle(
                               color: Colors.white,
@@ -120,7 +120,6 @@ class _TizenChatInputState extends State<TizenChatInput> {
     );
   }
 }
-
 
 class SubtleRotatingBorder extends StatefulWidget {
   final Widget child;
@@ -292,11 +291,7 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
                         ]
                       : null,
                 ),
-                child: Icon(
-                  widget.icon,
-                  color: iconColor,
-                  size: widget.size,
-                ),
+                child: Icon(widget.icon, color: iconColor, size: widget.size),
               );
             },
           ),
