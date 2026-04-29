@@ -538,6 +538,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     messages: _messages,
                     isTyping: _isTyping,
                     sessionTitle: _sessionTitle,
+                    onSendMessage: _handleSend,
                     onHeaderTap: () {
                       // TODO: 세션 목록 팝업 (추후 구현)
                       debugPrint(

@@ -12,6 +12,7 @@ class ChatWindow extends StatefulWidget {
   final VoidCallback? onHeaderTap;
   final FocusNode? focusNode;
   final VoidCallback? onScrolledToBottomDown;
+  final void Function(String text)? onSendMessage;
 
   const ChatWindow({
     super.key,
@@ -21,6 +22,7 @@ class ChatWindow extends StatefulWidget {
     this.onHeaderTap,
     this.focusNode,
     this.onScrolledToBottomDown,
+    this.onSendMessage,
   });
 
   @override
@@ -226,11 +228,12 @@ class ChatWindowState extends State<ChatWindow>
                             break;
                           case MessageType.received:
                             messageWidget = ReceivedMessage(
-                              text: message.text,
-                              avatarInitial: message.senderInitial,
-                              isWaiting: message.isWaiting,
-                              displayType: message.displayType,
-                            );
+                               text: message.text,
+                               avatarInitial: message.senderInitial,
+                               isWaiting: message.isWaiting,
+                               displayType: message.displayType,
+                               onCommand: widget.onSendMessage,
+                             );
                             break;
                           default:
                             messageWidget = SentMessage(text: message.text);
