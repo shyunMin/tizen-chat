@@ -45,13 +45,29 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final FocusNode _chatScrollFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
+  StreamSubscription<CarbonEvent>? _eventSubscription;
   final Completer<void> _initCompleter = Completer<void>();
   bool _hasPendingAppControl = false;
+
+  // ── 진행 중인 응답 추적 ───────────────────────────────────────
+  // Steer-based UX: turn 한 번에 agent reply 버블도 한 개로 유지한다.
+  // 사용자가 mid-turn 에 새 프롬프트를 보내면 _handleSend 가 새 user
+  // 버블을 _activeReplyIndex 위치에 insert 하고 _activeReplyIndex 를
+  // 한 칸 증가시켜 같은 agent 버블을 계속 가리키게 한다. 결과적으로
+  // 들어오는 모든 delta(직전 round 의 trailing 포함)가 한 버블에
+  // 누적된다. null = 진행 중인 응답 없음.
+  int? _activeReplyIndex;
+  String _currentSegmentText = '';
+  String? _activeToolName;
 
   @override
   void initState() {
     super.initState();
     AppControl.onAppControl.listen(_onAppControlReceived);
+
+    // gRPC 의 broadcast 이벤트 스트림을 단일 핸들러로 받는다. 연결이 아직
+    // 완료되지 않아도 broadcast 라 재구독 없이 이후 이벤트를 모두 받는다.
+    _eventSubscription = _grpcService.events.listen(_handleAgentEvent);
 
     _initializeServices();
     if (widget.enableHttpMessageBus) {
@@ -175,195 +191,226 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   // ────────────────────────────────────────────────────────────
-  // 메시지 전송 및 gRPC 스트리밍 처리
+  // 메시지 전송 및 gRPC 이벤트 처리 (steer-based)
   // ────────────────────────────────────────────────────────────
+  //
+  // 흐름:
+  //   _handleSend(text)
+  //     ├─ 진행 중인 agent reply 버블이 있으면(_activeReplyIndex != null)
+  //     │   사용자 버블을 그 버블 "바로 위"에 insert 하고 _activeReplyIndex 를
+  //     │   한 칸 밀어 같은 버블을 계속 가리키게 한다. agent 버블은 그대로
+  //     │   유지되고, round 경계 전후의 모든 delta 가 한 버블에 누적된다.
+  //     ├─ 진행 중이 아니면(_activeReplyIndex == null) 사용자 버블을 끝에 append.
+  //     └─ _grpcService.sendPrompt(text) — fire-and-forget. 응답은 globally
+  //         구독 중인 _handleAgentEvent 로 들어온다.
+  //
+  // 결과 레이아웃 예 (mid-turn 에 B 가 들어온 경우):
+  //   [user A]
+  //   [user B]                ← _handleSend 가 agent 버블 위에 insert
+  //   [agent (single, ongoing)]
+  //
+  // 왜 한 버블로 유지하는가: carbon 은 mid-turn steer 가 inject 되는 round
+  // 경계를 proto 로 emit 하지 않아(`agent_main.rs:204` — `intent==RunTurn &&
+  // !msg.steer` 일 때만 TurnStarted), 클라이언트는 "직전 round 의 trailing
+  // delta" 와 "steer 후 round 의 새 응답" 을 구분할 수 없다. 굳이 새 버블로
+  // 쪼개면 trailing delta 가 새 버블 머리에 잠깐 보였다가 본 응답으로
+  // 이어지는 글리치가 생긴다. 한 버블로 두면 그 트랜지션이 그냥 같은
+  // 버블 안에서 자연스러운 텍스트 흐름으로 보인다.
+
   Future<void> _handleSend(String text) async {
     debugPrint('[Chat] _handleSend called with text: $text');
-    if (_isWaiting) {
-      debugPrint('[Chat] Already waiting, ignoring...');
-      return;
-    }
 
-    // 메시지 전송 시점의 상태 갱신
+    final userBubble = ChatMessage(text: text, type: MessageType.sent);
+
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
-        // _sessionTitle은 날짜 기반으로 이미 설정됨 (_initializeServices에서)
         debugPrint('[Chat] First message! Session: $_sessionTitle');
       }
-
       _isVisible = true;
       _isWaiting = true;
-      _isTyping = true;
-      _messages.add(ChatMessage(text: text, type: MessageType.sent));
+      // agent 버블이 이미 활성이면 새 typing 인디케이터는 띄우지 않는다
+      // (그 버블에 곧 또 delta 가 도착해 자연스럽게 이어지므로).
+      if (_activeReplyIndex == null) {
+        _isTyping = true;
+      }
+
+      if (_activeReplyIndex != null) {
+        // mid-turn: agent 버블 위에 새 user 버블 삽입.
+        _messages.insert(_activeReplyIndex!, userBubble);
+        _activeReplyIndex = _activeReplyIndex! + 1;
+      } else {
+        _messages.add(userBubble);
+      }
     });
     debugPrint(
       '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
     );
     _scrollToBottom();
 
-    try {
-      // 중간 단계마다 리셋되는 텍스트 버퍼. TurnComplete 시점의 값이 최종 메시지.
-      String currentSegmentText = '';
-      int replyIndex = -1;
+    // Fire-and-forget. carbon_grpc_service 가 항상 steer:true 로 전송하므로
+    // 데몬은 (a) 진행 중 turn 이면 round 경계에 inject, (b) 아니면 새 turn 시작.
+    await _grpcService.sendPrompt(text);
+  }
 
-      final stream = _grpcService.sendMessage(text);
-      await for (final event in stream) {
-        if (!mounted) break;
+  void _handleAgentEvent(CarbonEvent event) {
+    if (!mounted) return;
 
-        // 응답 말풍선이 생겼을 때 타이핑 인디케이터 중지
-        if (_isTyping && replyIndex != -1) {
-          setState(() => _isTyping = false);
-        }
+    switch (event) {
+      case CarbonTextDelta(:final content):
+        _appendDelta(content);
+        break;
 
-        switch (event) {
-          case CarbonTextDelta(:final content):
-            currentSegmentText += content;
-            if (replyIndex == -1) {
-              replyIndex = _messages.length;
-              setState(() {
-                _isTyping = false;
-                _messages.add(
-                  ChatMessage(
-                    text: currentSegmentText,
-                    type: MessageType.received,
-                    isWaiting: true,
-                  ),
-                );
-              });
-            } else {
-              setState(() {
-                _messages[replyIndex] = ChatMessage(
-                  text: currentSegmentText,
-                  type: MessageType.received,
-                  isWaiting: true,
-                );
-              });
-            }
-            _scrollToBottom();
-            break;
+      case CarbonToolUseStart(:final toolName):
+        _markToolUse(toolName);
+        break;
 
-          case CarbonToolUseStart(:final toolName):
-            // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
-            final toolMessage = currentSegmentText.trim();
-            currentSegmentText = '';
-            final toolText = toolMessage.isNotEmpty
-                ? '🔧 $toolName 실행 중...\n$toolMessage'
-                : '🔧 $toolName 실행 중...';
-            if (replyIndex == -1) {
-              replyIndex = _messages.length;
-              setState(() {
-                _isTyping = false;
-                _messages.add(
-                  ChatMessage(
-                    text: toolText,
-                    type: MessageType.received,
-                    isWaiting: true,
-                  ),
-                );
-              });
-            } else {
-              setState(() {
-                _messages[replyIndex] = ChatMessage(
-                  text: toolText,
-                  type: MessageType.received,
-                  isWaiting: true,
-                );
-              });
-            }
-            _scrollToBottom();
-            break;
+      case CarbonToolResult():
+        // 결과 자체는 별도 버블로 안 띄움 (기존 동작 유지)
+        _activeToolName = null;
+        break;
 
-          case CarbonToolResult():
-            break;
+      case CarbonTurnComplete():
+        _finalizeActiveReply();
+        break;
 
-          case CarbonTurnComplete():
-            final parsedResponse = AgentResponseParser.parse(
-              currentSegmentText,
-            );
-            setState(() {
-              _isWaiting = false;
-              _isTyping = false;
-              if (replyIndex != -1) {
-                // 스트리밍 버블을 최종 내용으로 확정 (스피너 종료)
-                _messages[replyIndex] = ChatMessage(
-                  text: parsedResponse.content,
-                  displayType: parsedResponse.displayType,
-                  type: MessageType.received,
-                  isWaiting: false,
-                  uiCode: parsedResponse.uiCode,
-                  actionButtons: parsedResponse.actionButtons,
-                );
-              } else if (parsedResponse.content.trim().isNotEmpty) {
-                // 스트리밍 버블이 없는 경우에만 새 버블 추가
-                _messages.add(
-                  ChatMessage(
-                    text: parsedResponse.content,
-                    displayType: parsedResponse.displayType,
-                    type: MessageType.received,
-                    uiCode: parsedResponse.uiCode,
-                    actionButtons: parsedResponse.actionButtons,
-                  ),
-                );
-              }
-            });
-            _scrollToBottom();
-            _chatScrollFocusNode.requestFocus();
-            return;
+      case CarbonError(:final code, :final fatal):
+        _handleAgentError(code, fatal);
+        break;
 
-          case CarbonError(:final code, :final fatal):
-            setState(() {
-              _isWaiting = false;
-              _isTyping = false;
-              if (replyIndex != -1) {
-                // 에러나 취소가 발생했을 때 해당 메시지의 로딩 상태를 해제
-                _messages[replyIndex] = ChatMessage(
-                  text: currentSegmentText.isEmpty
-                      ? '요청이 취소되었습니다.'
-                      : '$currentSegmentText\n\n(요청 중단됨)',
-                  type: MessageType.received,
-                  isWaiting: false,
-                );
-              } else if (code == 'cancelled') {
-                _messages.add(
-                  ChatMessage(
-                    text: '요청이 취소되었습니다.',
-                    type: MessageType.received,
-                    isWaiting: false,
-                  ),
-                );
-              }
-            });
-            _scrollToBottom();
-            _chatScrollFocusNode.requestFocus();
+      case CarbonSessionEnded():
+        _grpcService.reconnect();
+        break;
 
-            // "cancelled"는 interruptTurn()으로 인한 정상 중단이므로
-            // reconnect 없이 대기 상태만 해제한다.
-            if (fatal && code != 'cancelled') await _grpcService.reconnect();
-            return;
+      case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+        debugPrint(
+          '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
+        );
+        _grpcService.approveToolCall(
+          toolCallId,
+          ApprovalDecision.APPROVAL_DECISION_APPROVE,
+        );
+        break;
+    }
+  }
 
-          case CarbonSessionEnded():
-            await _grpcService.reconnect();
-            return;
-
-          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
-            debugPrint(
-              '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
-            );
-            _grpcService.approveToolCall(
-              toolCallId,
-              ApprovalDecision.APPROVAL_DECISION_APPROVE,
-            );
-        }
+  void _appendDelta(String content) {
+    _currentSegmentText += content;
+    setState(() {
+      _isTyping = false;
+      if (_activeReplyIndex == null) {
+        _activeReplyIndex = _messages.length;
+        _messages.add(
+          ChatMessage(
+            text: _currentSegmentText,
+            type: MessageType.received,
+            isWaiting: true,
+          ),
+        );
+      } else {
+        _messages[_activeReplyIndex!] = ChatMessage(
+          text: _currentSegmentText,
+          type: MessageType.received,
+          isWaiting: true,
+        );
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isWaiting = false;
-          _isTyping = false;
-        });
-        _chatScrollFocusNode.requestFocus();
+    });
+    _scrollToBottom();
+  }
+
+  void _markToolUse(String toolName) {
+    _activeToolName = toolName;
+    // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
+    final toolMessage = _currentSegmentText.trim();
+    _currentSegmentText = '';
+    final toolText = toolMessage.isNotEmpty
+        ? '🔧 $toolName 실행 중...\n$toolMessage'
+        : '🔧 $toolName 실행 중...';
+    setState(() {
+      _isTyping = false;
+      if (_activeReplyIndex == null) {
+        _activeReplyIndex = _messages.length;
+        _messages.add(
+          ChatMessage(
+            text: toolText,
+            type: MessageType.received,
+            isWaiting: true,
+          ),
+        );
+      } else {
+        _messages[_activeReplyIndex!] = ChatMessage(
+          text: toolText,
+          type: MessageType.received,
+          isWaiting: true,
+        );
       }
+    });
+    _scrollToBottom();
+  }
+
+  void _finalizeActiveReply() {
+    if (_activeReplyIndex == null) {
+      // turn 이 끝났는데 렌더링된 응답이 전혀 없는 경우(예: 빈 응답).
+      // typing 인디케이터/대기 상태만 해제한다.
+      setState(() {
+        _isWaiting = false;
+        _isTyping = false;
+      });
+      _chatScrollFocusNode.requestFocus();
+      return;
+    }
+    final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
+    setState(() {
+      _isWaiting = false;
+      _isTyping = false;
+      _messages[_activeReplyIndex!] = ChatMessage(
+        text: parsedResponse.content,
+        displayType: parsedResponse.displayType,
+        type: MessageType.received,
+        isWaiting: false,
+        uiCode: parsedResponse.uiCode,
+        actionButtons: parsedResponse.actionButtons,
+      );
+    });
+    _activeReplyIndex = null;
+    _currentSegmentText = '';
+    _activeToolName = null;
+    _scrollToBottom();
+    _chatScrollFocusNode.requestFocus();
+  }
+
+  Future<void> _handleAgentError(String code, bool fatal) async {
+    setState(() {
+      _isWaiting = false;
+      _isTyping = false;
+      if (_activeReplyIndex != null) {
+        _messages[_activeReplyIndex!] = ChatMessage(
+          text: _currentSegmentText.isEmpty
+              ? '요청이 취소되었습니다.'
+              : '$_currentSegmentText\n\n(요청 중단됨)',
+          type: MessageType.received,
+          isWaiting: false,
+        );
+        _activeReplyIndex = null;
+        _currentSegmentText = '';
+        _activeToolName = null;
+      } else if (code == 'cancelled') {
+        _messages.add(
+          ChatMessage(
+            text: '요청이 취소되었습니다.',
+            type: MessageType.received,
+            isWaiting: false,
+          ),
+        );
+      }
+    });
+    _scrollToBottom();
+    _chatScrollFocusNode.requestFocus();
+
+    // "cancelled" 는 interruptTurn() 으로 인한 정상 중단이므로 reconnect 없이
+    // 대기 상태만 해제한다.
+    if (fatal && code != 'cancelled') {
+      await _grpcService.reconnect();
     }
   }
 
@@ -385,6 +432,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   @override
   void dispose() {
     _messageBusSubscription?.cancel();
+    _eventSubscription?.cancel();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
     _promptBarFocusNode.dispose();
