@@ -149,7 +149,7 @@ class ChatWindowState extends State<ChatWindow>
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: screenWidth / 2,
-            maxHeight: screenHeight - 110,
+            maxHeight: screenHeight - 280,
           ),
           child: AnimatedSize(
             duration: const Duration(milliseconds: 400),
@@ -171,8 +171,9 @@ class ChatWindowState extends State<ChatWindow>
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: Colors.white
-                                      .withValues(alpha: _shimmerAlpha.value),
+                                  color: Colors.white.withValues(
+                                    alpha: _shimmerAlpha.value,
+                                  ),
                                   width: 1.5,
                                 ),
                               ),
