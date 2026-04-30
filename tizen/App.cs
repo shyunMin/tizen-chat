@@ -19,6 +19,7 @@ namespace Runner
             IsWindowTransparent = true;
             IsTopLevel = true;
             IsWindowFocusable = false;
+            UserPixelRatio = 1.6;
 
             base.OnCreate();
 
