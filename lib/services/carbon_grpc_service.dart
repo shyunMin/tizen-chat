@@ -182,14 +182,19 @@ class CarbonGrpcService {
     _isConnecting = false;
   }
 
-  // To support returning a stream from sendMessage() while using a single gRPC stream,
-  // we use a broadcast stream controller.
+  // Broadcast stream of agent events. Multiple listeners are supported, so
+  // the UI can subscribe once at startup and dispatch every event through a
+  // single handler — required for the steer-based UX where one logical turn
+  // can produce text deltas for multiple consecutive user prompts.
   final StreamController<CarbonEvent> _eventController =
       StreamController<CarbonEvent>.broadcast();
   StreamSubscription<ServerEvent>? _responseSubscription;
 
-  // Track if a turn is currently active to avoid duplicate processing of the same stream
-  bool _isTurnActive = false;
+  /// Long-lived broadcast stream of agent events. UI should subscribe once
+  /// in initState and route every event through a single handler — this
+  /// is what allows mid-turn steers to land in a fresh message bubble while
+  /// the turn keeps running on the daemon.
+  Stream<CarbonEvent> get events => _eventController.stream;
 
   // 취소 후 이전 턴의 잔여 이벤트를 다음 TurnStarted까지 버린다.
   bool _discardingOldTurnEvents = false;
@@ -321,55 +326,61 @@ class CarbonGrpcService {
     await connect(sessionName: savedSessionName);
   }
 
+  /// Send a user prompt to the agent. Always uses `steer: true` so the
+  /// daemon will:
+  ///   - Inject this at the next round boundary if a turn is in flight, or
+  ///   - Start a new turn when no turn is currently running.
+  ///
+  /// Per the Carbon proto, `steer` is ignored when no turn is running, so
+  /// the same call works for both the new-turn and mid-turn cases — there
+  /// is no need for the caller to check whether a turn is busy.
+  ///
+  /// Fire-and-forget: events arrive on the [events] stream, not via the
+  /// returned future. The future completes once the prompt is buffered to
+  /// the gRPC request stream (or fails synchronously on connect/session
+  /// errors, which are surfaced as a [CarbonError] event).
+  Future<void> sendPrompt(String text) async {
+    if (!_isConnected) {
+      await connect();
+    }
+    if (_sessionId == null || _requestStreamController == null) {
+      _eventController.add(
+        CarbonError("NO_SESSION", "session is not ready", false),
+      );
+      return;
+    }
+    _requestStreamController!.add(
+      ClientMessage(
+        ingressInput: IngressInput(
+          sessionId: _sessionId,
+          intent: IngressIntent.INGRESS_INTENT_RUN_TURN,
+          source: "ai-chat-flutter",
+          text: text,
+          steer: true,
+        ),
+      ),
+    );
+  }
+
+  /// Backward-compat wrapper around [sendPrompt] + [events]. Prefer the
+  /// listener model in new screens — this single-shot stream wraps an
+  /// arbitrary slice of the broadcast event stream, so it does not give
+  /// per-prompt isolation when multiple prompts are in flight inside the
+  /// same daemon turn.
   Stream<CarbonEvent> sendMessage(String text) async* {
     if (!_isConnected) {
       await connect();
     }
-
     if (_sessionId == null) {
       yield CarbonError("NO_SESSION", "Failed to retrieve session id", true);
       return;
     }
-
-    // Mutex: Wait if a turn is already active
-    if (_isTurnActive) {
-      print(
-        'DEBUG: [CarbonGrpc] Warning: Multiple sendMessage calls overlap. Waiting for previous turn...',
-      );
-      // In a more robust system we might use a queue, but here we just block/error or wait
-      while (_isTurnActive) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-    }
-
-    _isTurnActive = true;
-    try {
-      _requestStreamController!.add(
-        ClientMessage(
-          ingressInput: IngressInput(
-            sessionId: _sessionId,
-            intent: IngressIntent.INGRESS_INTENT_RUN_TURN,
-            source: "ai-chat-flutter",
-            text: text,
-          ),
-        ),
-      );
-
-      // Now we wait for events from our broadcast controller.
-      await for (final evt in _eventController.stream) {
-        yield evt;
-        if (evt is CarbonTurnComplete) {
-          break;
-        } else if (evt is CarbonError && evt.fatal) {
-          break;
-        } else if (evt is CarbonSessionEnded) {
-          break;
-        }
-      }
-    } catch (e) {
-      yield CarbonError("SEND_ERROR", e.toString(), false);
-    } finally {
-      _isTurnActive = false;
+    await sendPrompt(text);
+    await for (final evt in _eventController.stream) {
+      yield evt;
+      if (evt is CarbonTurnComplete) break;
+      if (evt is CarbonError && evt.fatal) break;
+      if (evt is CarbonSessionEnded) break;
     }
   }
 }
