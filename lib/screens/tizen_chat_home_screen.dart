@@ -327,8 +327,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     final toolMessage = _currentSegmentText.trim();
     _currentSegmentText = '';
     final toolText = toolMessage.isNotEmpty
-        ? '�� $toolName 실행 중...\n$toolMessage'
-        : '�� $toolName 실행 중...';
+        ? '🔧 $toolName 실행 중...\n$toolMessage'
+        : '🔧 $toolName 실행 중...';
     setState(() {
       _isTyping = false;
       if (_activeReplyIndex == null) {
@@ -585,8 +585,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 curve: Curves.easeOutCubic,
                 bottom: _hasChatStarted
                     ? (_isKeyboardFocused
-                          ? (_currentActionButtons.isNotEmpty ? 418 : 358)
-                          : (_currentActionButtons.isNotEmpty ? 158 : 98))
+                        ? (_currentActionButtons.isNotEmpty ? 418 : 358)
+                        : (_currentActionButtons.isNotEmpty ? 158 : 98))
                     : -screenHeight,
                 left: 10,
                 child: ChatWindow(

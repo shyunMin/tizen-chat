@@ -22,6 +22,9 @@ class TizenChatApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final height = MediaQuery.of(context).size.height;
+    debugPrint('[Screen] width:$width, height: $height');
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Tizen-Inspired Chat',
