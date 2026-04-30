@@ -10,6 +10,7 @@ class ChatMessage {
   final String? uiCode;
   final DateTime timestamp;
   final String displayType;
+  final List<String> actionButtons;
   bool isWaiting;
 
   ChatMessage({
@@ -22,6 +23,7 @@ class ChatMessage {
     this.subtitle,
     this.uiCode,
     this.isWaiting = false,
+    this.actionButtons = const [],
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 }
