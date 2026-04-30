@@ -12,6 +12,7 @@ import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
+import '../services/window_focus_service.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -243,6 +244,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _messages.add(userBubble);
       }
     });
+    unawaited(WindowFocusService.setFocusable(false));
     debugPrint(
       '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
     );
@@ -279,6 +281,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonSessionEnded():
+        unawaited(WindowFocusService.setFocusable(true));
         _grpcService.reconnect();
         break;
 
@@ -349,6 +352,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _finalizeActiveReply() {
+    unawaited(WindowFocusService.setFocusable(true));
     if (_activeReplyIndex == null) {
       // turn 이 끝났는데 렌더링된 응답이 전혀 없는 경우(예: 빈 응답).
       // typing 인디케이터/대기 상태만 해제한다.
@@ -380,6 +384,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   Future<void> _handleAgentError(String code, bool fatal) async {
+    unawaited(WindowFocusService.setFocusable(true));
     setState(() {
       _isWaiting = false;
       _isTyping = false;
