@@ -407,6 +407,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             isWaiting: false,
           ),
         );
+      } else {
+        _messages.add(
+          ChatMessage(
+            text: '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.',
+            type: MessageType.received,
+            isWaiting: false,
+          ),
+        );
       }
     });
     _scrollToBottom();
