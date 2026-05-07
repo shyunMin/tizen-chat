@@ -362,8 +362,9 @@ class _PromptBarState extends State<PromptBar>
                             onTap: () {
                               if (_isKeyboardMode) {
                                 if (widget.isWaiting) {
-                                  if (widget.onCancel != null)
+                                  if (widget.onCancel != null) {
                                     widget.onCancel!();
+                                  }
                                   setState(() => _isKeyboardMode = false);
                                 } else {
                                   if (_textController.text.isNotEmpty &&

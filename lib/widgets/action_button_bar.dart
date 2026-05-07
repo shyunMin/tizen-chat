@@ -45,7 +45,9 @@ class ActionButtonBarState extends State<ActionButtonBar> {
   }
 
   void _disposeFocusNodes() {
-    for (final n in _focusNodes) n.dispose();
+    for (final n in _focusNodes) {
+      n.dispose();
+    }
   }
 
   @override
@@ -80,7 +82,7 @@ class ActionButtonBarState extends State<ActionButtonBar> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: widget.buttons.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) => _ActionButton(
           label: widget.buttons[index],
           focusNode: _focusNodes[index],

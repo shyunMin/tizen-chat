@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../models/session_meta.dart';
@@ -37,7 +38,7 @@ class SessionRepository {
       if (raw.trim().isEmpty) return [];
       return SessionMeta.listFromJson(raw);
     } catch (e) {
-      print('[SessionRepository] load error: $e');
+      debugPrint('[SessionRepository] load error: $e');
       return [];
     }
   }
@@ -48,7 +49,7 @@ class SessionRepository {
       final file = await _file();
       await file.writeAsString(SessionMeta.listToJson(sessions));
     } catch (e) {
-      print('[SessionRepository] save error: $e');
+      debugPrint('[SessionRepository] save error: $e');
     }
   }
 
@@ -70,9 +71,9 @@ class SessionRepository {
         ),
       );
       await _save(sessions);
-      print('[SessionRepository] Created new session: $today');
+      debugPrint('[SessionRepository] Created new session: $today');
     } else {
-      print('[SessionRepository] Session already exists: $today');
+      debugPrint('[SessionRepository] Session already exists: $today');
     }
 
     return today;

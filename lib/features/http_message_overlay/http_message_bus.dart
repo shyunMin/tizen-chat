@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 const int kHttpMessagePort = 7777;
 
@@ -27,10 +28,10 @@ class HttpMessageBus {
     try {
       _server = await HttpServer.bind(
           InternetAddress.loopbackIPv4, kHttpMessagePort);
-      print('[HttpMessageBus] Listening on port $kHttpMessagePort');
+      debugPrint('[HttpMessageBus] Listening on port $kHttpMessagePort');
       _server!.listen(_handleRequest);
     } catch (e) {
-      print('[HttpMessageBus] Failed to start: $e');
+      debugPrint('[HttpMessageBus] Failed to start: $e');
     }
   }
 
@@ -40,7 +41,7 @@ class HttpMessageBus {
     if (_acquireCount == 0) {
       await _server?.close(force: true);
       _server = null;
-      print('[HttpMessageBus] Server stopped');
+      debugPrint('[HttpMessageBus] Server stopped');
     }
   }
 
@@ -72,7 +73,7 @@ class HttpMessageBus {
           ..headers.contentType = ContentType.json
           ..write('{"status":"ok"}');
       } catch (e) {
-        print('[HttpMessageBus] Request error: $e');
+        debugPrint('[HttpMessageBus] Request error: $e');
         request.response.statusCode = HttpStatus.internalServerError;
       }
     } else {
