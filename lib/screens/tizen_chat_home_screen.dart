@@ -273,8 +273,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _finalizeActiveReply();
         break;
 
-      case CarbonError(:final code, :final fatal):
-        _handleAgentError(code, fatal);
+      case CarbonError(:final code, :final message, :final fatal):
+        _handleAgentError(code, message, fatal);
         break;
 
       case CarbonSessionEnded():
@@ -295,6 +295,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _appendDelta(String content) {
+    if (_messages.isEmpty) return;
+
     _currentSegmentText += content;
     setState(() {
       _isTyping = false;
@@ -319,7 +321,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _markToolUse(String toolName) {
-    // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
+    if (_messages.isEmpty) return;
+
     final toolMessage = _currentSegmentText.trim();
     _currentSegmentText = '';
     final toolText = toolMessage.isNotEmpty
@@ -350,8 +353,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void _finalizeActiveReply() {
     unawaited(WindowFocusService.setFocusable(true));
     if (_activeReplyIndex == null) {
-      // turn 이 끝났는데 렌더링된 응답이 전혀 없는 경우(예: 빈 응답).
-      // typing 인디케이터/대기 상태만 해제한다.
       setState(() {
         _isWaiting = false;
         _isTyping = false;
@@ -378,44 +379,67 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _chatScrollFocusNode.requestFocus();
   }
 
-  Future<void> _handleAgentError(String code, bool fatal) async {
+  Future<void> _handleAgentError(
+    String code,
+    String message,
+    bool fatal,
+  ) async {
+    debugPrint(
+      '[Chat] _handleAgentError called with code: $code, message: $message, fatal: $fatal',
+    );
+
+    if (code.startsWith('continuation:')) {
+      return;
+    }
+
     unawaited(WindowFocusService.setFocusable(true));
+
     setState(() {
       _isWaiting = false;
       _isTyping = false;
-      if (_activeReplyIndex != null) {
-        _messages[_activeReplyIndex!] = ChatMessage(
-          text: _currentSegmentText.isEmpty
-              ? '요청이 취소되었습니다.'
-              : '$_currentSegmentText\n\n(요청 중단됨)',
-          type: MessageType.received,
-          isWaiting: false,
-        );
-        _activeReplyIndex = null;
-        _currentSegmentText = '';
-      } else if (code == 'cancelled') {
-        _messages.add(
-          ChatMessage(
-            text: '요청이 취소되었습니다.',
+
+      final displayMessage = '[$code] $message';
+
+      if (fatal) {
+        final isCancelled = (code == 'cancelled');
+
+        if (_activeReplyIndex != null) {
+          _messages[_activeReplyIndex!] = ChatMessage(
+            text: _currentSegmentText.isEmpty
+                ? (isCancelled ? '요청이 취소되었습니다.' : '오류: $displayMessage')
+                : '$_currentSegmentText\n\n(${isCancelled ? '요청 취소됨' : '에러: $displayMessage'})',
             type: MessageType.received,
             isWaiting: false,
-          ),
-        );
+          );
+          _activeReplyIndex = null;
+          _currentSegmentText = '';
+        } else if (_messages.isNotEmpty) {
+          _messages.add(
+            ChatMessage(
+              text: isCancelled
+                  ? '요청이 취소되었습니다.'
+                  : '오류가 발생했습니다: $displayMessage',
+              type: MessageType.received,
+              isWaiting: false,
+            ),
+          );
+        }
       } else {
-        _messages.add(
-          ChatMessage(
-            text: '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.',
+        if (_activeReplyIndex != null) {
+          _messages[_activeReplyIndex!] = ChatMessage(
+            text: _currentSegmentText,
             type: MessageType.received,
             isWaiting: false,
-          ),
-        );
+          );
+          _activeReplyIndex = null;
+          _currentSegmentText = '';
+        }
       }
     });
+
     _scrollToBottom();
     _chatScrollFocusNode.requestFocus();
 
-    // "cancelled" 는 interruptTurn() 으로 인한 정상 중단이므로 reconnect 없이
-    // 대기 상태만 해제한다.
     if (fatal && code != 'cancelled') {
       await _grpcService.reconnect();
     }
@@ -425,7 +449,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _chatWindowKey.currentState?.scrollToBottom();
   }
 
-  // 마지막 완료된 received 메시지의 버튼 목록 (대기 중이면 빈 리스트)
   List<String> get _currentActionButtons {
     for (int i = _messages.length - 1; i >= 0; i--) {
       final m = _messages[i];
@@ -486,36 +509,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               }
               return KeyEventResult.handled;
             }
-
-            // // 리모컨 상/하 키로 스크롤 처리
-            // if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-            //   if (_scrollController.hasClients) {
-            //     final newOffset = (_scrollController.offset - 150).clamp(
-            //       0.0,
-            //       _scrollController.position.maxScrollExtent,
-            //     );
-            //     _scrollController.animateTo(
-            //       newOffset,
-            //       duration: const Duration(milliseconds: 200),
-            //       curve: Curves.easeOut,
-            //     );
-            //     return KeyEventResult.handled;
-            //   }
-            // }
-            // if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            //   if (_scrollController.hasClients) {
-            //     final newOffset = (_scrollController.offset + 150).clamp(
-            //       0.0,
-            //       _scrollController.position.maxScrollExtent,
-            //     );
-            //     _scrollController.animateTo(
-            //       newOffset,
-            //       duration: const Duration(milliseconds: 200),
-            //       curve: Curves.easeOut,
-            //     );
-            //     return KeyEventResult.handled;
-            //   }
-            // }
           }
           return KeyEventResult.ignored;
         },
@@ -555,7 +548,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                           _grpcService.interruptTurn();
                         },
                         onKeyboardFocusChanged: (isFocused) {
-                          if (mounted) setState(() => _isKeyboardFocused = isFocused);
+                          if (mounted) {
+                            setState(() => _isKeyboardFocused = isFocused);
+                          }
                         },
                       ),
                     ),
@@ -586,8 +581,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 curve: Curves.easeOutCubic,
                 bottom: _hasChatStarted
                     ? (_isKeyboardFocused
-                        ? (_currentActionButtons.isNotEmpty ? 418 : 358)
-                        : (_currentActionButtons.isNotEmpty ? 158 : 98))
+                          ? (_currentActionButtons.isNotEmpty ? 418 : 358)
+                          : (_currentActionButtons.isNotEmpty ? 158 : 98))
                     : -screenHeight,
                 left: 10,
                 child: ChatWindow(
