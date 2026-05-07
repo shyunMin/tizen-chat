@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 class AgentResponse {
   final String displayType;
@@ -54,7 +55,7 @@ class AgentResponseParser {
         actionButtons: buttons,
       );
     } catch (e) {
-      print("Warning: Failed to decode Agent JSON content - $e");
+      debugPrint("Warning: Failed to decode Agent JSON content - $e");
       return AgentResponse(displayType: "fallback", content: rawText.trim());
     }
   }

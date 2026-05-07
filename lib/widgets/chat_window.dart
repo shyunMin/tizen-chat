@@ -235,8 +235,6 @@ class ChatWindowState extends State<ChatWindow>
                                 displayType: message.displayType,
                               );
                               break;
-                            default:
-                              messageWidget = SentMessage(text: message.text);
                           }
 
                           return Padding(

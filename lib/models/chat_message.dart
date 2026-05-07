@@ -1,12 +1,9 @@
-enum MessageType { sent, received, richCard }
+enum MessageType { sent, received }
 
 class ChatMessage {
   final String text;
   final String senderInitial;
   final MessageType type;
-  final String? imageUrl;
-  final String? title;
-  final String? subtitle;
   final String? uiCode;
   final DateTime timestamp;
   final String displayType;
@@ -18,9 +15,6 @@ class ChatMessage {
     required this.text,
     this.senderInitial = 'T',
     required this.type,
-    this.imageUrl,
-    this.title,
-    this.subtitle,
     this.uiCode,
     this.isWaiting = false,
     this.actionButtons = const [],

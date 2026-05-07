@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
@@ -68,7 +69,6 @@ class CarbonGrpcService {
   StreamController<ClientMessage>? _requestStreamController;
 
   bool _isConnected = false;
-  bool _isConnecting = false;
   bool get isConnected => _isConnected;
 
   String? _sessionId;
@@ -93,13 +93,12 @@ class CarbonGrpcService {
   }
 
   Future<void> _doConnect({String? sessionName}) async {
-    _isConnecting = true;
     _sessionName = sessionName;
 
     final endpoint = '/run/user/5001/carbon/carbon.sock';
 
     try {
-      print('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
+      debugPrint('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
 
       _channel = ClientChannel(
         InternetAddress(endpoint, type: InternetAddressType.unix),
@@ -118,10 +117,10 @@ class CarbonGrpcService {
       _responseSubscription = responseStream.listen(
         (ServerEvent event) {
           // [LOG] 하위 gRPC 스트림에서 오는 모든 이벤트 출력
-          print('DEBUG: [CarbonGrpc] Raw Event: ${event.whichEvent()}');
+          debugPrint('DEBUG: [CarbonGrpc] Raw Event: ${event.whichEvent()}');
           if (event.hasSessionCreated()) {
             _sessionId = event.sessionCreated.sessionId;
-            print(
+            debugPrint(
               'DEBUG: [CarbonGrpc] Session Created: $_sessionId via $endpoint',
             );
             if (!handshakeCompleter.isCompleted) handshakeCompleter.complete();
@@ -130,15 +129,16 @@ class CarbonGrpcService {
           }
         },
         onError: (e) {
-          print('DEBUG: [CarbonGrpc] Stream Error on $endpoint: $e');
+          debugPrint('DEBUG: [CarbonGrpc] Stream Error on $endpoint: $e');
           _isConnected = false;
-          if (!handshakeCompleter.isCompleted)
+          if (!handshakeCompleter.isCompleted) {
             handshakeCompleter.completeError(e);
-          else
+          } else {
             _broadcastError(e.toString(), fatal: true);
+          }
         },
         onDone: () {
-          print('DEBUG: [CarbonGrpc] Stream Closed');
+          debugPrint('DEBUG: [CarbonGrpc] Stream Closed');
           _isConnected = false;
         },
       );
@@ -152,7 +152,7 @@ class CarbonGrpcService {
       if (!await workspaceDir.exists()) {
         await workspaceDir.create(recursive: true);
       }
-      print('DEBUG: [CarbonGrpc] Using workspace path: $workspacePath');
+      debugPrint('DEBUG: [CarbonGrpc] Using workspace path: $workspacePath');
 
       // Send the handshake
       _requestStreamController!.add(
@@ -161,8 +161,8 @@ class CarbonGrpcService {
             product: "claw",
             config: {
               "workspace": workspacePath,
-              if (_sessionName != null) "session": _sessionName!,
-              if (_sessionName != null) "session_date": _sessionName!,
+              if (_sessionName != null) "session": _sessionName!, // ignore: use_null_aware_elements
+              if (_sessionName != null) "session_date": _sessionName!, // ignore: use_null_aware_elements
             }.entries,
           ),
         ),
@@ -170,16 +170,14 @@ class CarbonGrpcService {
 
       await handshakeCompleter.future.timeout(const Duration(seconds: 3));
       _isConnected = true;
-      _isConnecting = false;
-      print('DEBUG: [CarbonGrpc] Successfully connected to $endpoint');
+      debugPrint('DEBUG: [CarbonGrpc] Successfully connected to $endpoint');
       return;
     } catch (e) {
-      print('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
+      debugPrint('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
       await disconnect();
     }
 
     _isConnected = false;
-    _isConnecting = false;
   }
 
   // Broadcast stream of agent events. Multiple listeners are supported, so
@@ -231,7 +229,7 @@ class CarbonGrpcService {
         ),
       );
     } else if (event.hasTurnComplete()) {
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Event -> TurnComplete (usage: ${event.turnComplete.usageJson})',
       );
       _eventController.add(
@@ -247,7 +245,7 @@ class CarbonGrpcService {
       _isConnected = false;
     } else if (event.hasToolApprovalRequest()) {
       final req = event.toolApprovalRequest;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Event -> ToolApprovalRequest: ${req.toolName}',
       );
       _eventController.add(
@@ -260,13 +258,13 @@ class CarbonGrpcService {
         ),
       );
     } else if (event.hasTurnStarted()) {
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Event -> TurnStarted: ${event.turnStarted.source}',
       );
     } else if (event.hasThreadComplete()) {
-      print('DEBUG: [CarbonGrpc] Event -> ThreadComplete');
+      debugPrint('DEBUG: [CarbonGrpc] Event -> ThreadComplete');
     } else if (event.hasScheduleEvent()) {
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Event -> ScheduleEvent: ${event.scheduleEvent.status}',
       );
     }
@@ -276,7 +274,7 @@ class CarbonGrpcService {
   /// [decision]: ApprovalDecision.APPROVAL_DECISION_APPROVE 등
   void approveToolCall(String toolCallId, ApprovalDecision decision) {
     if (_sessionId == null || _requestStreamController == null) return;
-    print('DEBUG: [CarbonGrpc] Sending ToolApproval: $toolCallId -> $decision');
+    debugPrint('DEBUG: [CarbonGrpc] Sending ToolApproval: $toolCallId -> $decision');
     _requestStreamController!.add(
       ClientMessage(
         toolApproval: ToolApproval(
@@ -291,7 +289,7 @@ class CarbonGrpcService {
   /// 진행 중인 턴만 중단 (세션은 유지).
   void interruptTurn() {
     if (_sessionId == null || _requestStreamController == null) return;
-    print('DEBUG: [CarbonGrpc] Sending InterruptTurn');
+    debugPrint('DEBUG: [CarbonGrpc] Sending InterruptTurn');
     _requestStreamController!.add(
       ClientMessage(interruptTurn: InterruptTurnRequest(sessionId: _sessionId)),
     );

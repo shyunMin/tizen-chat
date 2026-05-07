@@ -9,7 +9,7 @@ void main() {
   );
 
   FlutterError.onError = (FlutterErrorDetails details) {
-    print('FLUTTER ERROR: ${details.exception}');
+    debugPrint('FLUTTER ERROR: ${details.exception}');
   };
   runApp(TizenChatApp(enableHttpMessageBus: enableHttpBus));
 }

@@ -59,7 +59,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // 누적된다. null = 진행 중인 응답 없음.
   int? _activeReplyIndex;
   String _currentSegmentText = '';
-  String? _activeToolName;
 
   @override
   void initState() {
@@ -146,7 +145,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (messageText != null && messageText.isNotEmpty) {
         debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
         if (mounted) {
-          _handleSend(messageText!);
+          _handleSend(messageText);
         }
       } else {
         debugPrint('[AppControl] No message content found in extraData.');
@@ -183,7 +182,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     try {
       await HttpMessageBus.instance.acquire();
     } catch (e) {
-      print('[REQ_006] HttpMessageBus acquire failed: $e');
+      debugPrint('[REQ_006] HttpMessageBus acquire failed: $e');
     }
     _messageBusSubscription = HttpMessageBus.instance.stream.listen((msg) {
       if (!mounted) return;
@@ -268,8 +267,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonToolResult():
-        // 결과 자체는 별도 버블로 안 띄움 (기존 동작 유지)
-        _activeToolName = null;
         break;
 
       case CarbonTurnComplete():
@@ -322,7 +319,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _markToolUse(String toolName) {
-    _activeToolName = toolName;
     // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
     final toolMessage = _currentSegmentText.trim();
     _currentSegmentText = '';
@@ -378,7 +374,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
     _activeReplyIndex = null;
     _currentSegmentText = '';
-    _activeToolName = null;
     _scrollToBottom();
     _chatScrollFocusNode.requestFocus();
   }
@@ -398,7 +393,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         );
         _activeReplyIndex = null;
         _currentSegmentText = '';
-        _activeToolName = null;
       } else if (code == 'cancelled') {
         _messages.add(
           ChatMessage(
@@ -461,7 +455,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     debugPrint(
       '[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}',
     );
-    final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
