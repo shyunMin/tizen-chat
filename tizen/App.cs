@@ -14,17 +14,40 @@ namespace Runner
             IntPtr win,
             [MarshalAs(UnmanagedType.U1)] bool skip);
 
+        [DllImport("libecore_wl2.so.1")]
+        private static extern void ecore_wl2_window_pin_mode_set(
+            IntPtr win,
+            [MarshalAs(UnmanagedType.U1)] bool pin);
+
+        [DllImport("libecore_wl2.so.1")]
+        private static extern void ecore_wl2_window_commit(
+            IntPtr win,
+            [MarshalAs(UnmanagedType.U1)] bool flush);
+
         protected override void OnCreate()
         {
             IsWindowTransparent = true;
-            IsTopLevel = true;
+            // Setting IsTopLevel = true moves the window to E_LAYER_CLIENT_NOTIFICATION_TOP.
+            // It is disabled here to allow fine-grained layer control via SetTopLevelWindow().
+            // IsTopLevel = true;
             IsWindowFocusable = false;
             UserPixelRatio = 1.6;
 
             base.OnCreate();
 
             GeneratedPluginRegistrant.RegisterPlugins(this);
+            SetTopLevelWindow();
             RegisterWindowFocusChannel();
+        }
+
+        private void SetTopLevelWindow()
+        {
+            IntPtr handle = FlutterDesktopViewGetNativeHandle(View);
+            if (handle != IntPtr.Zero)
+            {
+                ecore_wl2_window_pin_mode_set(handle, true);
+                ecore_wl2_window_commit(handle, true);
+            }
         }
 
         private void RegisterWindowFocusChannel()
