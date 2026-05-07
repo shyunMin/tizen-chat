@@ -5,9 +5,12 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
+migrate_working_dir/
 
 # IntelliJ related
 *.iml
@@ -15,25 +18,37 @@
 *.iws
 .idea/
 
-# The Python Intermediate files
-__pycache__/
-
-# Visual Studio Code related
+# VS Code related
 .vscode/
 
-# Flutter/Dart related
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
-.packages
 .pub-cache/
 .pub/
-build/
+/build/
+pubspec.lock
 
-# Tizen related
-/tizen/build/
-/tizen/.metadata/
-/tizen/Debug/
-/tizen/Release/
-/tizen/ms_log/
-*.tpk
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/app/.cxx
+
+# window
+/windows/flutter/
+
+# linux
+/linux/flutter/
+
+# macos
+/macos/Flutter/
