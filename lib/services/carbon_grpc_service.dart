@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
 import '../generated/carbon/v1/agent.pbgrpc.dart';
 
@@ -143,24 +141,12 @@ class CarbonGrpcService {
         },
       );
 
-      // Get app-specific storage path for workspace
-      final appDir = await getApplicationSupportDirectory();
-      final workspacePath = p.join(appDir.path, 'tizen_ai');
-
-      // Ensure directory exists
-      final workspaceDir = Directory(workspacePath);
-      if (!await workspaceDir.exists()) {
-        await workspaceDir.create(recursive: true);
-      }
-      debugPrint('DEBUG: [CarbonGrpc] Using workspace path: $workspacePath');
-
       // Send the handshake
       _requestStreamController!.add(
         ClientMessage(
           createSession: CreateSessionRequest(
             product: "claw",
             config: {
-              "workspace": workspacePath,
               if (_sessionName != null) "session": _sessionName!, // ignore: use_null_aware_elements
               if (_sessionName != null) "session_date": _sessionName!, // ignore: use_null_aware_elements
             }.entries,
