@@ -12,19 +12,19 @@ class SentMessage extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        const SizedBox(width: 40),
+        const SizedBox(width: TizenStyles.sentMessageLeftSpacing),
         Flexible(
           child: ClipRRect(
             borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(18),
-              topRight: Radius.circular(18),
-              bottomLeft: Radius.circular(18),
-              bottomRight: Radius.circular(2),
+              topLeft: Radius.circular(TizenStyles.windowBorderRadius),
+              topRight: Radius.circular(TizenStyles.windowBorderRadius),
+              bottomLeft: Radius.circular(TizenStyles.windowBorderRadius),
+              bottomRight: Radius.circular(TizenStyles.messageTailRadius),
             ),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              filter: ImageFilter.blur(sigmaX: TizenStyles.backdropBlurSigma, sigmaY: TizenStyles.backdropBlurSigma),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: TizenStyles.bubblePadding,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -35,10 +35,10 @@ class SentMessage extends StatelessWidget {
                     ],
                   ),
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(18),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(2),
+                    topLeft: Radius.circular(TizenStyles.windowBorderRadius),
+                    topRight: Radius.circular(TizenStyles.windowBorderRadius),
+                    bottomLeft: Radius.circular(TizenStyles.windowBorderRadius),
+                    bottomRight: Radius.circular(TizenStyles.messageTailRadius),
                   ),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/chat_message.dart';
+import '../theme/tizen_styles.dart';
 import 'typing_indicator.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
@@ -149,7 +150,7 @@ class ChatWindowState extends State<ChatWindow>
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: screenWidth / 2,
-            maxHeight: screenHeight - 280,
+            maxHeight: screenHeight - TizenStyles.chatWindowHeightReserved,
           ),
           child: AnimatedSize(
             duration: const Duration(milliseconds: 400),
@@ -169,12 +170,12 @@ class ChatWindowState extends State<ChatWindow>
                             animation: _shimmerController,
                             builder: (context, _) => DecoratedBox(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
                                 border: Border.all(
                                   color: Colors.white.withValues(
                                     alpha: _shimmerAlpha.value,
                                   ),
-                                  width: 1.5,
+                                  width: TizenStyles.focusBorderWidth,
                                 ),
                               ),
                             ),
@@ -187,15 +188,8 @@ class ChatWindowState extends State<ChatWindow>
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
+                  boxShadow: const [TizenStyles.windowShadow],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -209,13 +203,13 @@ class ChatWindowState extends State<ChatWindow>
                       child: ListView.builder(
                         shrinkWrap: true,
                         controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                        padding: TizenStyles.messageListPadding,
                         itemCount: itemCount,
                         itemBuilder: (context, index) {
                           if (widget.isTyping &&
                               index == widget.messages.length) {
                             return const Padding(
-                              padding: EdgeInsets.only(bottom: 10),
+                              padding: EdgeInsets.only(bottom: TizenStyles.messageSpacing),
                               child: TypingIndicator(showAvatar: true),
                             );
                           }
@@ -238,7 +232,7 @@ class ChatWindowState extends State<ChatWindow>
                           }
 
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.only(bottom: TizenStyles.messageSpacing),
                             child: messageWidget,
                           );
                         },
@@ -267,24 +261,24 @@ class _SessionHeader extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+        padding: TizenStyles.sessionHeaderPadding,
         child: Row(
           children: [
             Container(
-              width: 6,
-              height: 6,
+              width: TizenStyles.sessionHeaderDotSize,
+              height: TizenStyles.sessionHeaderDotSize,
               decoration: const BoxDecoration(
                 color: Colors.blueAccent,
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: TizenStyles.sessionHeaderGap),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 12,
+                  fontSize: TizenStyles.tinyFontSize,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.3,
                 ),

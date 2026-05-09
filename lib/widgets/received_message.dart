@@ -42,8 +42,8 @@ class ReceivedMessage extends StatelessWidget {
           children: [
             if (isWaiting)
               SizedBox(
-                width: 38,
-                height: 38,
+                width: TizenStyles.avatarSpinnerSize,
+                height: TizenStyles.avatarSpinnerSize,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
@@ -52,12 +52,12 @@ class ReceivedMessage extends StatelessWidget {
                 ),
               ),
             CircleAvatar(
-              radius: 16,
+              radius: TizenStyles.avatarRadius,
               backgroundColor: _getAvatarColor(),
               child: Text(
                 avatarInitial,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: TizenStyles.avatarInitialFontSize,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -65,7 +65,7 @@ class ReceivedMessage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: TizenStyles.avatarGap),
         Flexible(
           child: MarkdownBody(
             data: text,
@@ -85,15 +85,15 @@ class ReceivedMessage extends StatelessWidget {
               ),
               codeblockDecoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(TizenStyles.codeBorderRadius),
               ),
               h1: TizenStyles.headerText,
-              h2: TizenStyles.headerText.copyWith(fontSize: 17),
-              h3: TizenStyles.headerText.copyWith(fontSize: 16),
+              h2: TizenStyles.headerText.copyWith(fontSize: TizenStyles.headerFontSize),
+              h3: TizenStyles.headerText.copyWith(fontSize: TizenStyles.subheaderFontSize),
             ),
           ),
         ),
-        const SizedBox(width: 100),
+        const SizedBox(width: TizenStyles.receivedMessageRightSpacing),
       ],
     );
   }

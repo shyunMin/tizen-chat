@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/tizen_styles.dart';
 
 class PromptBar extends StatefulWidget {
   final bool isVisible;
@@ -205,19 +206,12 @@ class _PromptBarState extends State<PromptBar>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,
-            width: _isExpanded ? MediaQuery.of(context).size.width / 2 : 64,
-            height: 56,
+            width: _isExpanded ? MediaQuery.of(context).size.width / 2 : TizenStyles.promptBarCollapsedWidth,
+            height: TizenStyles.promptBarInnerHeight,
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
+              boxShadow: const [TizenStyles.windowShadow],
             ),
             clipBehavior: Clip.antiAlias,
             child: Stack(
@@ -232,12 +226,12 @@ class _PromptBarState extends State<PromptBar>
                         builder: (context, _) {
                           return DecoratedBox(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
                               border: Border.all(
                                 color: Colors.white.withValues(
                                   alpha: _shimmerAlpha.value,
                                 ),
-                                width: 1.5,
+                                width: TizenStyles.focusBorderWidth,
                               ),
                             ),
                           );
@@ -255,14 +249,14 @@ class _PromptBarState extends State<PromptBar>
             AnimatedPositioned(
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
-              left: _isExpanded ? 25 : (32 - 10),
+              left: _isExpanded ? 25 : (TizenStyles.promptBarCollapsedWidth / 2 - TizenStyles.promptBarIconSize / 2),
               top: 0,
               bottom: 0,
               child: Center(
                 child: _isKeyboardMode
                     ? _FocusableActionIcon(
                         icon: Icons.mic,
-                        size: 24,
+                        size: TizenStyles.promptBarIconSize,
                         focusNode: _micFocusNode,
                         onArrowLeft: () => _outerFocusNode.requestFocus(),
                         onArrowRight: () => _inputFocusNode.requestFocus(),
@@ -271,15 +265,15 @@ class _PromptBarState extends State<PromptBar>
                           _outerFocusNode.requestFocus();
                         },
                       )
-                    : const Icon(Icons.mic, color: Colors.blueAccent, size: 24),
+                    : const Icon(Icons.mic, color: Colors.blueAccent, size: TizenStyles.promptBarIconSize),
               ),
             ),
             AnimatedOpacity(
               duration: const Duration(milliseconds: 300),
               opacity: _isExpanded ? 1.0 : 0.0,
               child: Container(
-                height: 52,
-                padding: const EdgeInsets.only(left: 80.0, right: 16.0),
+                height: TizenStyles.promptBarContentHeight,
+                padding: TizenStyles.promptBarContentPadding,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -291,13 +285,7 @@ class _PromptBarState extends State<PromptBar>
                               autofocus: false,
                               keyboardType: TextInputType.text,
                               textAlignVertical: TextAlignVertical.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w400,
-                                fontFamily: 'Roboto',
-                                letterSpacing: 0.3,
-                              ),
+                              style: TizenStyles.promptInputText,
                               decoration: InputDecoration(
                                 border: InputBorder.none,
                                 isDense: true,
@@ -330,7 +318,7 @@ class _PromptBarState extends State<PromptBar>
                                 "리모컨의 마이크 버튼을 누른 상태로 질문하세요",
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.7),
-                                  fontSize: 18,
+                                  fontSize: TizenStyles.promptBarHintFontSize,
                                   fontWeight: FontWeight.w400,
                                   fontFamily: 'Roboto',
                                   letterSpacing: 0.3,
@@ -349,7 +337,7 @@ class _PromptBarState extends State<PromptBar>
                                       ? Icons.stop_rounded
                                       : Icons.send_rounded)
                                 : Icons.keyboard,
-                            size: 24,
+                            size: TizenStyles.promptBarIconSize,
                             focusNode: _sendFocusNode,
                             isEnabled: true,
                             onArrowLeft: () {
@@ -511,7 +499,7 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
 
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(TizenStyles.iconButtonPadding),
                 decoration: BoxDecoration(
                   color: active
                       ? Colors.blueAccent.withValues(alpha: 0.25)

@@ -1,26 +1,101 @@
 import 'package:flutter/material.dart';
 
 class TizenStyles {
-  // Colors
-  static const Color slate950 = Color(0xFF020617);
+  // ── Colors ────────────────────────────────────────────────────
   static const Color slate900 = Color(0xFF0F172A);
   static const Color slate800 = Color(0xFF1E293B);
-  static const Color slate500 = Color(0xFF64748B);
-  static const Color slate300 = Color(0xFFCBD5E1);
   static const Color slate200 = Color(0xFFE2E8F0);
-  static const Color teal400 = Color(0xFF2DD4BF);
   static const Color cyan400 = Color(0xFF22D3EE);
-  static const Color blue600 = Color(0xFF2563EB);
   static const Color blue800 = Color(0xFF1E40AF);
   static const Color blue900 = Color(0xFF1E3A8A);
 
-  // Text Sizes
-  static const double baseFontSize = 14.0;   // 17 → 14 (한 단계 축소)
-  static const double smallFontSize = 14.0;
+  // ── Font Sizes ────────────────────────────────────────────────
+  static const double baseFontSize = 14.0;
   static const double tinyFontSize = 12.0;
-  static const double headerFontSize = 17.0;  // 18 → 17 (한 단계 축소)
+  static const double headerFontSize = 17.0;
+  static const double subheaderFontSize = 16.0;
+  static const double avatarInitialFontSize = 10.0;
+  static const double promptBarInputFontSize = 20.0;
+  static const double promptBarHintFontSize = 18.0;
 
-  // Text Styles
+  // ── Border Radii ─────────────────────────────────────────────
+  static const double windowBorderRadius = 18.0;
+  static const double messageTailRadius = 2.0;
+  static const double actionButtonBorderRadius = 50.0;
+  static const double codeBorderRadius = 4.0;
+
+  // ── Widget Sizes ─────────────────────────────────────────────
+  static const double avatarRadius = 16.0;
+  static const double avatarSpinnerSize = 38.0;
+  static const double focusBorderWidth = 1.5;
+  static const double sessionHeaderDotSize = 6.0;
+  static const double actionBarHeight = 44.0;
+  static const double promptBarCollapsedWidth = 64.0;
+  static const double promptBarInnerHeight = 56.0;
+  static const double promptBarContentHeight = 52.0;
+  static const double promptBarIconSize = 24.0;
+  static const double iconButtonPadding = 8.0;
+  static const double sentMessageLeftSpacing = 40.0;
+  static const double receivedMessageRightSpacing = 100.0;
+  static const double backdropBlurSigma = 12.0;
+  static const double chatWindowHeightReserved = 280.0;
+
+  // ── Spacing ───────────────────────────────────────────────────
+  static const double avatarGap = 12.0;
+  static const double messageSpacing = 10.0;
+  static const double actionBarItemSpacing = 8.0;
+  static const double sessionHeaderGap = 8.0;
+
+  // ── EdgeInsets ────────────────────────────────────────────────
+  static const EdgeInsets bubblePadding = EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 12,
+  );
+  static const EdgeInsets actionButtonPadding = EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 8,
+  );
+  static const EdgeInsets actionBarHorizontalPadding = EdgeInsets.symmetric(
+    horizontal: 10,
+  );
+  static const EdgeInsets messageListPadding = EdgeInsets.fromLTRB(
+    12,
+    4,
+    12,
+    12,
+  );
+  static const EdgeInsets sessionHeaderPadding = EdgeInsets.fromLTRB(
+    16,
+    12,
+    16,
+    10,
+  );
+  static const EdgeInsets promptBarContentPadding = EdgeInsets.only(
+    left: 80.0,
+    right: 16.0,
+  );
+
+  // ── Screen Layout Positions ───────────────────────────────────
+  static const double promptBarBottom = 10.0;
+  static const double promptBarBottomKeyboard = 270.0;
+  static const double promptBarLeft = 10.0;
+  static const double promptBarContainerHeight = 80.0;
+  static const double actionBarBottom = 98.0;
+  static const double actionBarBottomKeyboard = 358.0;
+  static const double chatWindowBottomBase = 98.0;
+  static const double chatWindowBottomWithActions = 158.0;
+  static const double chatWindowBottomKeyboard = 358.0;
+  static const double chatWindowBottomKeyboardWithActions = 418.0;
+
+  // ── Shadows ───────────────────────────────────────────────────
+  static const BoxShadow windowShadow = BoxShadow(
+    color: Color(0x80000000),
+    blurRadius: 24,
+    spreadRadius: 2,
+    offset: Offset(0, 8),
+  );
+
+  // ── Text Styles ───────────────────────────────────────────────
   static const TextStyle bodyText = TextStyle(
     color: slate200,
     fontSize: baseFontSize,
@@ -32,13 +107,6 @@ class TizenStyles {
     fontSize: baseFontSize,
   );
 
-  static const TextStyle dateText = TextStyle(
-    fontSize: tinyFontSize,
-    letterSpacing: 1.5,
-    color: slate500,
-    fontWeight: FontWeight.w600,
-  );
-
   static const TextStyle headerText = TextStyle(
     fontSize: headerFontSize,
     fontWeight: FontWeight.w800,
@@ -46,26 +114,19 @@ class TizenStyles {
     color: Colors.white,
   );
 
-  static const TextStyle cardTitle = TextStyle(
-    fontSize: 15,
-    fontWeight: FontWeight.w600,
-    color: teal400,
+  static const TextStyle promptInputText = TextStyle(
+    color: Colors.white,
+    fontSize: promptBarInputFontSize,
+    fontWeight: FontWeight.w400,
+    fontFamily: 'Roboto',
+    letterSpacing: 0.3,
   );
 
-  static const TextStyle cardSubtitle = TextStyle(
-    fontSize: 16,
-    color: slate300,
-  );
-
-  // Gradients
+  // ── Gradients ─────────────────────────────────────────────────
   static const RadialGradient backgroundGradient = RadialGradient(
     center: Alignment.topRight,
     radius: 1.5,
-    colors: [
-      slate900,
-      Colors.black,
-      Colors.black,
-    ],
+    colors: [slate900, Colors.black, Colors.black],
     stops: [0.0, 0.5, 1.0],
   );
 
