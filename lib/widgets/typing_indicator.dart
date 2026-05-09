@@ -101,35 +101,35 @@ class _TypingIndicatorState extends State<TypingIndicator> with SingleTickerProv
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 38,
-                height: 38,
+                width: TizenStyles.avatarSpinnerSize,
+                height: TizenStyles.avatarSpinnerSize,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(TizenStyles.cyan400.withValues(alpha: 0.8)),
                 ),
               ),
               CircleAvatar(
-                radius: 16,
+                radius: TizenStyles.avatarRadius,
                 backgroundColor: TizenStyles.slate800,
                 child: Text(
                   widget.avatarInitial,
-                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: TizenStyles.avatarInitialFontSize, color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: TizenStyles.avatarGap),
         ],
         if (widget.showBubble)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: TizenStyles.bubblePadding,
             decoration: BoxDecoration(
               color: TizenStyles.slate900.withValues(alpha: 0.4),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomLeft: Radius.circular(2),
-                bottomRight: Radius.circular(18),
+                topLeft: Radius.circular(TizenStyles.windowBorderRadius),
+                topRight: Radius.circular(TizenStyles.windowBorderRadius),
+                bottomLeft: Radius.circular(TizenStyles.messageTailRadius),
+                bottomRight: Radius.circular(TizenStyles.windowBorderRadius),
               ),
             ),
             child: indicator,

@@ -1,6 +1,7 @@
 import 'package:ai_chat/widgets/prompt_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/tizen_styles.dart';
 import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:convert';
 import '../widgets/chat_window.dart';
@@ -520,8 +521,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeOutCubic,
-                bottom: _isKeyboardFocused ? 270 : 10,
-                left: 10,
+                bottom: _isKeyboardFocused ? TizenStyles.promptBarBottomKeyboard : TizenStyles.promptBarBottom,
+                left: TizenStyles.promptBarLeft,
                 right: 0,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
@@ -529,7 +530,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   child: Align(
                     alignment: Alignment.bottomLeft,
                     child: SizedBox(
-                      height: 80,
+                      height: TizenStyles.promptBarContainerHeight,
                       child: PromptBar(
                         outerFocusNode: _promptBarFocusNode,
                         onArrowUp: () {
@@ -563,7 +564,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: _isKeyboardFocused ? 358 : 98,
+                  bottom: _isKeyboardFocused ? TizenStyles.actionBarBottomKeyboard : TizenStyles.actionBarBottom,
                   left: 0,
                   right: 0,
                   child: ActionButtonBar(
@@ -581,10 +582,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 curve: Curves.easeOutCubic,
                 bottom: _hasChatStarted
                     ? (_isKeyboardFocused
-                          ? (_currentActionButtons.isNotEmpty ? 418 : 358)
-                          : (_currentActionButtons.isNotEmpty ? 158 : 98))
+                          ? (_currentActionButtons.isNotEmpty ? TizenStyles.chatWindowBottomKeyboardWithActions : TizenStyles.chatWindowBottomKeyboard)
+                          : (_currentActionButtons.isNotEmpty ? TizenStyles.chatWindowBottomWithActions : TizenStyles.chatWindowBottomBase))
                     : -screenHeight,
-                left: 10,
+                left: TizenStyles.promptBarLeft,
                 child: ChatWindow(
                   key: _chatWindowKey,
                   focusNode: _chatScrollFocusNode,

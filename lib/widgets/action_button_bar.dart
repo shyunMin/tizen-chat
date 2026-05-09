@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../theme/tizen_styles.dart';
 
 class ActionButtonBar extends StatefulWidget {
   final List<String> buttons;
@@ -76,13 +77,13 @@ class ActionButtonBarState extends State<ActionButtonBar> {
     if (widget.buttons.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 44,
+      height: TizenStyles.actionBarHeight,
       child: ListView.separated(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: TizenStyles.actionBarHorizontalPadding,
         itemCount: widget.buttons.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: TizenStyles.actionBarItemSpacing),
         itemBuilder: (context, index) => _ActionButton(
           label: widget.buttons[index],
           focusNode: _focusNodes[index],
@@ -201,18 +202,18 @@ class _ActionButtonState extends State<_ActionButton>
             foregroundPainter: isFocused
                 ? _RainbowBorderPainter(
                     progress: _rainbowController.value,
-                    borderRadius: 50,
-                    strokeWidth: 1.5,
+                    borderRadius: TizenStyles.actionButtonBorderRadius,
+                    strokeWidth: TizenStyles.focusBorderWidth,
                   )
                 : null,
             child: child,
           ),
           child: Container(
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: TizenStyles.actionButtonPadding,
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(50),
+              borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
               boxShadow: isFocused
                   ? [
                       BoxShadow(
@@ -227,7 +228,7 @@ class _ActionButtonState extends State<_ActionButton>
               widget.label,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: TizenStyles.baseFontSize,
                 fontWeight: isFocused ? FontWeight.w600 : FontWeight.w400,
                 letterSpacing: 0.5,
               ),
@@ -259,7 +260,7 @@ class _RainbowBorderPainter extends CustomPainter {
   const _RainbowBorderPainter({
     required this.progress,
     required this.borderRadius,
-    this.strokeWidth = 1.5,
+    this.strokeWidth = TizenStyles.focusBorderWidth,
   });
 
   @override
