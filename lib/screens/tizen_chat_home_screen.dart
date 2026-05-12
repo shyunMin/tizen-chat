@@ -26,7 +26,7 @@ class TizenChatHomeScreen extends StatefulWidget {
 }
 
 class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // ── UI 상태 ──────────────────────────────────────────────────
   bool _isVisible = false;
   bool _isWaiting = false;
@@ -66,6 +66,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     AppControl.onAppControl.listen(_onAppControlReceived);
 
     // gRPC 의 broadcast 이벤트 스트림을 단일 핸들러로 받는다. 연결이 아직
@@ -207,18 +208,29 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     final onboardingService = OnboardingGrpcService();
     try {
       await onboardingService.connect();
-      final config = await onboardingService.getConfig();
 
-      if (!config.ready && mounted) {
+      while (true) {
+        final config = await onboardingService.getConfig();
+        debugPrint('[ConfigCheck] App started. getConfig result: ready=${config.ready}, hasHint=${config.hint.isNotEmpty}');
+
+        if (config.ready) {
+          return true;
+        }
+
+        if (!mounted) return false;
+
         final completed = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
-            builder: (_) =>
-                OnboardingScreen(service: onboardingService),
+            builder: (_) => OnboardingScreen(service: onboardingService),
           ),
         );
-        return completed == true;
+
+        if (completed != true) {
+          return false;
+        }
+        // 완료(completed == true)되었으나 config.ready가 여전히 false인 경우 루프를 돌며 QR 화면 다시 표시
+        debugPrint('[ConfigCheck] Setup marked completed, verifying config.ready again...');
       }
-      return true;
     } catch (e) {
       // 브리지 미실행 또는 연결 실패 시 온보딩 건너뜀
       debugPrint('[Init] Onboarding check skipped: $e');
@@ -510,7 +522,28 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkConfigStatus();
+    }
+  }
+
+  Future<void> _checkConfigStatus() async {
+    final onboardingService = OnboardingGrpcService();
+    try {
+      await onboardingService.connect();
+      final config = await onboardingService.getConfig();
+      debugPrint('[ConfigCheck] App resumed. getConfig result: ready=${config.ready}, hasHint=${config.hint.isNotEmpty}');
+    } catch (e) {
+      debugPrint('[ConfigCheck] App resumed. getConfig error: $e');
+    } finally {
+      await onboardingService.disconnect();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _messageBusSubscription?.cancel();
     _eventSubscription?.cancel();
     HttpMessageBus.instance.release();
