@@ -14,6 +14,8 @@ import '../services/agent_response_parser.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
 import '../services/window_focus_service.dart';
+import '../services/onboarding_grpc_service.dart';
+import 'onboarding_screen.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -48,7 +50,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
   StreamSubscription<CarbonEvent>? _eventSubscription;
-  final Completer<void> _initCompleter = Completer<void>();
+  final Completer<bool> _initCompleter = Completer<bool>();
   bool _hasPendingAppControl = false;
 
   // ── 진행 중인 응답 추적 ───────────────────────────────────────
@@ -90,7 +92,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   void _onAppControlReceived(ReceivedAppControl appControl) async {
     _hasPendingAppControl = true;
-    await _initCompleter.future;
+    final initOk = await _initCompleter.future;
     debugPrint('[AppControl] Received! caller: ${appControl.callerAppId}');
     debugPrint('[AppControl] extraData: ${appControl.extraData}');
 
@@ -144,16 +146,30 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
 
       if (messageText != null && messageText.isNotEmpty) {
-        debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
-        if (mounted) {
-          _handleSend(messageText);
+        if (!initOk) {
+          // 온보딩 미완료: 요청 메시지를 보여주고 에러 응답 표시
+          debugPrint('[AppControl] Onboarding incomplete — showing error');
+          if (mounted) {
+            setState(() {
+              _isVisible = true;
+              _hasChatStarted = true;
+              _messages.addAll([
+                ChatMessage(text: messageText!, type: MessageType.sent),
+                ChatMessage(
+                  text: 'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
+                  type: MessageType.received,
+                ),
+              ]);
+            });
+            _scrollToBottom();
+          }
+        } else {
+          debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
+          if (mounted) _handleSend(messageText);
         }
       } else {
         debugPrint('[AppControl] No message content found in extraData.');
-        // 만약 메시지는 없지만 앱이 깨어났다면, 최소한 점이라도 표시하거나 화면을 활성화할지 결정
-        setState(() {
-          _isVisible = true;
-        });
+        if (mounted) setState(() => _isVisible = true);
       }
     } catch (e) {
       debugPrint('[AppControl] Error processing extraData: $e');
@@ -162,20 +178,53 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   Future<void> _initializeServices() async {
     try {
-      // 1. 오늘 날짜로 세션 확보 + 로컈 목록에 기록
+      // 1. 온보딩 상태 확인 — 완료 여부를 bool로 받음
+      final onboardingOk = await _checkOnboarding();
+
+      // 2. 오늘 날짜로 세션 확보 + 목록에 기록
       final sessionName = await SessionRepository.instance.ensureTodaySession();
       debugPrint('[Init] Session name: $sessionName');
 
-      // 2. UI 타이틀 설정
+      // 3. UI 타이틀 설정
       if (mounted) setState(() => _sessionTitle = sessionName);
 
-      // 3. 세션 이름으로 gRPC 연결
+      // 4. 세션 이름으로 gRPC 연결
       await _grpcService.connect(sessionName: sessionName);
 
-      if (!_initCompleter.isCompleted) _initCompleter.complete();
+      if (!_initCompleter.isCompleted) _initCompleter.complete(onboardingOk);
     } catch (e) {
       debugPrint('[Init] Error: $e');
-      if (!_initCompleter.isCompleted) _initCompleter.complete();
+      if (!_initCompleter.isCompleted) _initCompleter.complete(false);
+    }
+  }
+
+  /// 온보딩 완료 여부를 반환한다.
+  /// - config 이미 준비됨: true
+  /// - 브리지 미실행 또는 연결 실패: true (건너뜀)
+  /// - QR 화면에서 설정 완료: true
+  /// - QR 화면에서 취소/종료: false
+  Future<bool> _checkOnboarding() async {
+    final onboardingService = OnboardingGrpcService();
+    try {
+      await onboardingService.connect();
+      final config = await onboardingService.getConfig();
+
+      if (!config.ready && mounted) {
+        final completed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) =>
+                OnboardingScreen(service: onboardingService),
+          ),
+        );
+        return completed == true;
+      }
+      return true;
+    } catch (e) {
+      // 브리지 미실행 또는 연결 실패 시 온보딩 건너뜀
+      debugPrint('[Init] Onboarding check skipped: $e');
+      return true;
+    } finally {
+      await onboardingService.disconnect();
     }
   }
 
@@ -521,7 +570,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 key: const ValueKey('prompt-bar'),
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeOutCubic,
-                bottom: _isKeyboardFocused ? TizenStyles.promptBarBottomKeyboard : TizenStyles.promptBarBottom,
+                bottom: _isKeyboardFocused
+                    ? TizenStyles.promptBarBottomKeyboard
+                    : TizenStyles.promptBarBottom,
                 left: TizenStyles.promptBarLeft,
                 right: 0,
                 child: AnimatedOpacity(
@@ -564,7 +615,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeOutCubic,
-                  bottom: _isKeyboardFocused ? TizenStyles.actionBarBottomKeyboard : TizenStyles.actionBarBottom,
+                  bottom: _isKeyboardFocused
+                      ? TizenStyles.actionBarBottomKeyboard
+                      : TizenStyles.actionBarBottom,
                   left: 0,
                   right: 0,
                   child: ActionButtonBar(
@@ -582,8 +635,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 curve: Curves.easeOutCubic,
                 bottom: _hasChatStarted
                     ? (_isKeyboardFocused
-                          ? (_currentActionButtons.isNotEmpty ? TizenStyles.chatWindowBottomKeyboardWithActions : TizenStyles.chatWindowBottomKeyboard)
-                          : (_currentActionButtons.isNotEmpty ? TizenStyles.chatWindowBottomWithActions : TizenStyles.chatWindowBottomBase))
+                          ? (_currentActionButtons.isNotEmpty
+                                ? TizenStyles
+                                      .chatWindowBottomKeyboardWithActions
+                                : TizenStyles.chatWindowBottomKeyboard)
+                          : (_currentActionButtons.isNotEmpty
+                                ? TizenStyles.chatWindowBottomWithActions
+                                : TizenStyles.chatWindowBottomBase))
                     : -screenHeight,
                 left: TizenStyles.promptBarLeft,
                 child: ChatWindow(

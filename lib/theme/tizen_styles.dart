@@ -6,6 +6,7 @@ class TizenStyles {
   static const Color slate800 = Color(0xFF1E293B);
   static const Color slate200 = Color(0xFFE2E8F0);
   static const Color cyan400 = Color(0xFF22D3EE);
+  static const Color blue600 = Color(0xFF2563EB);
   static const Color blue800 = Color(0xFF1E40AF);
   static const Color blue900 = Color(0xFF1E3A8A);
 
@@ -86,6 +87,41 @@ class TizenStyles {
   static const double chatWindowBottomWithActions = 158.0;
   static const double chatWindowBottomKeyboard = 358.0;
   static const double chatWindowBottomKeyboardWithActions = 418.0;
+
+  // ── Onboarding ────────────────────────────────────────────────
+  static const double onboardingTitleFontSize = 28.0;
+  static const double onboardingTitleGap = 20.0;
+  static const double onboardingPanelWidth = 380.0;
+  static const double onboardingPanelGap = 64.0;
+  static const double onboardingWarningBorderRadius = 8.0;
+  static const double onboardingWarningBgAlpha = 0.15;
+  static const double onboardingWarningBorderAlpha = 0.4;
+  static const double onboardingLoadingGap = 16.0;
+  static const double onboardingErrorIconSize = 48.0;
+  static const double onboardingErrorIconGap = 16.0;
+  static const double onboardingErrorMsgGap = 8.0;
+  static const double onboardingErrorButtonGap = 24.0;
+  static const double onboardingCloseButtonBgAlpha = 0.7;
+  static const double onboardingCloseButtonLetterSpacing = 0.5;
+  static const EdgeInsets onboardingPadding = EdgeInsets.symmetric(vertical: 200);
+  static const EdgeInsets onboardingWarningPadding = EdgeInsets.all(10);
+  static const EdgeInsets onboardingCloseButtonPadding =
+      EdgeInsets.symmetric(horizontal: 24, vertical: 12);
+
+  // ── QR Code ───────────────────────────────────────────────────
+  static const double qrBorderRadius = 16.0;
+  static const EdgeInsets qrContainerPadding = EdgeInsets.all(16);
+  static const BoxShadow qrBoxShadow = BoxShadow(
+    color: Color(0x80000000),
+    blurRadius: 20,
+    offset: Offset(0, 10),
+  );
+
+  // ── Focus Glow ────────────────────────────────────────────────
+  static const Color focusGlowColor = Color(0xFF6366F1);
+  static const double focusGlowBlurRadius = 14.0;
+  static const double focusGlowSpreadRadius = 1.0;
+  static const double focusGlowAlpha = 0.45;
 
   // ── Shadows ───────────────────────────────────────────────────
   static const BoxShadow windowShadow = BoxShadow(
