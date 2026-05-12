@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/onboarding_grpc_service.dart';
 import '../generated/carbon/v1/setup.pb.dart';
 import '../theme/tizen_styles.dart';
+import '../services/window_focus_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final OnboardingGrpcService service;
@@ -27,17 +28,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
+    WindowFocusService.setFocusable(true);
     _startSetup();
   }
 
   Future<void> _startSetup() async {
     try {
+      final url = await widget.service.startSetup();
+
       _watchSub = widget.service.watchSetup().listen(
         _onSetupEvent,
         onError: (e) => debugPrint('[Onboarding] WatchSetup error: $e'),
       );
-
-      final url = await widget.service.startSetup();
 
       if (mounted) {
         setState(() {
