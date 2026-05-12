@@ -1,0 +1,30 @@
+syntax = "proto3";
+package carbon.v1;
+
+service SetupService {
+  rpc StartSetup(StartSetupRequest) returns (StartSetupResponse);
+  rpc StopSetup(StopSetupRequest)   returns (StopSetupResponse);
+  rpc WatchSetup(WatchSetupRequest) returns (stream SetupEvent);
+}
+
+message StartSetupRequest {
+  int32 preferred_port = 1;
+}
+
+message StartSetupResponse {
+  string url = 1;
+}
+
+message StopSetupRequest  {}
+message StopSetupResponse {}
+message WatchSetupRequest {}
+
+message SetupEvent {
+  enum Kind {
+    UNKNOWN   = 0;
+    COMPLETED = 1;
+    STOPPED   = 2;
+  }
+  Kind   kind = 1;
+  string url  = 2;
+}
