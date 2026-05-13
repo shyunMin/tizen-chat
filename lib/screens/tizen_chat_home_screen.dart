@@ -174,6 +174,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
     } catch (e) {
       debugPrint('[AppControl] Error processing extraData: $e');
+      if (mounted) setState(() => _isVisible = true);
     }
   }
 
@@ -181,6 +182,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     try {
       // 1. 온보딩 상태 확인 — 완료 여부를 bool로 받음
       final onboardingOk = await _checkOnboarding();
+
+      // 온보딩 완료(또는 스킵) 후 UI 즉시 표시 — AppControl 없는 경우
+      if (mounted && !_hasPendingAppControl) {
+        setState(() => _isVisible = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _promptBarFocusNode.requestFocus();
+        });
+      }
 
       // 2. 오늘 날짜로 세션 확보 + 목록에 기록
       final sessionName = await SessionRepository.instance.ensureTodaySession();
