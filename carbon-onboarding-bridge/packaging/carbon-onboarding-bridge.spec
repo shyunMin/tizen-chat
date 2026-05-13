@@ -5,52 +5,48 @@ Release:    1
 Group:      N/A
 License:    MIT
 Source0:    %{name}-%{version}.tar.gz
-Source1001: %{name}.manifest
+SOURCE1001: %{name}.manifest
 
 %description
 Temporary gRPC bridge service for Carbon onboarding. Provides ConfigService
 and SetupService over a Unix domain socket, replacing carbon-config-service and
 qr-code-setup until these services are merged into carbon-daemon.
 
-The binary must be cross-compiled before running gbs build:
-  armv7l:  cargo build --release --target armv7-unknown-linux-gnueabihf
-  aarch64: cargo build --release --target aarch64-unknown-linux-gnu
-Then copy the binary to tizen/rpm/sources/ (see build.sh).
+Pre-built RPMs must be placed in tizen/rpm/sources/ before running gbs build:
+  tizen/rpm/sources/%{name}-%{version}-%{release}.armv7l.rpm
+  tizen/rpm/sources/%{name}-%{version}-%{release}.aarch64.rpm
 
 %prep
 %setup -q
 cp %{SOURCE1001} .
 
 %build
-# Binary is cross-compiled outside GBS; no build step needed here.
 
 %install
-rm -rf %{buildroot}
-
 %ifarch armv7l
-install -Dm0755 tizen/rpm/sources/%{name} \
-        %{buildroot}%{_bindir}/%{name}
+unrpm tizen/rpm/sources/%{name}-%{version}-%{release}.armv7l.rpm
 %endif
 
 %ifarch aarch64
-install -Dm0755 tizen/rpm/sources/%{name}.aarch64 \
-        %{buildroot}%{_bindir}/%{name}
+unrpm tizen/rpm/sources/%{name}-%{version}-%{release}.aarch64.rpm
 %endif
 
-mkdir -p %{buildroot}%{_unitdir} \
-         %{buildroot}%{_unitdir}/multi-user.target.wants
+mkdir -p %{buildroot}%{_bindir} \
+         %{buildroot}/usr/lib/systemd/system \
+         %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
 
-install -Dm0644 packaging/%{name}.service \
-        %{buildroot}%{_unitdir}/%{name}.service
-install -Dm0644 packaging/carbon-daemon-config-watch.path \
-        %{buildroot}%{_unitdir}/carbon-daemon-config-watch.path
-install -Dm0644 packaging/carbon-daemon-config-reload.service \
-        %{buildroot}%{_unitdir}/carbon-daemon-config-reload.service
+install -m 0755 usr/bin/%{name} %{buildroot}%{_bindir}/%{name}
+install -m 0644 usr/lib/systemd/system/%{name}.service \
+        %{buildroot}/usr/lib/systemd/system/%{name}.service
+install -m 0644 usr/lib/systemd/system/carbon-daemon-config-watch.path \
+        %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-watch.path
+install -m 0644 usr/lib/systemd/system/carbon-daemon-config-reload.service \
+        %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-reload.service
 
-ln -sf %{_unitdir}/%{name}.service \
-       %{buildroot}%{_unitdir}/multi-user.target.wants/%{name}.service
-ln -sf %{_unitdir}/carbon-daemon-config-watch.path \
-       %{buildroot}%{_unitdir}/multi-user.target.wants/carbon-daemon-config-watch.path
+ln -sf /usr/lib/systemd/system/%{name}.service \
+       %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/%{name}.service
+ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path \
+       %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
 
 %post
 systemctl daemon-reload || :
@@ -74,8 +70,8 @@ systemctl daemon-reload || :
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_bindir}/%{name}
-%{_unitdir}/%{name}.service
-%{_unitdir}/carbon-daemon-config-watch.path
-%{_unitdir}/carbon-daemon-config-reload.service
-%{_unitdir}/multi-user.target.wants/%{name}.service
-%{_unitdir}/multi-user.target.wants/carbon-daemon-config-watch.path
+/usr/lib/systemd/system/%{name}.service
+/usr/lib/systemd/system/carbon-daemon-config-watch.path
+/usr/lib/systemd/system/carbon-daemon-config-reload.service
+/usr/lib/systemd/system/multi-user.target.wants/%{name}.service
+/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
