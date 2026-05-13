@@ -5,6 +5,7 @@ import '../theme/tizen_styles.dart';
 
 class PromptBar extends StatefulWidget {
   final bool isVisible;
+  final bool isConnecting;
   final bool isWaiting;
   final bool hasChatStarted;
   final Function(String)? onSend;
@@ -16,6 +17,7 @@ class PromptBar extends StatefulWidget {
   const PromptBar({
     super.key,
     required this.isVisible,
+    this.isConnecting = false,
     this.onSend,
     this.onCancel,
     this.isWaiting = false,
@@ -120,12 +122,21 @@ class _PromptBarState extends State<PromptBar>
       }
     }
 
+    if (!widget.isConnecting && oldWidget.isConnecting) {
+      _typingTimer?.cancel();
+      setState(() {
+        _displayText = "";
+        _charIndex = 0;
+      });
+      _startTyping();
+    }
+
     if (widget.isVisible && !oldWidget.isVisible) {
       _reset();
       Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) {
           setState(() => _isExpanded = true);
-          _startTyping();
+          if (!widget.isConnecting) _startTyping();
         }
       });
     } else if (!widget.isVisible && oldWidget.isVisible) {
@@ -183,6 +194,7 @@ class _PromptBarState extends State<PromptBar>
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.select ||
               event.logicalKey == LogicalKeyboardKey.enter) {
+            if (widget.isConnecting) return KeyEventResult.ignored;
             if (_isKeyboardMode) {
               if (_charIndex >= _fullText.length) {
                 _inputFocusNode.requestFocus();
@@ -278,7 +290,21 @@ class _PromptBarState extends State<PromptBar>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: _isKeyboardMode
+                      child: widget.isConnecting
+                          ? Container(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '연결 중...',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: TizenStyles.promptBarHintFontSize,
+                                  fontWeight: FontWeight.w400,
+                                  fontFamily: 'Roboto',
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            )
+                          : _isKeyboardMode
                           ? TextField(
                               controller: _textController,
                               focusNode: _inputFocusNode,
@@ -326,7 +352,7 @@ class _PromptBarState extends State<PromptBar>
                               ),
                             ),
                     ),
-                    if (_charIndex >= _fullText.length)
+                    if (!widget.isConnecting && _charIndex >= _fullText.length)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

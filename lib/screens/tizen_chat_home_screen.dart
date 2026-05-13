@@ -8,7 +8,6 @@ import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
 import '../services/carbon_grpc_service.dart';
 import '../generated/carbon/v1/agent.pbenum.dart';
-import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -42,6 +41,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       GlobalKey<ChatWindowState>();
   final GlobalKey<ActionButtonBarState> _actionBarKey =
       GlobalKey<ActionButtonBarState>();
+
+  bool _isGrpcReady = false;
 
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -178,32 +179,45 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
   }
 
+  String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _initializeServices() async {
     try {
-      // 1. 온보딩 상태 확인 — 완료 여부를 bool로 받음
+      // 1. 온보딩 상태 확인
       final onboardingOk = await _checkOnboarding();
 
-      // 온보딩 완료(또는 스킵) 후 UI 즉시 표시 — AppControl 없는 경우
-      if (mounted && !_hasPendingAppControl) {
-        setState(() => _isVisible = true);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _promptBarFocusNode.requestFocus();
-        });
-      }
-
-      // 2. 오늘 날짜로 세션 확보 + 목록에 기록
-      final sessionName = await SessionRepository.instance.ensureTodaySession();
+      // 2. 세션 이름 동기 계산 (파일 I/O 없음)
+      final sessionName = _todayKey();
       debugPrint('[Init] Session name: $sessionName');
-
-      // 3. UI 타이틀 설정
       if (mounted) setState(() => _sessionTitle = sessionName);
 
-      // 4. 세션 이름으로 gRPC 연결
+      // 3. PromptBar 표시 (gRPC 연결 전 — 비활성 상태)
+      if (mounted && !_hasPendingAppControl) {
+        setState(() => _isVisible = true);
+      }
+
+      // 4. gRPC 연결
       await _grpcService.connect(sessionName: sessionName);
+
+      // 5. 연결 완료 → PromptBar 활성화
+      if (mounted) {
+        setState(() => _isGrpcReady = true);
+        if (!_hasPendingAppControl) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _promptBarFocusNode.requestFocus();
+          });
+        }
+      }
 
       if (!_initCompleter.isCompleted) _initCompleter.complete(onboardingOk);
     } catch (e) {
       debugPrint('[Init] Error: $e');
+      if (mounted) setState(() => _isGrpcReady = true);
       if (!_initCompleter.isCompleted) _initCompleter.complete(false);
     }
   }
@@ -626,6 +640,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                       height: TizenStyles.promptBarContainerHeight,
                       child: PromptBar(
                         outerFocusNode: _promptBarFocusNode,
+                        isConnecting: !_isGrpcReady,
                         onArrowUp: () {
                           if (!_hasChatStarted) return;
                           if (_currentActionButtons.isNotEmpty) {
