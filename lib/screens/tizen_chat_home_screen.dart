@@ -197,12 +197,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (mounted) setState(() => _sessionTitle = sessionName);
 
       // 3. PromptBar 표시 (gRPC 연결 전 — 비활성 상태)
-      if (mounted && !_hasPendingAppControl) {
+      // AppControl 대기 중이어도 온보딩 완료 후 복귀 시 화면을 보여줘야 한다.
+      if (mounted) {
         setState(() => _isVisible = true);
       }
 
-      // 4. gRPC 연결
+      // 4. gRPC 연결 (실패 시 daemon 재시작 대기 포함)
       await _grpcService.connect(sessionName: sessionName);
+      if (!_grpcService.isConnected) {
+        await _grpcService.reconnect();
+      }
 
       // 5. 연결 완료 → PromptBar 활성화
       if (mounted) {
@@ -236,10 +240,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         final config = await onboardingService.getConfig();
         debugPrint('[ConfigCheck] App started. getConfig result: ready=${config.ready}, hasHint=${config.hint.isNotEmpty}');
 
-        if (config.ready) {
-          return true;
-        }
-
+        if (config.ready) return true;
         if (!mounted) return false;
 
         final completed = await Navigator.of(context).push<bool>(
@@ -248,11 +249,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           ),
         );
 
-        if (completed != true) {
-          return false;
-        }
-        // 완료(completed == true)되었으나 config.ready가 여전히 false인 경우 루프를 돌며 QR 화면 다시 표시
-        debugPrint('[ConfigCheck] Setup marked completed, verifying config.ready again...');
+        if (completed != true) return false;
       }
     } catch (e) {
       // 브리지 미실행 또는 연결 실패 시 온보딩 건너뜀
@@ -525,7 +522,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _scrollToBottom();
     _chatScrollFocusNode.requestFocus();
 
-    if (fatal && code != 'cancelled') {
+    if ((fatal && code != 'cancelled') || code == 'NO_SESSION') {
       await _grpcService.reconnect();
     }
   }

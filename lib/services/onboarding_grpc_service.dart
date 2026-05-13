@@ -44,7 +44,7 @@ class OnboardingGrpcService {
   }
 
   Future<void> disconnect() async {
-    await _channel?.shutdown();
+    await _channel?.terminate();
     _channel = null;
     _configClient = null;
     _setupClient = null;
