@@ -305,9 +305,19 @@ class CarbonGrpcService {
   }
 
   Future<void> reconnect() async {
-    final savedSessionName = _sessionName; // 재연결 전에 보존
+    final savedSessionName = _sessionName;
     await disconnect();
-    await connect(sessionName: savedSessionName);
+
+    const maxRetries = 5;
+    const retryInterval = Duration(seconds: 1);
+
+    for (int i = 0; i < maxRetries; i++) {
+      if (i > 0) await Future.delayed(retryInterval);
+      await connect(sessionName: savedSessionName);
+      if (_isConnected) return;
+      debugPrint('DEBUG: [CarbonGrpc] Reconnect attempt ${i + 1}/$maxRetries failed');
+    }
+    debugPrint('DEBUG: [CarbonGrpc] Reconnect failed after $maxRetries attempts');
   }
 
   /// Send a user prompt to the agent. Always uses `steer: true` so the
