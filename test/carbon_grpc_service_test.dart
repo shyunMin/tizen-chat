@@ -237,4 +237,152 @@ void main() {
       expect(svc.debugCurrentTurnId, isNull);
     },
   );
+
+  // ──────────────────────────────────────────────────────────────────
+  // Proxy-gap pin tests.
+  //
+  // chat-ui currently leans on a handful of proxies because v2 carbon
+  // hasn't shipped its full disposition/event feedback layer yet
+  // (RFC 0007 task `v2-ingress-runtime-disposition-feedback`). When
+  // that work lands and chat-ui drops the proxies, these tests
+  // become the regression guard. Today each one is EXPECTED TO FAIL —
+  // they pin the daemon contract we want, not the workarounds we
+  // shipped.
+  //
+  // To verify the proxies are gone:
+  //   flutter test test/carbon_grpc_service_test.dart
+  // — failing tests below = proxy still in use.
+  // ──────────────────────────────────────────────────────────────────
+
+  test(
+    'PROXY GAP #1: wire SteerApplied event surfaces on the broadcast stream',
+    () async {
+      // Today: `_handleEvent` has no `body.hasSteerApplied()` branch —
+      // SteerApplied wire events are silently dropped. The UI's
+      // pending-slot release ends up keyed on the NEXT TurnCompleted
+      // (a proxy, not the real signal). When carbon's agent_loop
+      // starts emitting SteerApplied, chat-ui should add a
+      // `CarbonSteerApplied` variant and dispatch it here.
+      final events = <CarbonEvent>[];
+      final sub = svc.events.listen(events.add);
+      try {
+        svc.debugHandleEvent(
+          event_v2.Event(
+            body: event_v2.EventBody(
+              steerApplied: event_v2.SteerApplied(
+                turnId: 'turn-1',
+                clientRequestId: 'req-1',
+              ),
+            ),
+          ),
+        );
+        await Future.delayed(Duration.zero);
+        expect(
+          events,
+          isNotEmpty,
+          reason:
+              'wire SteerApplied should reach the broadcast stream so the '
+              'pending-slot UI can resolve on the real signal instead of '
+              'the next TurnCompleted',
+        );
+      } finally {
+        await sub.cancel();
+      }
+    },
+  );
+
+  test(
+    'PROXY GAP #2: same-turn TurnCompleted (validation continuation) emits once',
+    () async {
+      // Today: every wire TurnCompleted → CarbonTurnComplete on the
+      // broadcast stream → the UI's _finalizeActiveReply runs each
+      // time → one user prompt produces N agent bubbles for N
+      // agent_loop rounds (the "validation continuation duplicate
+      // bubble" symptom we hit live). Chat-ui should collapse
+      // continuation rounds: only ONE user-visible finalization per
+      // logical turn (= per ThreadCompleted, or via phase=FinalAnswer).
+      final completes = <CarbonTurnComplete>[];
+      final sub = svc.events.listen((e) {
+        if (e is CarbonTurnComplete) completes.add(e);
+      });
+      try {
+        // Round 1 end (Commentary phase — not the final answer yet)
+        svc.debugHandleEvent(
+          event_v2.Event(
+            body: event_v2.EventBody(
+              turnCompleted: event_v2.TurnCompleted(turnId: 'turn-A'),
+            ),
+          ),
+        );
+        // Round 2 end (still Commentary)
+        svc.debugHandleEvent(
+          event_v2.Event(
+            body: event_v2.EventBody(
+              turnCompleted: event_v2.TurnCompleted(turnId: 'turn-A'),
+            ),
+          ),
+        );
+        // Round 3 end — the FINAL one
+        svc.debugHandleEvent(
+          event_v2.Event(
+            body: event_v2.EventBody(
+              turnCompleted: event_v2.TurnCompleted(turnId: 'turn-A'),
+            ),
+          ),
+        );
+        await Future.delayed(Duration.zero);
+        expect(
+          completes.length,
+          equals(1),
+          reason:
+              'Continuation rounds inside one logical turn should NOT each '
+              'trigger a user-visible turn completion. UI should only '
+              'finalize on the final phase or on ThreadCompleted.',
+        );
+      } finally {
+        await sub.cancel();
+      }
+    },
+  );
+
+  test(
+    'PROXY GAP #3: SubmitResponse.disposition=QUEUED is observably distinct',
+    () async {
+      // Today: _handleSubmitResponse only branches on DROPPED →
+      // CarbonError. STEERED and QUEUED both fall through into the
+      // generic `turnId.isNotEmpty` setter — the UI has no way to
+      // tell whether the daemon queued the prompt for after the
+      // current thread vs. injected it into the in-flight turn. The
+      // 1-slot pending UI uses a client-side `_currentTurnId` proxy
+      // to guess. When carbon's disposition reporting lands, chat-ui
+      // should expose the disposition to the UI somehow (CarbonEvent
+      // variant or a getter); pinning here so it doesn't get lost
+      // again.
+      final events = <CarbonEvent>[];
+      final sub = svc.events.listen(events.add);
+      try {
+        svc.debugHandleSubmitResponse(
+          ingress_v2.SubmitResponse(
+            disposition: ingress_enum.Disposition.DISPOSITION_QUEUED,
+            clientRequestId: 'req-queued-1',
+          ),
+        );
+        await Future.delayed(Duration.zero);
+        expect(
+          events.any((e) =>
+              // Whatever shape chat-ui picks (a new CarbonEvent
+              // variant, a CarbonError-with-code="QUEUED", etc.), it
+              // must reach the UI somehow.
+              e is! CarbonTextDelta && e is! CarbonToolUseStart),
+          isTrue,
+          reason:
+              'A daemon-reported QUEUED disposition must surface as a '
+              'distinct CarbonEvent so the pending-slot UI doesn\'t have '
+              'to guess via _currentTurnId.',
+        );
+      } finally {
+        await sub.cancel();
+      }
+    },
+  );
 }

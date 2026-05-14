@@ -56,6 +56,48 @@ class CarbonTurnComplete extends CarbonEvent {
   CarbonTurnComplete({this.usageJson, this.turnId = ''});
 }
 
+/// Daemon confirmed a steer landed on the in-flight turn (drained at a
+/// round boundary, queued item was injected into the loop). Carries the
+/// originating client_request_id so the 1-slot pending UI can release
+/// the right submission. Fires BEFORE the next TurnCompleted of the
+/// turn that absorbed the steer.
+class CarbonSteerApplied extends CarbonEvent {
+  final String turnId;
+  final String clientRequestId;
+  CarbonSteerApplied(this.turnId, this.clientRequestId);
+}
+
+/// Daemon could not land a steer on the originally-targeted turn (turn
+/// ended mid-race / late-recovery re-injection). [reason] is daemon-
+/// supplied free text. The submission may have been re-routed; the UI
+/// should release the pending slot but warn the user that the message
+/// may surface in a later turn.
+class CarbonSteerFailed extends CarbonEvent {
+  final String turnId;
+  final String clientRequestId;
+  final String reason;
+  CarbonSteerFailed(this.turnId, this.clientRequestId, this.reason);
+}
+
+/// Submit returned with QUEUED disposition — the daemon was busy and
+/// parked the prompt in its post-thread queue. No turn_id yet (assigned
+/// when the queued submission pops as a fresh turn — that arrives as a
+/// TurnStarted with the matching client_request_id).
+class CarbonSubmitQueued extends CarbonEvent {
+  final String clientRequestId;
+  CarbonSubmitQueued(this.clientRequestId);
+}
+
+/// Submit returned with STEERED disposition — daemon accepted the
+/// prompt into the steer queue of the currently-running turn. Distinct
+/// from STARTED_NOW so the UI can show "queued for mid-turn injection"
+/// vs "just started its own turn". [turnId] is the in-flight turn id.
+class CarbonSubmitSteered extends CarbonEvent {
+  final String turnId;
+  final String clientRequestId;
+  CarbonSubmitSteered(this.turnId, this.clientRequestId);
+}
+
 /// New turn started. The [clientRequestId] echoes whatever was on the
 /// originating SubmitRequest, which is how a chat client tells "this is
 /// the turn for my queued prompt." Sources other than the chat client
@@ -135,13 +177,13 @@ class CarbonGrpcService {
   // ignore: unused_field
   bool _isConnecting = false;
 
-  /// Optimistic client-side "is the daemon currently processing a turn?"
-  /// flag. Set on every successful Submit (so the very next submit in
-  /// the same ~ms window already sees turn-busy without having to wait
-  /// for the TurnStarted event to round-trip). Cleared on TurnCompleted.
-  /// Backstops `_currentTurnId`, which can lag behind reality when the
-  /// daemon was already busy at reconnect time (live-tail Subscribe
-  /// misses the TurnStarted of an in-progress turn).
+  /// "Daemon told us it's busy with someone else's turn" flag. Set only
+  /// when SubmitResponse.disposition == QUEUED (turn_id stays null in
+  /// that case — the daemon parked us behind an in-flight turn).
+  /// Cleared on TurnCompleted of the prior turn, TurnStarted (a new
+  /// turn — ours or another — began), ThreadCompleted, SessionEnded,
+  /// disconnect. Used together with `_currentTurnId` to compute
+  /// `isTurnBusy` without relying on a TurnStarted round-trip.
   bool _clientThinksTurnBusy = false;
 
   /// True iff the daemon is processing a turn for this session, as far
@@ -161,6 +203,12 @@ class CarbonGrpcService {
   /// from TurnStarted/MessageDelta events as a backstop. Cleared on
   /// TurnCompleted / turn-Error / interrupt / SessionEnded / disconnect.
   String? _currentTurnId;
+
+  /// Last turn_id that produced a user-visible CarbonTurnComplete. Same-turn
+  /// TurnCompleted events (validation continuation rounds) are swallowed so
+  /// the UI only finalizes once per logical turn. Reset on TurnStarted (new
+  /// turn), ThreadCompleted, SessionEnded, disconnect.
+  String? _lastFinalizedTurnId;
 
   /// {client_request_id -> turn_id} so sendMessage() can filter events that
   /// belong to other prompts in the same turn. Populated on SubmitResponse,
@@ -333,12 +381,38 @@ class CarbonGrpcService {
       );
     } else if (body.hasTurnCompleted()) {
       final c = body.turnCompleted;
+      // Validation continuation: the daemon emits one TurnCompleted per
+      // agent_loop round (one logical turn can span many rounds when the
+      // LLM keeps calling tools / validating). Surface only the first per
+      // turn_id so the UI finalizes once. The dedupe key resets on
+      // TurnStarted (new logical turn) / ThreadCompleted / SessionEnded
+      // / disconnect.
+      if (c.turnId == _lastFinalizedTurnId) {
+        print('DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId} (continuation round — swallowed)');
+        return;
+      }
+      _lastFinalizedTurnId = c.turnId;
       print('DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId}');
       _clearCorrelationForTurn(c.turnId);
-      if (_currentTurnId == c.turnId) _currentTurnId = null;
+      if (_currentTurnId == c.turnId) {
+        _currentTurnId = null;
+        _clientThinksTurnBusy = false;
+      }
       _eventController.add(
         CarbonTurnComplete(usageJson: c.usage.usageJson, turnId: c.turnId),
       );
+    } else if (body.hasSteerApplied()) {
+      final s = body.steerApplied;
+      print(
+        'DEBUG: [CarbonGrpc] SteerApplied turn=${s.turnId} req=${s.clientRequestId}',
+      );
+      _eventController.add(CarbonSteerApplied(s.turnId, s.clientRequestId));
+    } else if (body.hasSteerFailed()) {
+      final s = body.steerFailed;
+      print(
+        'DEBUG: [CarbonGrpc] SteerFailed turn=${s.turnId} req=${s.clientRequestId} reason=${s.reason}',
+      );
+      _eventController.add(CarbonSteerFailed(s.turnId, s.clientRequestId, s.reason));
     } else if (body.hasError()) {
       final err = body.error;
       _eventController.add(CarbonError(err.code, err.message, err.fatal));
@@ -351,6 +425,8 @@ class CarbonGrpcService {
       _eventController.add(CarbonSessionEnded(body.sessionEnded.reason));
       _correlation.clear();
       _currentTurnId = null;
+      _lastFinalizedTurnId = null;
+      _clientThinksTurnBusy = false;
       _isReady = false;
     } else if (body.hasToolApprovalRequest()) {
       final a = body.toolApprovalRequest;
@@ -375,6 +451,12 @@ class CarbonGrpcService {
       // turn, but daemon-originated turns — sub-agent, schedule — only
       // surface here).
       _currentTurnId = t.turnId;
+      // A new logical turn — release the finalize-dedupe so the next
+      // TurnCompleted is allowed through.
+      _lastFinalizedTurnId = null;
+      // Daemon-originated turn means it's busy now; clear any stale
+      // "we thought it might still be busy" flag.
+      _clientThinksTurnBusy = false;
       if (t.clientRequestId.isNotEmpty) {
         _correlation[t.clientRequestId] = t.turnId;
       }
@@ -390,6 +472,9 @@ class CarbonGrpcService {
     } else if (body.hasThreadCompleted()) {
       final tc = body.threadCompleted;
       print('DEBUG: [CarbonGrpc] ThreadCompleted ${tc.threadId}');
+      // Thread done — any future TurnCompleted will be on a different turn.
+      _lastFinalizedTurnId = null;
+      _clientThinksTurnBusy = false;
       _eventController.add(CarbonThreadComplete(tc.threadId));
     } else if (body.hasScheduleChanged()) {
       print(
@@ -456,6 +541,8 @@ class CarbonGrpcService {
     _isReady = false;
     _sessionId = null;
     _currentTurnId = null;
+    _lastFinalizedTurnId = null;
+    _clientThinksTurnBusy = false;
     _correlation.clear();
     _discardingOldTurnEvents = false;
     try {
@@ -528,11 +615,6 @@ class CarbonGrpcService {
     try {
       final resp = await _ingressClient!.submit(req);
       _handleSubmitResponse(resp);
-      // Optimistic turn-busy: regardless of what disposition the daemon
-      // says, we just handed it a prompt — assume it'll be busy until
-      // we see a TurnCompleted. Closes the gap where _currentTurnId is
-      // still null because TurnStarted hasn't round-tripped yet.
-      _clientThinksTurnBusy = true;
       return clientRequestId;
     } catch (e) {
       print('DEBUG: [CarbonGrpc] Submit RPC error: $e');
@@ -555,6 +637,16 @@ class CarbonGrpcService {
       );
       return;
     }
+    // QUEUED: daemon was busy with someone else's turn and parked us in
+    // the post-thread queue. No turn_id yet (assigned when the queued
+    // submission pops as a fresh turn — surfaced as TurnStarted with our
+    // client_request_id). Mark busy so isTurnBusy reflects what the
+    // daemon just told us.
+    if (resp.disposition == ingress_v2.Disposition.DISPOSITION_QUEUED) {
+      _clientThinksTurnBusy = true;
+      _eventController.add(CarbonSubmitQueued(resp.clientRequestId));
+      return;
+    }
     // STARTED_NOW and STEERED both give us an authoritative turn_id
     // synchronously — populate state before events arrive to close the
     // race window where interruptTurn() could grab a stale turn id.
@@ -564,9 +656,11 @@ class CarbonGrpcService {
         _correlation[resp.clientRequestId] = resp.turnId;
       }
     }
-    // QUEUED: no turn_id yet — the daemon will assign one when the queued
-    // turn starts (a TurnStarted event carrying our clientRequestId will
-    // populate the map then).
+    // STEERED gets its own event so the UI knows the prompt landed on the
+    // existing turn's steer queue (vs. STARTED_NOW = its own fresh turn).
+    if (resp.disposition == ingress_v2.Disposition.DISPOSITION_STEERED) {
+      _eventController.add(CarbonSubmitSteered(resp.turnId, resp.clientRequestId));
+    }
   }
 
   /// Back-compat wrapper around sendPrompt + events. Yields events until

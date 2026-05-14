@@ -377,14 +377,48 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonTurnComplete():
-        // Steer slot release: a round just finished — the daemon drained
-        // its steer queue at this round's boundary, so if we have a
-        // pending steer, it's now in-flight. Materialize the bubble and
-        // unlock input.
-        if (_pending != null && _pending!.steer) {
-          _resolvePending('TurnComplete (steer drained)');
-        }
+        // No pending resolve here anymore — SteerApplied is the real
+        // signal (fires at the round boundary BEFORE this turn-end).
+        // ThreadComplete remains the safety net if SteerApplied never
+        // arrives (e.g. turn ended mid-race before drain).
         _finalizeActiveReply();
+        break;
+
+      case CarbonSteerApplied(:final clientRequestId):
+        // Real signal from the daemon: the steer queue drained at a
+        // round boundary and our prompt is now in the live agent loop.
+        // Release the pending slot iff this confirmation is for our
+        // submission (other clients can steer the same turn).
+        if (_pending != null &&
+            _pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _resolvePending('SteerApplied');
+        }
+        break;
+
+      case CarbonSteerFailed(:final clientRequestId, :final reason):
+        // Daemon couldn't land the steer on the originally-targeted
+        // turn (typically late-recovery re-injection). The submission
+        // is preserved on the daemon side — it'll surface in a later
+        // turn — so release the slot and tell the user it slipped.
+        if (_pending != null &&
+            _pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _resolvePending('SteerFailed: $reason');
+        }
+        break;
+
+      case CarbonSubmitQueued():
+        // No UI action: the pending bubble was already placed
+        // synchronously inside _handleSend. It'll resolve later when
+        // the queued submission pops as a fresh TurnStarted (matched
+        // by client_request_id below).
+        break;
+
+      case CarbonSubmitSteered():
+        // No UI action: this is the wire receipt of "daemon accepted
+        // into steer queue". The user-visible release happens later on
+        // CarbonSteerApplied (drained at round boundary).
         break;
 
       case CarbonTurnStarted(:final clientRequestId):
@@ -398,12 +432,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonThreadComplete():
-        // Safety net: if a pending steer never got drained (turn ended
-        // without another round), free the slot here so the user isn't
-        // stuck. The submission was sent to the daemon — it'll surface
-        // in a future turn via the reinject path.
+        // Safety net 1: if a pending submission never resolved (steer
+        // dropped on the floor, queue never popped), free the slot.
         if (_pending != null) {
           _resolvePending('ThreadComplete (safety net)');
+        }
+        // Safety net 2: a trailing un-finalized bubble (single mode +
+        // validation continuation: the dedupe swallows round-2+
+        // TurnCompleted, so a round-2 bubble keeps isWaiting=true
+        // until thread end seals it).
+        if (_activeReplyIndex != null) {
+          _finalizeActiveReply();
         }
         break;
 
