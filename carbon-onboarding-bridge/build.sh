@@ -1,39 +1,28 @@
 #!/usr/bin/env bash
 # Build script for carbon-onboarding-bridge.
 #
+# ÀüÁ¦: cargo tizenÀ¸·Î ¹Ì¸® ºôµåÇÑ RPMÀÌ tizen/rpm/sources/ ¿¡ ÀÖ¾î¾ß ÇÕ´Ï´Ù.
+#   ¾øÀ¸¸é cargo tizen build --release ¸¦ ÀÚµ¿À¸·Î ½ÇÇàÇÏ¿© »ý¼ºÀ» ½ÃµµÇÕ´Ï´Ù.
+#
 # Steps:
-#   1. Cross-compile Rust binary for the target architecture.
-#   2. Stage the binary into tizen/rpm/sources/.
-#   3a. (GBS available)   Run gbs build to produce an RPM.
-#   3b. (GBS unavailable) Run rpmbuild directly using tizen/rpm/ spec.
-#   4. Copy the RPM to packaging/ and optionally to a USB drive.
+#   1. tizen/rpm/sources/{arch}.rpm Á¸Àç È®ÀÎ (¾øÀ¸¸é cargo tizen build)
+#   2. git staging + commit (GBS tarball¿¡ RPM Æ÷ÇÔ)
+#   3. gbs build -A {arch} ·Î Tizen RPM »ý¼º
+#   4. »ý¼ºµÈ RPMÀ» packaging/ ¹× USB(ÀÖÀ» °æ¿ì)¿¡ º¹»ç
 #
 # Usage:
-#   ./build.sh                    # armv7l (default), auto-detect gbs/rpmbuild
+#   ./build.sh                    # armv7l (default)
 #   ARCH=aarch64 ./build.sh       # aarch64
 #   USB_DIR=/path ./build.sh
 
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AI_OS_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 PACKAGING_DIR="$ROOT_DIR/packaging"
 SOURCES_DIR="$ROOT_DIR/tizen/rpm/sources"
 APP_NAME="carbon-onboarding-bridge"
 ARCH="${ARCH:-armv7l}"
 USB_DIR="${USB_DIR:-/media/hoon/C052-0E64/move}"
-
-# Rust cross-compile targets
-declare -A RUST_TARGETS=(
-    [armv7l]="armv7-unknown-linux-gnueabihf"
-    [aarch64]="aarch64-unknown-linux-gnu"
-)
-
-# Staged binary name (aarch64 gets a suffix to keep both in sources/)
-declare -A STAGED_NAMES=(
-    [armv7l]="$APP_NAME"
-    [aarch64]="$APP_NAME.aarch64"
-)
 
 log()  { printf '[build.sh] %s\n' "$*"; }
 fail() { printf '[build.sh] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -41,6 +30,34 @@ warn() { printf '[build.sh] WARNING: %s\n' "$*" >&2; }
 
 require_cmd() {
     command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+get_version() {
+    grep '^version' "$ROOT_DIR/Cargo.toml" | head -1 | sed 's/.*= *"\(.*\)"/\1/'
+}
+
+source_rpm_path() {
+    local arch="$1"
+    local version; version="$(get_version)"
+    echo "${SOURCES_DIR}/${APP_NAME}-${version}-1.${arch}.rpm"
+}
+
+ensure_rpm() {
+    local arch="$1"
+    local rpm; rpm="$(source_rpm_path "$arch")"
+
+    if [[ -f "$rpm" ]]; then
+        log "$arch RPM found: $rpm"
+        return 0
+    fi
+
+    log "$arch RPM not found ? running cargo tizen build --release"
+    require_cmd cargo
+
+    ARCH="$arch" cargo tizen build --release
+
+    [[ -f "$rpm" ]] || fail \
+        "$arch RPM still not found after build.\nExpected: $rpm\nPlace the cargo-tizen RPM output at this path."
 }
 
 ensure_git_repo() {
@@ -59,6 +76,8 @@ stage_and_commit_git() {
     git -C "$ROOT_DIR" add \
         build.rs Cargo.toml Cargo.lock \
         proto src packaging tizen build.sh
+    # RPMÀº gitignore ´ë»óÀÌ¹Ç·Î force-add (GBS tarball¿¡ Æ÷ÇÔ½ÃÅ°±â À§ÇØ)
+    git -C "$ROOT_DIR" add -f "$(source_rpm_path "$ARCH")"
 
     if git -C "$ROOT_DIR" diff --cached --quiet --exit-code; then
         log "no staged changes, reusing existing HEAD"
@@ -70,48 +89,48 @@ stage_and_commit_git() {
     git -C "$ROOT_DIR" commit -m "$msg"
 }
 
-find_latest_rpm() {
+find_gbs_rpm() {
     find "$HOME/GBS-ROOT" -type f -name "${APP_NAME}-*.${ARCH}.rpm" \
         ! -name "${APP_NAME}-debugsource-*.${ARCH}.rpm" \
         ! -name "${APP_NAME}-debuginfo-*.${ARCH}.rpm" \
         -print 2>/dev/null | sort | tail -n 1
 }
 
-build_with_rpmbuild() {
-    require_cmd rpmbuild
+main() {
+    [[ -d "$PACKAGING_DIR" ]] || fail "packaging directory not found: $PACKAGING_DIR"
+    [[ -d "$SOURCES_DIR" ]]   || fail "sources directory not found: $SOURCES_DIR"
 
-    local spec="$ROOT_DIR/tizen/rpm/${APP_NAME}.spec"
-    local rpmbuild_root="$ROOT_DIR/target/rpmbuild"
-    local version; version="$(grep '^version' "$ROOT_DIR/Cargo.toml" | head -1 | sed 's/.*= *"\(.*\)"/\1/')"
-    local release=1
+    require_cmd gbs
+    require_cmd git
 
-    log "building RPM with rpmbuild (arch=$ARCH, version=$version)"
+    # Step 1: ¼Ò½º RPM È®ÀÎ (¾øÀ¸¸é cargo tizen build ½Ãµµ)
+    ensure_rpm "$ARCH"
 
-    # Set up rpmbuild directory tree
-    mkdir -p "$rpmbuild_root"/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
+    # Step 2: git staging + commit
+    local stamp_file
+    stamp_file="$(mktemp)"
+    trap 'rm -f "$stamp_file"' EXIT
+    stage_and_commit_git
 
-    # Stage sources expected by tizen/rpm spec (Source0~Source3)
-    cp -f "${SOURCES_DIR}/${STAGED_NAMES[$ARCH]}"                     "$rpmbuild_root/SOURCES/${APP_NAME}"
-    cp -f "$PACKAGING_DIR/${APP_NAME}.service"                        "$rpmbuild_root/SOURCES/${APP_NAME}.service"
-    cp -f "$PACKAGING_DIR/carbon-daemon-config-watch.path"            "$rpmbuild_root/SOURCES/carbon-daemon-config-watch.path"
-    cp -f "$PACKAGING_DIR/carbon-daemon-config-reload.service"        "$rpmbuild_root/SOURCES/carbon-daemon-config-reload.service"
-    cp -f "$spec"                                     "$rpmbuild_root/SPECS/"
+    # Step 3: GBS ºôµå
+    log "running gbs build for arch=$ARCH"
+    touch "$stamp_file"
+    gbs build -A "$ARCH" --include-all --clean
 
-    rpmbuild \
-        --define "_topdir $rpmbuild_root" \
-        --define "_target_cpu $ARCH" \
-        --target "$ARCH" \
-        -bb "$rpmbuild_root/SPECS/${APP_NAME}.spec"
-
+    # Step 4: °á°ú RPM ¼öÁý
     local rpm_path
-    rpm_path="$(find "$rpmbuild_root/RPMS" -name "${APP_NAME}-*.rpm" \
-        ! -name "${APP_NAME}-debuginfo-*.rpm" \
-        -print | sort | tail -n 1)"
-    [[ -n "$rpm_path" ]] || fail "rpmbuild did not produce an RPM"
+    rpm_path="$(find "$HOME/GBS-ROOT" -type f -name "${APP_NAME}-*.${ARCH}.rpm" \
+        ! -name "${APP_NAME}-debugsource-*.${ARCH}.rpm" \
+        ! -name "${APP_NAME}-debuginfo-*.${ARCH}.rpm" \
+        -newer "$stamp_file" -print 2>/dev/null | sort | tail -n 1 || true)"
+    [[ -n "$rpm_path" ]] || rpm_path="$(find_gbs_rpm)"
+    [[ -n "$rpm_path" ]] || fail "built RPM not found under $HOME/GBS-ROOT"
 
     local packaging_rpm="$PACKAGING_DIR/$(basename "$rpm_path")"
-    log "copying RPM to packaging/: $packaging_rpm"
-    cp -f "$rpm_path" "$packaging_rpm"
+    [[ "$rpm_path" == "$packaging_rpm" ]] || {
+        log "copying RPM to packaging/: $packaging_rpm"
+        cp -f "$rpm_path" "$packaging_rpm"
+    }
 
     if [[ -d "$USB_DIR" ]]; then
         log "copying RPM to USB: $USB_DIR"
@@ -121,76 +140,7 @@ build_with_rpmbuild() {
     fi
 
     log "done"
-    log "RPM: $packaging_rpm"
-}
-
-cross_compile() {
-    local rust_target="${RUST_TARGETS[$ARCH]:-}"
-    [[ -n "$rust_target" ]] || fail "unsupported ARCH=$ARCH (supported: ${!RUST_TARGETS[*]})"
-
-    require_cmd cargo
-
-    log "cross-compiling for $ARCH ($rust_target)"
-    cargo build --release --target "$rust_target" --manifest-path "$ROOT_DIR/Cargo.toml"
-
-    local built="$ROOT_DIR/target/$rust_target/release/$APP_NAME"
-    [[ -f "$built" ]] || fail "expected binary not found: $built"
-
-    local staged="${SOURCES_DIR}/${STAGED_NAMES[$ARCH]}"
-    log "staging binary: $staged"
-    cp -f "$built" "$staged"
-    chmod 0755 "$staged"
-}
-
-main() {
-    require_cmd cargo
-    [[ -d "$PACKAGING_DIR" ]] || fail "packaging directory not found: $PACKAGING_DIR"
-    [[ -d "$SOURCES_DIR" ]]   || fail "sources directory not found: $SOURCES_DIR"
-
-    # Step 1: cross-compile
-    cross_compile
-
-    if command -v gbs >/dev/null 2>&1; then
-        # Step 2a: GBS path
-        require_cmd git
-
-        local stamp_file
-        stamp_file="$(mktemp)"
-        trap 'rm -f "$stamp_file"' EXIT
-        stage_and_commit_git
-
-        log "running gbs build for arch=$ARCH"
-        touch "$stamp_file"
-        gbs build -A "$ARCH" --include-all --clean
-
-        local rpm_path
-        rpm_path="$(find "$HOME/GBS-ROOT" -type f -name "${APP_NAME}-*.${ARCH}.rpm" \
-            ! -name "${APP_NAME}-debugsource-*.${ARCH}.rpm" \
-            ! -name "${APP_NAME}-debuginfo-*.${ARCH}.rpm" \
-            -newer "$stamp_file" -print 2>/dev/null | sort | tail -n 1 || true)"
-        [[ -n "$rpm_path" ]] || rpm_path="$(find_latest_rpm)"
-        [[ -n "$rpm_path" ]] || fail "built RPM not found under $HOME/GBS-ROOT"
-
-        local packaging_rpm="$PACKAGING_DIR/$(basename "$rpm_path")"
-        [[ "$rpm_path" == "$packaging_rpm" ]] || {
-            log "copying RPM to packaging/: $packaging_rpm"
-            cp -f "$rpm_path" "$packaging_rpm"
-        }
-
-        if [[ -d "$USB_DIR" ]]; then
-            log "copying RPM to USB: $USB_DIR"
-            cp -f "$rpm_path" "$USB_DIR/"
-        else
-            warn "USB directory not found: $USB_DIR (skipping)"
-        fi
-
-        log "done"
-        log "RPM: $rpm_path"
-    else
-        # Step 2b: rpmbuild fallback (no GBS)
-        warn "gbs not found â€” falling back to rpmbuild"
-        build_with_rpmbuild
-    fi
+    log "RPM: $rpm_path"
 }
 
 main "$@"
