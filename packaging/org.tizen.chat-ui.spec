@@ -33,7 +33,7 @@ mkdir -p %{buildroot}/%{preload_tpk_path}
 # Install TPK and carbon-onboarding-bridge from pre-built RPM
 %ifarch %{arm}
 install packaging/arm/%{internal_name}-%{version}.tpk %{buildroot}/%{preload_tpk_path}/
-unrpm packaging/arm//%{bridge_name}-0.1.0-1.armv7l.rpm
+unrpm packaging/arm/%{bridge_name}-0.1.0-1.armv7l.rpm
 %else
 install packaging/arm64/%{internal_name}-%{version}.tpk %{buildroot}/%{preload_tpk_path}/
 unrpm packaging/arm64/%{bridge_name}-0.1.0-1.aarch64.rpm
@@ -57,22 +57,6 @@ ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path \
        %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
 
 %post
-systemctl daemon-reload || :
-systemctl enable %{bridge_name}.service || :
-systemctl start %{bridge_name}.service || :
-systemctl enable carbon-daemon-config-watch.path || :
-systemctl start carbon-daemon-config-watch.path || :
-
-%preun
-if [ "$1" = "0" ]; then
-    systemctl stop carbon-daemon-config-watch.path || :
-    systemctl disable carbon-daemon-config-watch.path || :
-    systemctl stop %{bridge_name}.service || :
-    systemctl disable %{bridge_name}.service || :
-fi
-
-%postun
-systemctl daemon-reload || :
 
 %files
 %defattr(-,root,root,-)
