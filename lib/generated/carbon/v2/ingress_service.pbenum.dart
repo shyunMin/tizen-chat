@@ -1,6 +1,6 @@
 // This is a generated file - do not edit.
 //
-// Generated from carbon/v1/agent.proto.
+// Generated from carbon/v2/ingress_service.proto.
 
 // @dart = 3.3
 
@@ -14,7 +14,6 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
-/// Intent for a structured ingress message.
 class IngressIntent extends $pb.ProtobufEnum {
   static const IngressIntent INGRESS_INTENT_UNSPECIFIED =
       IngressIntent._(0, _omitEnumNames ? '' : 'INGRESS_INTENT_UNSPECIFIED');
@@ -40,7 +39,74 @@ class IngressIntent extends $pb.ProtobufEnum {
   const IngressIntent._(super.value, super.name);
 }
 
-/// Decision for tool approval requests.
+class Disposition extends $pb.ProtobufEnum {
+  static const Disposition DISPOSITION_UNSPECIFIED =
+      Disposition._(0, _omitEnumNames ? '' : 'DISPOSITION_UNSPECIFIED');
+
+  /// No in-flight turn — new turn started. turn_id set.
+  static const Disposition DISPOSITION_STARTED_NOW =
+      Disposition._(1, _omitEnumNames ? '' : 'DISPOSITION_STARTED_NOW');
+
+  /// Injection scheduled into in-flight turn. turn_id = in-flight turn.
+  static const Disposition DISPOSITION_STEERED =
+      Disposition._(2, _omitEnumNames ? '' : 'DISPOSITION_STEERED');
+
+  /// Queued behind in-flight turn. turn_id = "" (assigned later).
+  static const Disposition DISPOSITION_QUEUED =
+      Disposition._(3, _omitEnumNames ? '' : 'DISPOSITION_QUEUED');
+
+  /// intent=OBSERVE — recorded only, no turn or steer side effects.
+  static const Disposition DISPOSITION_OBSERVED =
+      Disposition._(4, _omitEnumNames ? '' : 'DISPOSITION_OBSERVED');
+
+  /// Mailbox DropIfBusy fired.
+  static const Disposition DISPOSITION_DROPPED =
+      Disposition._(5, _omitEnumNames ? '' : 'DISPOSITION_DROPPED');
+
+  static const $core.List<Disposition> values = <Disposition>[
+    DISPOSITION_UNSPECIFIED,
+    DISPOSITION_STARTED_NOW,
+    DISPOSITION_STEERED,
+    DISPOSITION_QUEUED,
+    DISPOSITION_OBSERVED,
+    DISPOSITION_DROPPED,
+  ];
+
+  static final $core.List<Disposition?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 5);
+  static Disposition? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const Disposition._(super.value, super.name);
+}
+
+class InterruptMode extends $pb.ProtobufEnum {
+  static const InterruptMode INTERRUPT_MODE_UNSPECIFIED =
+      InterruptMode._(0, _omitEnumNames ? '' : 'INTERRUPT_MODE_UNSPECIFIED');
+
+  /// Cancel the entire turn; pending steers dropped.
+  static const InterruptMode INTERRUPT_MODE_HARD =
+      InterruptMode._(1, _omitEnumNames ? '' : 'INTERRUPT_MODE_HARD');
+
+  /// Cancel only the in-flight tool call, immediately apply pending steers,
+  /// then continue the same turn. Slice 11b — design TBD.
+  static const InterruptMode INTERRUPT_MODE_SOFT =
+      InterruptMode._(2, _omitEnumNames ? '' : 'INTERRUPT_MODE_SOFT');
+
+  static const $core.List<InterruptMode> values = <InterruptMode>[
+    INTERRUPT_MODE_UNSPECIFIED,
+    INTERRUPT_MODE_HARD,
+    INTERRUPT_MODE_SOFT,
+  ];
+
+  static final $core.List<InterruptMode?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static InterruptMode? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const InterruptMode._(super.value, super.name);
+}
+
 class ApprovalDecision extends $pb.ProtobufEnum {
   static const ApprovalDecision APPROVAL_DECISION_UNSPECIFIED =
       ApprovalDecision._(
@@ -66,64 +132,6 @@ class ApprovalDecision extends $pb.ProtobufEnum {
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const ApprovalDecision._(super.value, super.name);
-}
-
-/// Schedule action type.
-class ScheduleAction extends $pb.ProtobufEnum {
-  static const ScheduleAction SCHEDULE_ACTION_UNSPECIFIED =
-      ScheduleAction._(0, _omitEnumNames ? '' : 'SCHEDULE_ACTION_UNSPECIFIED');
-  static const ScheduleAction SCHEDULE_ACTION_SET =
-      ScheduleAction._(1, _omitEnumNames ? '' : 'SCHEDULE_ACTION_SET');
-  static const ScheduleAction SCHEDULE_ACTION_PAUSE =
-      ScheduleAction._(2, _omitEnumNames ? '' : 'SCHEDULE_ACTION_PAUSE');
-  static const ScheduleAction SCHEDULE_ACTION_RESUME =
-      ScheduleAction._(3, _omitEnumNames ? '' : 'SCHEDULE_ACTION_RESUME');
-  static const ScheduleAction SCHEDULE_ACTION_REMOVE =
-      ScheduleAction._(4, _omitEnumNames ? '' : 'SCHEDULE_ACTION_REMOVE');
-  static const ScheduleAction SCHEDULE_ACTION_LIST =
-      ScheduleAction._(5, _omitEnumNames ? '' : 'SCHEDULE_ACTION_LIST');
-
-  static const $core.List<ScheduleAction> values = <ScheduleAction>[
-    SCHEDULE_ACTION_UNSPECIFIED,
-    SCHEDULE_ACTION_SET,
-    SCHEDULE_ACTION_PAUSE,
-    SCHEDULE_ACTION_RESUME,
-    SCHEDULE_ACTION_REMOVE,
-    SCHEDULE_ACTION_LIST,
-  ];
-
-  static final $core.List<ScheduleAction?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 5);
-  static ScheduleAction? valueOf($core.int value) =>
-      value < 0 || value >= _byValue.length ? null : _byValue[value];
-
-  const ScheduleAction._(super.value, super.name);
-}
-
-/// Schedule type discriminant.
-class ScheduleType extends $pb.ProtobufEnum {
-  static const ScheduleType SCHEDULE_TYPE_UNSPECIFIED =
-      ScheduleType._(0, _omitEnumNames ? '' : 'SCHEDULE_TYPE_UNSPECIFIED');
-  static const ScheduleType SCHEDULE_TYPE_INTERVAL =
-      ScheduleType._(1, _omitEnumNames ? '' : 'SCHEDULE_TYPE_INTERVAL');
-  static const ScheduleType SCHEDULE_TYPE_CRON =
-      ScheduleType._(2, _omitEnumNames ? '' : 'SCHEDULE_TYPE_CRON');
-  static const ScheduleType SCHEDULE_TYPE_ONCE =
-      ScheduleType._(3, _omitEnumNames ? '' : 'SCHEDULE_TYPE_ONCE');
-
-  static const $core.List<ScheduleType> values = <ScheduleType>[
-    SCHEDULE_TYPE_UNSPECIFIED,
-    SCHEDULE_TYPE_INTERVAL,
-    SCHEDULE_TYPE_CRON,
-    SCHEDULE_TYPE_ONCE,
-  ];
-
-  static final $core.List<ScheduleType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 3);
-  static ScheduleType? valueOf($core.int value) =>
-      value < 0 || value >= _byValue.length ? null : _byValue[value];
-
-  const ScheduleType._(super.value, super.name);
 }
 
 const $core.bool _omitEnumNames =

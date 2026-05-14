@@ -6,7 +6,9 @@ import 'dart:convert';
 import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
 import '../services/carbon_grpc_service.dart';
-import '../generated/carbon/v1/agent.pbenum.dart';
+import '../generated/carbon/v2/ingress_service.pbenum.dart';
+import '../platform/platform_flags.dart' as platform_flags;
+import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
 import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
@@ -64,7 +66,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   @override
   void initState() {
     super.initState();
-    AppControl.onAppControl.listen(_onAppControlReceived);
+    if (kIsTizen) {
+      AppControl.onAppControl.listen(_onAppControlReceived);
+    }
 
     // gRPC 의 broadcast 이벤트 스트림을 단일 핸들러로 받는다. 연결이 아직
     // 완료되지 않아도 broadcast 라 재구독 없이 이후 이벤트를 모두 받는다.
@@ -263,13 +267,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _appendDelta(content);
         break;
 
+      case CarbonMessageFinalized():
+        _onMessageFinalized(event);
+        break;
+
       case CarbonToolUseStart(:final toolName):
         _markToolUse(toolName);
         break;
 
       case CarbonToolResult():
-        // 결과 자체는 별도 버블로 안 띄움 (기존 동작 유지)
-        _activeToolName = null;
+        _onToolResult();
         break;
 
       case CarbonTurnComplete():
@@ -285,70 +292,122 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _grpcService.reconnect();
         break;
 
-      case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+      case CarbonToolApprovalRequest(:final approvalId, :final toolName):
         debugPrint(
           '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
         );
         _grpcService.approveToolCall(
-          toolCallId,
+          approvalId,
           ApprovalDecision.APPROVAL_DECISION_APPROVE,
         );
         break;
     }
   }
 
-  void _appendDelta(String content) {
-    _currentSegmentText += content;
+  // ─────────────────────────────────────────────────────────────
+  // Bubble layout — V1 (single morphing) vs V2 (multi, finalize-driven).
+  // See platform_flags.dart kBubbleMode for the build switch.
+  //
+  // Shared state:
+  //   _currentSegmentText — accumulated text of the *current* block
+  //   _activeReplyIndex   — index of the bubble currently being mutated
+  //   _activeToolName     — current tool indicator (null = none)
+  //
+  // V1: a single bubble per turn. _currentSegmentText accumulates EVERY
+  //     TextDelta in the turn; MessageFinalized is ignored for bubble
+  //     boundaries. Commentary stays visible through tool calls.
+  //
+  // V2: a bubble per finalized assistant message. MessageFinalized seals
+  //     the active bubble; the next TextDelta starts a fresh one. Tool
+  //     indicators live inside whichever bubble is active when the tool
+  //     fires.
+  // ─────────────────────────────────────────────────────────────
+
+  String _composeBubbleText() {
+    if (_activeToolName != null) {
+      return _currentSegmentText.isNotEmpty
+          ? '$_currentSegmentText\n\n🔧 $_activeToolName 실행 중...'
+          : '🔧 $_activeToolName 실행 중...';
+    }
+    return _currentSegmentText;
+  }
+
+  void _refreshActiveBubble({required bool isWaiting}) {
     setState(() {
       _isTyping = false;
+      final display = _composeBubbleText();
       if (_activeReplyIndex == null) {
+        if (display.isEmpty) return;
         _activeReplyIndex = _messages.length;
         _messages.add(
           ChatMessage(
-            text: _currentSegmentText,
+            text: display,
             type: MessageType.received,
-            isWaiting: true,
+            isWaiting: isWaiting,
           ),
         );
       } else {
         _messages[_activeReplyIndex!] = ChatMessage(
-          text: _currentSegmentText,
+          text: display,
           type: MessageType.received,
-          isWaiting: true,
+          isWaiting: isWaiting,
         );
       }
     });
     _scrollToBottom();
   }
 
+  void _appendDelta(String content) {
+    _currentSegmentText += content;
+    debugPrint(
+      '[Chat] _appendDelta(+${content.length} chars) total=${_currentSegmentText.length} '
+      'preview="${_currentSegmentText.length > 60 ? "${_currentSegmentText.substring(0, 60)}..." : _currentSegmentText}"',
+    );
+    _refreshActiveBubble(isWaiting: true);
+  }
+
   void _markToolUse(String toolName) {
+    // Both V1 and V2: tool indicator overlays the current bubble's text.
+    // CRITICAL: do NOT clear _currentSegmentText — that's the v1 bug that
+    // hid commentary. The accumulated text stays; the tool indicator
+    // appends in _composeBubbleText.
     _activeToolName = toolName;
-    // 도구 호출 직전까지 쌓인 텍스트(reasoning)를 도구 표시 아래에 붙임
-    final toolMessage = _currentSegmentText.trim();
-    _currentSegmentText = '';
-    final toolText = toolMessage.isNotEmpty
-        ? '🔧 $toolName 실행 중...\n$toolMessage'
-        : '🔧 $toolName 실행 중...';
+    _refreshActiveBubble(isWaiting: true);
+  }
+
+  void _onToolResult() {
+    // Intentionally do NOT refresh the bubble here. If the daemon is about
+    // to start another tool (typical agentic loop), refreshing now would
+    // briefly drop the tool indicator just to bring it back in a few ms,
+    // producing visible flicker for any turn with multiple tools. We just
+    // record that the active tool slot is free; the next _markToolUse
+    // will replace the indicator name in place, or the next _appendDelta /
+    // MessageFinalized / TurnComplete will repaint without it.
+    _activeToolName = null;
+  }
+
+  void _onMessageFinalized(CarbonMessageFinalized event) {
+    if (platform_flags.kBubbleMode != BubbleMode.multi) return;
+    // V2 with phase-aware sealing (option C): Commentary blocks are
+    // intermediate reasoning that interleaves with tool calls. Sealing
+    // on every Commentary makes the tool indicator vanish before the
+    // user can see it (daemon emits ToolUseStart → MessageFinalized
+    // milliseconds apart). Only seal on FinalAnswer — that's the
+    // explicit "this is the user-visible answer block" signal from the
+    // daemon. Commentary blocks keep accumulating into the same active
+    // bubble until FinalAnswer (or TurnComplete) closes it out.
+    if (!event.isFinalAnswer) return;
+    if (_activeReplyIndex == null) return;
+    _activeToolName = null;
     setState(() {
-      _isTyping = false;
-      if (_activeReplyIndex == null) {
-        _activeReplyIndex = _messages.length;
-        _messages.add(
-          ChatMessage(
-            text: toolText,
-            type: MessageType.received,
-            isWaiting: true,
-          ),
-        );
-      } else {
-        _messages[_activeReplyIndex!] = ChatMessage(
-          text: toolText,
-          type: MessageType.received,
-          isWaiting: true,
-        );
-      }
+      _messages[_activeReplyIndex!] = ChatMessage(
+        text: _currentSegmentText,
+        type: MessageType.received,
+        isWaiting: false,
+      );
     });
-    _scrollToBottom();
+    _activeReplyIndex = null;
+    _currentSegmentText = '';
   }
 
   void _finalizeActiveReply() {
@@ -363,7 +422,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _chatScrollFocusNode.requestFocus();
       return;
     }
+    debugPrint(
+      '[Chat] _finalizeActiveReply: _currentSegmentText.length=${_currentSegmentText.length} '
+      'first200="${_currentSegmentText.length > 200 ? "${_currentSegmentText.substring(0, 200)}..." : _currentSegmentText}"',
+    );
     final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
+    debugPrint(
+      '[Chat] parsed.displayType=${parsedResponse.displayType} '
+      'parsed.content.length=${parsedResponse.content.length} '
+      'parsed.first200="${parsedResponse.content.length > 200 ? "${parsedResponse.content.substring(0, 200)}..." : parsedResponse.content}"',
+    );
     setState(() {
       _isWaiting = false;
       _isTyping = false;

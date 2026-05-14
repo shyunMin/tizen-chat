@@ -7,7 +7,7 @@ import '../widgets/rich_card_message.dart';
 import '../widgets/typing_indicator.dart';
 import '../models/chat_message.dart';
 import '../services/carbon_grpc_service.dart';
-import '../generated/carbon/v1/agent.pbenum.dart';
+import '../generated/carbon/v2/ingress_service.pbenum.dart';
 import '../features/http_message_overlay/http_message_bus.dart';
 import '../services/agent_response_parser.dart';
 
@@ -124,6 +124,9 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
         }
 
         switch (event) {
+          case CarbonMessageFinalized():
+            // 이 화면은 단일 morph 버블만 쓰므로 finalized 신호는 무시 — 디버그 로그도 생략.
+            break;
           case CarbonTextDelta(:final content):
             accumulatedText += content;
             if (replyIndex == -1) {
@@ -251,10 +254,10 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
             await _grpcService.reconnect();
             return;
 
-          case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+          case CarbonToolApprovalRequest(:final approvalId, :final toolName):
             debugPrint('[Chat] ToolApprovalRequest for $toolName — auto-approving');
             _grpcService.approveToolCall(
-              toolCallId,
+              approvalId,
               ApprovalDecision.APPROVAL_DECISION_APPROVE,
             );
         }
