@@ -29,6 +29,7 @@ class SubmitRequest extends $pb.GeneratedMessage {
     ThreadTarget? thread,
     IngressOptions? options,
     $core.String? clientRequestId,
+    $core.bool? steer,
   }) {
     final result = create();
     if (sessionId != null) result.sessionId = sessionId;
@@ -37,6 +38,7 @@ class SubmitRequest extends $pb.GeneratedMessage {
     if (thread != null) result.thread = thread;
     if (options != null) result.options = options;
     if (clientRequestId != null) result.clientRequestId = clientRequestId;
+    if (steer != null) result.steer = steer;
     return result;
   }
 
@@ -63,6 +65,7 @@ class SubmitRequest extends $pb.GeneratedMessage {
     ..aOM<IngressOptions>(5, _omitFieldNames ? '' : 'options',
         subBuilder: IngressOptions.create)
     ..aOS(6, _omitFieldNames ? '' : 'clientRequestId')
+    ..aOB(7, _omitFieldNames ? '' : 'steer')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -144,6 +147,24 @@ class SubmitRequest extends $pb.GeneratedMessage {
   $core.bool hasClientRequestId() => $_has(5);
   @$pb.TagNumber(6)
   void clearClientRequestId() => $_clearField(6);
+
+  /// Client-controlled routing intent:
+  ///   true  = if a turn is in flight, inject at the next tool/result
+  ///           boundary (the steer queue). If no turn is in flight, falls
+  ///           through to MailboxPolicy → STARTED_NOW.
+  ///   false = MailboxPolicy decides. With turn in flight this lands in
+  ///           the post-thread queue (QUEUED). With no turn it starts
+  ///           immediately (STARTED_NOW).
+  /// Mirrors the runtime's IngressMessage.steer so chat clients keep
+  /// direct control over mid-turn injection vs. queue-after-thread.
+  @$pb.TagNumber(7)
+  $core.bool get steer => $_getBF(6);
+  @$pb.TagNumber(7)
+  set steer($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasSteer() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearSteer() => $_clearField(7);
 }
 
 class SubmitResponse extends $pb.GeneratedMessage {

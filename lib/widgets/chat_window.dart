@@ -225,7 +225,7 @@ class ChatWindowState extends State<ChatWindow>
 
                           switch (message.type) {
                             case MessageType.sent:
-                              messageWidget = SentMessage(text: message.text);
+                              messageWidget = SentMessage(text: message.text, isWaiting: message.isWaiting);
                               break;
                             case MessageType.received:
                               messageWidget = ReceivedMessage(
@@ -236,7 +236,7 @@ class ChatWindowState extends State<ChatWindow>
                               );
                               break;
                             default:
-                              messageWidget = SentMessage(text: message.text);
+                              messageWidget = SentMessage(text: message.text, isWaiting: message.isWaiting);
                           }
 
                           return Padding(

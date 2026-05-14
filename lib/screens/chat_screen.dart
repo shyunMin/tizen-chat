@@ -127,6 +127,10 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
           case CarbonMessageFinalized():
             // 이 화면은 단일 morph 버블만 쓰므로 finalized 신호는 무시 — 디버그 로그도 생략.
             break;
+          case CarbonTurnStarted():
+          case CarbonThreadComplete():
+            // 이 화면은 한 prompt 한 응답 흐름이라 turn/thread 경계 신호 별도 처리 불필요.
+            break;
           case CarbonTextDelta(:final content):
             accumulatedText += content;
             if (replyIndex == -1) {
@@ -388,7 +392,7 @@ class _TizenChatScreenState extends State<TizenChatScreen> {
 
                             switch (message.type) {
                               case MessageType.sent:
-                                messageWidget = SentMessage(text: message.text);
+                                messageWidget = SentMessage(text: message.text, isWaiting: message.isWaiting);
                                 break;
                               case MessageType.received:
                                 messageWidget = ReceivedMessage(

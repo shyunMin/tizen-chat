@@ -122,6 +122,7 @@ const SubmitRequest$json = {
       '10': 'options'
     },
     {'1': 'client_request_id', '3': 6, '4': 1, '5': 9, '10': 'clientRequestId'},
+    {'1': 'steer', '3': 7, '4': 1, '5': 8, '10': 'steer'},
   ],
 };
 
@@ -132,7 +133,7 @@ final $typed_data.Uint8List submitRequestDescriptor = $convert.base64Decode(
     'IAEoDjIYLmNhcmJvbi52Mi5JbmdyZXNzSW50ZW50UgZpbnRlbnQSLwoGdGhyZWFkGAQgASgLMh'
     'cuY2FyYm9uLnYyLlRocmVhZFRhcmdldFIGdGhyZWFkEjMKB29wdGlvbnMYBSABKAsyGS5jYXJi'
     'b24udjIuSW5ncmVzc09wdGlvbnNSB29wdGlvbnMSKgoRY2xpZW50X3JlcXVlc3RfaWQYBiABKA'
-    'lSD2NsaWVudFJlcXVlc3RJZA==');
+    'lSD2NsaWVudFJlcXVlc3RJZBIUCgVzdGVlchgHIAEoCFIFc3RlZXI=');
 
 @$core.Deprecated('Use submitResponseDescriptor instead')
 const SubmitResponse$json = {

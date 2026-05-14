@@ -63,6 +63,22 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   String _currentSegmentText = '';
   String? _activeToolName;
 
+  // ── Pending submission slot ───────────────────────────────────
+  // While the daemon is processing a turn, a new submission lands here
+  // instead of immediately becoming a user bubble. The slot holds at
+  // most one entry (UI constraint — see /plan-eng-review discussion).
+  // It releases when:
+  //   - steer mode:  the next CarbonTurnComplete arrives (means the
+  //                  daemon drained its steer queue at the next round
+  //                  boundary and ran another LLM call). Safety net:
+  //                  CarbonThreadComplete unconditionally clears too.
+  //   - queue mode:  CarbonTurnStarted with the matching client_request_id
+  //                  arrives (the queued submission has been popped and
+  //                  started as a new turn).
+  // On release the user bubble materializes at the bottom of the chat
+  // and the input is unlocked.
+  _PendingSubmission? _pending;
+
   @override
   void initState() {
     super.initState();
@@ -222,11 +238,83 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // 이어지는 글리치가 생긴다. 한 버블로 두면 그 트랜지션이 그냥 같은
   // 버블 안에서 자연스러운 텍스트 흐름으로 보인다.
 
-  Future<void> _handleSend(String text) async {
-    debugPrint('[Chat] _handleSend called with text: $text');
+  Future<void> _handleSend(String text, {bool steer = true}) async {
+    debugPrint(
+      '[Chat] _handleSend called: text="${text.length > 40 ? "${text.substring(0, 40)}..." : text}" steer=$steer',
+    );
 
-    final userBubble = ChatMessage(text: text, type: MessageType.sent);
+    // 1-slot pending: refuse second submissions while one is in flight.
+    if (_pending != null) {
+      debugPrint('[Chat] _handleSend ignored — pending slot occupied');
+      return;
+    }
 
+    final turnBusy = _grpcService.isTurnBusy;
+
+    if (!turnBusy) {
+      // Idle daemon → STARTED_NOW. Go straight to a finalized user bubble.
+      _materializeUserBubble(text, isWaiting: false);
+      unawaited(_grpcService.sendPrompt(text, steer: steer));
+      return;
+    }
+
+    // Turn is in flight. Submit with the chosen mode (daemon routes to
+    // its steer queue or post-thread queue). Place a "pending" user
+    // bubble in the chat right away so the user can see what's been
+    // sent — visually marked with a STEER/QUEUE prefix so the buffer
+    // it landed in is obvious. The bubble gets rewritten to clean text
+    // when the daemon's TurnComplete (steer) or TurnStarted (queue)
+    // confirms pickup.
+    final reqId = await _grpcService.sendPrompt(text, steer: steer);
+    if (reqId == null) {
+      _materializeUserBubble(text, isWaiting: false);
+      return;
+    }
+    setState(() {
+      _isVisible = true;
+      // Append the pending bubble at the END of the chat (below any
+      // active agent reply / tool indicator). Per UX spec: while
+      // waiting, the queued prompt sits visually under the agent's
+      // current activity. On resolve we leave the bubble in place —
+      // the next round's agent bubble is appended AFTER it, producing
+      // the natural "old turn → applied user prompt → new turn"
+      // reading order.
+      final index = _messages.length;
+      _messages.insert(
+        index,
+        ChatMessage(
+          text: _pendingBubbleText(text, steer),
+          type: MessageType.sent,
+          isWaiting: true,
+        ),
+      );
+      _pending = _PendingSubmission(
+        text: text,
+        reqId: reqId,
+        steer: steer,
+        submittedAt: DateTime.now(),
+        bubbleIndex: index,
+      );
+    });
+    _scrollToBottom();
+    debugPrint('[Chat] held in pending slot: $reqId');
+    _logUiSnapshot('after-pending-insert');
+  }
+
+  String _pendingBubbleText(String text, bool steer) {
+    final tag = steer ? '↪ STEER · 대기' : '⏳ QUEUE · 대기';
+    return '$tag\n$text';
+  }
+
+  /// User bubble materialization for the idle-daemon path. (The pending
+  /// path inserts its own bubble inside `_handleSend` so the pending
+  /// state is visible while it waits.)
+  void _materializeUserBubble(String text, {required bool isWaiting}) {
+    final userBubble = ChatMessage(
+      text: text,
+      type: MessageType.sent,
+      isWaiting: isWaiting,
+    );
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
@@ -234,14 +322,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
       _isVisible = true;
       _isWaiting = true;
-      // agent 버블이 이미 활성이면 새 typing 인디케이터는 띄우지 않는다
-      // (그 버블에 곧 또 delta 가 도착해 자연스럽게 이어지므로).
       if (_activeReplyIndex == null) {
         _isTyping = true;
       }
-
       if (_activeReplyIndex != null) {
-        // mid-turn: agent 버블 위에 새 user 버블 삽입.
         _messages.insert(_activeReplyIndex!, userBubble);
         _activeReplyIndex = _activeReplyIndex! + 1;
       } else {
@@ -249,14 +333,27 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
     });
     unawaited(WindowFocusService.setFocusable(false));
-    debugPrint(
-      '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
-    );
     _scrollToBottom();
+  }
 
-    // Fire-and-forget. carbon_grpc_service 가 항상 steer:true 로 전송하므로
-    // 데몬은 (a) 진행 중 turn 이면 round 경계에 inject, (b) 아니면 새 turn 시작.
-    await _grpcService.sendPrompt(text);
+  /// Daemon confirmed the pending submission has been picked up (steer
+  /// queue drained at a round boundary, or queue popped into a new turn).
+  /// Rewrite the pending bubble to clean text and clear the slot.
+  void _resolvePending(String reason) {
+    final p = _pending;
+    if (p == null) return;
+    debugPrint('[Chat] pending slot resolved ($reason): ${p.reqId} bubbleIdx=${p.bubbleIndex}');
+    setState(() {
+      if (p.bubbleIndex < _messages.length) {
+        _messages[p.bubbleIndex] = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+      }
+      _pending = null;
+    });
+    _logUiSnapshot('after-resolve($reason)');
   }
 
   void _handleAgentEvent(CarbonEvent event) {
@@ -280,14 +377,48 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonTurnComplete():
+        // Steer slot release: a round just finished — the daemon drained
+        // its steer queue at this round's boundary, so if we have a
+        // pending steer, it's now in-flight. Materialize the bubble and
+        // unlock input.
+        if (_pending != null && _pending!.steer) {
+          _resolvePending('TurnComplete (steer drained)');
+        }
         _finalizeActiveReply();
         break;
 
+      case CarbonTurnStarted(:final clientRequestId):
+        // Queue slot release: a queued submission has been popped and
+        // is starting as a new turn. Match by client_request_id.
+        if (_pending != null &&
+            !_pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _resolvePending('TurnStarted (queued popped)');
+        }
+        break;
+
+      case CarbonThreadComplete():
+        // Safety net: if a pending steer never got drained (turn ended
+        // without another round), free the slot here so the user isn't
+        // stuck. The submission was sent to the daemon — it'll surface
+        // in a future turn via the reinject path.
+        if (_pending != null) {
+          _resolvePending('ThreadComplete (safety net)');
+        }
+        break;
+
       case CarbonError(:final code, :final fatal):
+        // Clear any pending slot on error so the user can recover.
+        if (_pending != null) {
+          _resolvePending('Error: $code');
+        }
         _handleAgentError(code, fatal);
         break;
 
       case CarbonSessionEnded():
+        if (_pending != null) {
+          _resolvePending('SessionEnded');
+        }
         unawaited(WindowFocusService.setFocusable(true));
         _grpcService.reconnect();
         break;
@@ -323,6 +454,21 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   //     fires.
   // ─────────────────────────────────────────────────────────────
 
+  /// Dump the current `_messages` list to stderr as a structured snapshot.
+  /// One log entry per bubble: index, type, isWaiting, first-30-chars preview.
+  /// Lets us diff UI bubble order against the daemon's event stream.
+  void _logUiSnapshot(String tag) {
+    final lines = <String>['UI_SNAPSHOT[$tag] count=${_messages.length} active=$_activeReplyIndex pending=${_pending?.bubbleIndex}'];
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      final preview = m.text
+          .replaceAll('\n', ' ')
+          .substring(0, m.text.length > 50 ? 50 : m.text.length);
+      lines.add('  [$i] type=${m.type.name} wait=${m.isWaiting} "$preview"');
+    }
+    debugPrint(lines.join('\n'));
+  }
+
   String _composeBubbleText() {
     if (_activeToolName != null) {
       return _currentSegmentText.isNotEmpty
@@ -338,14 +484,43 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       final display = _composeBubbleText();
       if (_activeReplyIndex == null) {
         if (display.isEmpty) return;
-        _activeReplyIndex = _messages.length;
-        _messages.add(
-          ChatMessage(
-            text: display,
-            type: MessageType.received,
-            isWaiting: isWaiting,
-          ),
-        );
+        // Where does a brand-new agent bubble go? While a steer/queue is
+        // still pending (not yet picked up by the daemon), the current
+        // turn's output BELONGS visually above the pending submission —
+        // because the pending submission hasn't taken effect yet. So we
+        // insert AT the pending bubble's slot (pushing it down by one).
+        // Once the daemon picks up the pending (TurnComplete /
+        // TurnStarted), `_pending = null`, and subsequent agent bubbles
+        // naturally fall to the end of the list — which is *below* the
+        // now-resolved user prompt, exactly what the UX spec asks for.
+        if (_pending != null && _pending!.bubbleIndex < _messages.length) {
+          final insertAt = _pending!.bubbleIndex;
+          _messages.insert(
+            insertAt,
+            ChatMessage(
+              text: display,
+              type: MessageType.received,
+              isWaiting: isWaiting,
+            ),
+          );
+          _activeReplyIndex = insertAt;
+          _pending!.bubbleIndex = _pending!.bubbleIndex + 1;
+          debugPrint(
+            '[Chat] new agent bubble inserted ABOVE pending (idx=$insertAt, pending now at ${_pending!.bubbleIndex})',
+          );
+          _logUiSnapshot('insert-above-pending');
+        } else {
+          _activeReplyIndex = _messages.length;
+          _messages.add(
+            ChatMessage(
+              text: display,
+              type: MessageType.received,
+              isWaiting: isWaiting,
+            ),
+          );
+          debugPrint('[Chat] new agent bubble appended at end (idx=$_activeReplyIndex)');
+          _logUiSnapshot('append-agent-end');
+        }
       } else {
         _messages[_activeReplyIndex!] = ChatMessage(
           text: display,
@@ -615,9 +790,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                           }
                         },
                         isVisible: _isVisible,
-                        isWaiting: _isWaiting,
+                        // Lock the bar only while a submission is sitting
+                        // in the pending slot (the 1-slot UI constraint).
+                        // During an in-flight turn with the slot empty
+                        // the user is free to type a new steer/queue.
+                        isWaiting: _pending != null,
                         hasChatStarted: _hasChatStarted,
-                        onSend: _handleSend,
+                        onSend: (text) => _handleSend(text),
                         onCancel: () {
                           _grpcService.interruptTurn();
                         },
@@ -683,4 +862,27 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       ),
     );
   }
+}
+
+/// One in-flight submission held in the pending slot. The slot can hold
+/// at most one of these at a time — second submissions are rejected by
+/// `_handleSend` until this resolves.
+class _PendingSubmission {
+  final String text;
+  final String reqId;
+  /// True = daemon was asked to inject mid-turn (steer queue). False =
+  /// daemon was asked to queue behind the current thread.
+  final bool steer;
+  final DateTime submittedAt;
+  /// Index in `_messages` where this submission's "pending" bubble lives.
+  /// On resolution the bubble's text is rewritten to drop the
+  /// "STEER/QUEUE 대기" prefix and `isWaiting` flips off.
+  int bubbleIndex;
+  _PendingSubmission({
+    required this.text,
+    required this.reqId,
+    required this.steer,
+    required this.submittedAt,
+    required this.bubbleIndex,
+  });
 }
