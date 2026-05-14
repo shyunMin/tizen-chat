@@ -3,25 +3,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/onboarding_grpc_service.dart';
-import '../generated/carbon/v1/setup.pb.dart';
+import '../services/setup_http_server.dart';
 import '../theme/tizen_styles.dart';
 import '../services/window_focus_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final OnboardingGrpcService service;
+  // Shared across QR screen recreations so the browser always connects to the
+  // same server even after the screen pops and a new one is pushed.
+  final SetupHttpServer httpServer;
 
-  const OnboardingScreen({required this.service, super.key});
+  const OnboardingScreen({
+    required this.service,
+    required this.httpServer,
+    super.key,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  SetupHttpServer get _httpServer => widget.httpServer;
+
   String? _url;
   bool _isLoading = true;
   String? _errorMessage;
-  StreamSubscription<SetupEvent>? _watchSub;
-  bool _isCompleting = false;
+  bool _isFinishing = false; // guards _finishSetup against concurrent calls
+
+  // Countdown shown in the UI.
+  int _secondsLeft = SetupHttpServer.idleTimeout.inSeconds;
+  Timer? _countdownTimer;
 
   final FocusNode _closeFocusNode = FocusNode();
 
@@ -34,24 +46,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _startSetup() async {
     try {
-      final url = await widget.service.startSetup();
-
-      _watchSub = widget.service.watchSetup().listen(
-        _onSetupEvent,
-        onError: (e) => debugPrint('[Onboarding] WatchSetup error: $e'),
+      final url = await _httpServer.start(
+        widget.service,
+        onCompleted: _onHttpCompleted,
+        onTimeout: _onHttpTimeout,
       );
-
       if (mounted) {
         setState(() {
           _url = url;
           _isLoading = false;
+          _secondsLeft = SetupHttpServer.idleTimeout.inSeconds;
         });
+        _startCountdown();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _closeFocusNode.requestFocus();
         });
       }
     } catch (e) {
-      debugPrint('[Onboarding] StartSetup error: $e');
+      debugPrint('[Onboarding] start error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
@@ -64,32 +76,50 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _onSetupEvent(SetupEvent event) {
-    if (_isCompleting) return;
-    switch (event.kind) {
-      case SetupEvent_Kind.COMPLETED:
-        _isCompleting = true;
-        _finishSetup(completed: true);
-      case SetupEvent_Kind.STOPPED:
-        _isCompleting = true;
-        _finishSetup(completed: false);
-      default:
-        break;
-    }
+  String _formatTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _finishSetup({required bool completed}) async {
-    try {
-      await widget.service.stopSetup();
-    } catch (e) {
-      debugPrint('[Onboarding] StopSetup error: $e');
-    }
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_secondsLeft > 0) _secondsLeft--;
+      });
+    });
+  }
+
+  // Called by the server right after POST /setup succeeds.
+  // The screen pops immediately; the server keeps running for its own close
+  // delay so the browser can display /setup/saved.
+  void _onHttpCompleted() {
+    _finishSetup(completed: true, stopServer: false);
+  }
+
+  Future<void> _onHttpTimeout() async {
+    await _finishSetup(completed: false);
+    SystemNavigator.pop();
+  }
+
+  // stopServer: false when the server manages its own shutdown (after save).
+  //             true  when the user explicitly closes the screen (Close / timeout).
+  Future<void> _finishSetup({required bool completed, bool stopServer = true}) async {
+    if (_isFinishing) return;
+    _isFinishing = true;
+    _countdownTimer?.cancel();
+    if (stopServer) await _httpServer.stop();
     if (mounted) Navigator.of(context).pop(completed);
   }
 
   @override
   void dispose() {
-    _watchSub?.cancel();
+    _countdownTimer?.cancel();
+    // Do not stop the server here — after a successful save the server stays
+    // alive for its own close delay. Explicit stop happens in _finishSetup
+    // for Close-button and timeout paths.
     _closeFocusNode.dispose();
     super.dispose();
   }
@@ -197,6 +227,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                   Text(_url!, style: TizenStyles.bodyText),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_formatTime(_secondsLeft)} 후에 종료됩니다',
+                    style: TizenStyles.bodyText.copyWith(
+                      color: _secondsLeft <= 60 ? Colors.orange : Colors.white54,
+                      fontSize: TizenStyles.baseFontSize,
+                    ),
+                  ),
                 ],
                 const Spacer(),
                 _buildCloseButton(),

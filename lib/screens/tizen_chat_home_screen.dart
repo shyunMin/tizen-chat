@@ -14,6 +14,7 @@ import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
 import '../services/window_focus_service.dart';
 import '../services/onboarding_grpc_service.dart';
+import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
@@ -233,6 +234,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// - QR 화면에서 취소/종료: false
   Future<bool> _checkOnboarding() async {
     final onboardingService = OnboardingGrpcService();
+    // Single server instance shared across all QR screen iterations so the
+    // browser always reaches the same server even when the screen is recreated.
+    final httpServer = SetupHttpServer();
     try {
       await onboardingService.connect();
 
@@ -245,7 +249,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
         final completed = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
-            builder: (_) => OnboardingScreen(service: onboardingService),
+            builder: (_) => OnboardingScreen(
+              service: onboardingService,
+              httpServer: httpServer,
+            ),
           ),
         );
 
@@ -256,6 +263,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       debugPrint('[Init] Onboarding check skipped: $e');
       return true;
     } finally {
+      // httpServer manages its own shutdown via _closeTimer (after save) or
+      // _finishSetup(stopServer: true) (cancel / timeout paths). Do not stop
+      // it here — calling stop() immediately would cancel the 10-second close
+      // delay before the browser can finish loading.
       await onboardingService.disconnect();
     }
   }
