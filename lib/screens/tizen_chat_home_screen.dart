@@ -63,6 +63,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   String _currentSegmentText = '';
   String? _activeToolName;
 
+  // Thread-level "agent is doing something" flag for the spinner UI.
+  // Goes true on the first Submit of a thread, stays true through
+  // round-boundary gaps (between TurnComplete and the next TurnStarted —
+  // e.g. steer-recovery), and only clears on ThreadCompleted / fatal
+  // error / SessionEnded. Without this the spinner blinks off whenever
+  // the active reply bubble seals while another turn is about to spin
+  // up, giving the impression that the agent stopped.
+  bool _threadInFlight = false;
+
   // ── Pending submission slot ───────────────────────────────────
   // While the daemon is processing a turn, a new submission lands here
   // instead of immediately becoming a user bubble. The slot holds at
@@ -250,6 +259,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
 
     final turnBusy = _grpcService.isTurnBusy;
+    // Spinner stays on from prompt-sent until ThreadCompleted. Set BEFORE
+    // both branches so the idle-daemon path also gets a stable spinner.
+    setState(() => _threadInFlight = true);
 
     if (!turnBusy) {
       // Idle daemon → STARTED_NOW. Go straight to a finalized user bubble.
@@ -507,12 +519,30 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
         }
+        // Thread done → kill the spinner. This is the ONLY happy-path
+        // clear; per-round TurnComplete intentionally does NOT clear it
+        // so the spinner stays on through round-boundary gaps (e.g.
+        // steer-recovery turn spinning up after the first turn ends).
+        if (_threadInFlight) {
+          setState(() => _threadInFlight = false);
+        }
         break;
 
       case CarbonError(:final code, :final fatal):
+        // Non-fatal "continuation:*" codes are agent_loop retry signals
+        // (e.g. validator rejected round N, daemon will run round N+1).
+        // The turn keeps going — don't hijack the active bubble with
+        // "요청 중단됨" or clear pending state.
+        if (!fatal && code.startsWith('continuation:')) {
+          debugPrint('[Chat] continuation notice: $code (informational, ignored)');
+          break;
+        }
         // Clear any pending slot on error so the user can recover.
         if (_pending != null) {
           _resolvePending('Error: $code');
+        }
+        if (fatal && _threadInFlight) {
+          setState(() => _threadInFlight = false);
         }
         _handleAgentError(code, fatal);
         break;
@@ -520,6 +550,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       case CarbonSessionEnded():
         if (_pending != null) {
           _resolvePending('SessionEnded');
+        }
+        if (_threadInFlight) {
+          setState(() => _threadInFlight = false);
         }
         unawaited(WindowFocusService.setFocusable(true));
         _grpcService.reconnect();
@@ -733,6 +766,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   Future<void> _handleAgentError(String code, bool fatal) async {
+    debugPrint(
+      '[Chat] _handleAgentError code=$code fatal=$fatal '
+      'activeReply=$_activeReplyIndex segLen=${_currentSegmentText.length}',
+    );
     unawaited(WindowFocusService.setFocusable(true));
     setState(() {
       _isWaiting = false;
@@ -954,7 +991,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     }
                   },
                   messages: _messages,
-                  isTyping: _isTyping,
+                  // Bottom-of-list typing indicator: show only when the
+                  // thread is busy AND there's no active reply bubble.
+                  // When a bubble is filling (or showing a tool
+                  // indicator) it carries its own waiting state — a
+                  // second spinner below would be a visual duplicate.
+                  // The gap that previously left users wondering — between
+                  // one round ending and the next round's first delta —
+                  // is what this guards: _activeReplyIndex is null in
+                  // that window, so the dots fill in for the spinner.
+                  isTyping: _threadInFlight && _activeReplyIndex == null,
                   sessionTitle: _sessionTitle,
                   onHeaderTap: () {
                     debugPrint(

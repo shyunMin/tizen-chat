@@ -455,6 +455,10 @@ class CarbonGrpcService {
       );
     } else if (body.hasError()) {
       final err = body.error;
+      print(
+        'DEBUG: [CarbonGrpc] Error code=${err.code} fatal=${err.fatal} '
+        'turn=${err.turnId} message=${err.message}',
+      );
       _eventController.add(CarbonError(err.code, err.message, err.fatal));
       if (err.turnId.isNotEmpty) {
         _clearCorrelationForTurn(err.turnId);
