@@ -336,13 +336,69 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _scrollToBottom();
   }
 
+  /// SteerApplied-specific path: the daemon injected our prompt into the
+  /// in-flight turn at a tool/result boundary, so the steer landed
+  /// *between* the pre-steer assistant output and the post-steer
+  /// continuation. The pending bubble currently sits at the end of the
+  /// chat (below the still-streaming active reply); semantically it
+  /// belongs between the now-sealed pre-steer reply and the next
+  /// continuation. Snap the active reply at this point, slot the steer
+  /// bubble right after it, and clear active-streaming state so the next
+  /// delta opens a fresh post-steer bubble.
+  void _applySteerSplit() {
+    final p = _pending;
+    if (p == null) return;
+    final activeIdx = _activeReplyIndex;
+    debugPrint(
+      '[Chat] applying steer split: ${p.reqId} bubbleIdx=${p.bubbleIndex} activeIdx=$activeIdx',
+    );
+    setState(() {
+      if (activeIdx != null &&
+          p.bubbleIndex > activeIdx &&
+          p.bubbleIndex < _messages.length) {
+        // Seal the in-flight assistant bubble at its current pre-steer
+        // content (no text rewrite — _refreshActiveBubble already painted
+        // it). Just freeze it.
+        _messages[activeIdx].isWaiting = false;
+        // Re-home the steer bubble: remove from its end-of-chat slot and
+        // re-insert right after the sealed pre-steer reply.
+        _messages.removeAt(p.bubbleIndex);
+        final steerBubble = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+        _messages.insert(activeIdx + 1, steerBubble);
+        // Reset active streaming state so the very next CarbonTextDelta /
+        // CarbonToolUseStart materializes a fresh post-steer agent bubble
+        // below the relocated steer message.
+        _activeReplyIndex = null;
+        _currentSegmentText = '';
+        _activeToolName = null;
+      } else if (p.bubbleIndex < _messages.length) {
+        // No active reply to split around (rare race) — just seal the
+        // bubble in place as a regular sent message.
+        _messages[p.bubbleIndex] = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+      }
+      _pending = null;
+    });
+    _scrollToBottom();
+    _logUiSnapshot('after-steer-apply');
+  }
+
   /// Daemon confirmed the pending submission has been picked up (steer
   /// queue drained at a round boundary, or queue popped into a new turn).
   /// Rewrite the pending bubble to clean text and clear the slot.
   void _resolvePending(String reason) {
     final p = _pending;
     if (p == null) return;
-    debugPrint('[Chat] pending slot resolved ($reason): ${p.reqId} bubbleIdx=${p.bubbleIndex}');
+    debugPrint(
+      '[Chat] pending slot resolved ($reason): ${p.reqId} bubbleIdx=${p.bubbleIndex}',
+    );
     setState(() {
       if (p.bubbleIndex < _messages.length) {
         _messages[p.bubbleIndex] = ChatMessage(
@@ -399,7 +455,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_pending != null &&
             _pending!.steer &&
             _pending!.reqId == clientRequestId) {
-          _resolvePending('SteerApplied');
+          _applySteerSplit();
         }
         break;
 
@@ -504,7 +560,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// One log entry per bubble: index, type, isWaiting, first-30-chars preview.
   /// Lets us diff UI bubble order against the daemon's event stream.
   void _logUiSnapshot(String tag) {
-    final lines = <String>['UI_SNAPSHOT[$tag] count=${_messages.length} active=$_activeReplyIndex pending=${_pending?.bubbleIndex}'];
+    final lines = <String>[
+      'UI_SNAPSHOT[$tag] count=${_messages.length} active=$_activeReplyIndex pending=${_pending?.bubbleIndex}',
+    ];
     for (int i = 0; i < _messages.length; i++) {
       final m = _messages[i];
       final preview = m.text
@@ -564,7 +622,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               isWaiting: isWaiting,
             ),
           );
-          debugPrint('[Chat] new agent bubble appended at end (idx=$_activeReplyIndex)');
+          debugPrint(
+            '[Chat] new agent bubble appended at end (idx=$_activeReplyIndex)',
+          );
           _logUiSnapshot('append-agent-end');
         }
       } else {
@@ -847,7 +907,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                           _grpcService.interruptTurn();
                         },
                         onKeyboardFocusChanged: (isFocused) {
-                          if (mounted) setState(() => _isKeyboardFocused = isFocused);
+                          if (mounted)
+                            setState(() => _isKeyboardFocused = isFocused);
                         },
                       ),
                     ),
@@ -878,8 +939,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 curve: Curves.easeOutCubic,
                 bottom: _hasChatStarted
                     ? (_isKeyboardFocused
-                        ? (_currentActionButtons.isNotEmpty ? 418 : 358)
-                        : (_currentActionButtons.isNotEmpty ? 158 : 98))
+                          ? (_currentActionButtons.isNotEmpty ? 418 : 358)
+                          : (_currentActionButtons.isNotEmpty ? 158 : 98))
                     : -screenHeight,
                 left: 10,
                 child: ChatWindow(
@@ -916,10 +977,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 class _PendingSubmission {
   final String text;
   final String reqId;
+
   /// True = daemon was asked to inject mid-turn (steer queue). False =
   /// daemon was asked to queue behind the current thread.
   final bool steer;
   final DateTime submittedAt;
+
   /// Index in `_messages` where this submission's "pending" bubble lives.
   /// On resolution the bubble's text is rewritten to drop the
   /// "STEER/QUEUE 대기" prefix and `isWaiting` flips off.

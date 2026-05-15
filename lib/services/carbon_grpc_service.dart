@@ -3,11 +3,44 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
+import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart'
+    as wkt;
 
 import '../generated/carbon/v2/session_service.pbgrpc.dart' as session_v2;
 import '../generated/carbon/v2/ingress_service.pbgrpc.dart' as ingress_v2;
 import '../generated/carbon/v2/event_service.pbgrpc.dart' as event_v2;
 import '../generated/carbon/v2/event_service.pbenum.dart' as event_enum;
+
+const String _kSource = 'ai-chat-flutter';
+
+// Mirror of carbon CLI's IngressOptions.metadata.delivery. The runtime
+// builds the system-prompt "Final Delivery" section + alias table from this
+// — without it, claw's agent loop never sees the egress catalog and the
+// model degenerates into plan-only text instead of calling tools.
+wkt.Struct _buildIngressMetadata() {
+  wkt.Value strValue(String s) => wkt.Value()..stringValue = s;
+  wkt.Value boolValue(bool b) => wkt.Value()..boolValue = b;
+  wkt.Value structValue(wkt.Struct s) => wkt.Value()..structValue = s;
+
+  final targetPolicy = wkt.Struct()
+    ..fields['mode'] = strValue('rich_text')
+    ..fields['allow_fallback'] = boolValue(true)
+    ..fields['required_variant'] = boolValue(false);
+
+  final targets = wkt.Struct()..fields[_kSource] = structValue(targetPolicy);
+
+  final aliases = wkt.Struct()
+    ..fields['cli'] = strValue(_kSource)
+    ..fields['claw'] = strValue(_kSource)
+    ..fields['carbon-claw'] = strValue(_kSource);
+
+  final delivery = wkt.Struct()
+    ..fields['default_target'] = strValue(_kSource)
+    ..fields['aliases'] = structValue(aliases)
+    ..fields['targets'] = structValue(targets);
+
+  return wkt.Struct()..fields['delivery'] = structValue(delivery);
+}
 
 // Flutter-friendly event models. UI consumers (chat_screen,
 // tizen_chat_home_screen) speak this sealed class hierarchy; the underlying
@@ -31,9 +64,14 @@ class CarbonMessageFinalized extends CarbonEvent {
   CarbonMessageFinalized(this.phase);
 
   bool get isFinalAnswer =>
-      phase == event_enum.AssistantMessagePhase.ASSISTANT_MESSAGE_PHASE_FINAL_ANSWER.value;
+      phase ==
+      event_enum
+          .AssistantMessagePhase
+          .ASSISTANT_MESSAGE_PHASE_FINAL_ANSWER
+          .value;
   bool get isCommentary =>
-      phase == event_enum.AssistantMessagePhase.ASSISTANT_MESSAGE_PHASE_COMMENTARY.value;
+      phase ==
+      event_enum.AssistantMessagePhase.ASSISTANT_MESSAGE_PHASE_COMMENTARY.value;
 }
 
 class CarbonToolUseStart extends CarbonEvent {
@@ -376,9 +414,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasToolResult()) {
       final r = body.toolResult;
-      _eventController.add(
-        CarbonToolResult(r.toolCallId, r.output, r.isError),
-      );
+      _eventController.add(CarbonToolResult(r.toolCallId, r.output, r.isError));
     } else if (body.hasTurnCompleted()) {
       final c = body.turnCompleted;
       // Validation continuation: the daemon emits one TurnCompleted per
@@ -388,7 +424,9 @@ class CarbonGrpcService {
       // TurnStarted (new logical turn) / ThreadCompleted / SessionEnded
       // / disconnect.
       if (c.turnId == _lastFinalizedTurnId) {
-        print('DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId} (continuation round — swallowed)');
+        print(
+          'DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId} (continuation round — swallowed)',
+        );
         return;
       }
       _lastFinalizedTurnId = c.turnId;
@@ -412,7 +450,9 @@ class CarbonGrpcService {
       print(
         'DEBUG: [CarbonGrpc] SteerFailed turn=${s.turnId} req=${s.clientRequestId} reason=${s.reason}',
       );
-      _eventController.add(CarbonSteerFailed(s.turnId, s.clientRequestId, s.reason));
+      _eventController.add(
+        CarbonSteerFailed(s.turnId, s.clientRequestId, s.reason),
+      );
     } else if (body.hasError()) {
       final err = body.error;
       _eventController.add(CarbonError(err.code, err.message, err.fatal));
@@ -498,15 +538,17 @@ class CarbonGrpcService {
     final turnId = _currentTurnId!;
     print('DEBUG: [CarbonGrpc] InterruptTurn $turnId');
     _ingressClient!
-        .interruptTurn(ingress_v2.InterruptTurnRequest(
-          sessionId: _sessionId!,
-          turnId: turnId,
-          mode: ingress_v2.InterruptMode.INTERRUPT_MODE_HARD,
-        ))
+        .interruptTurn(
+          ingress_v2.InterruptTurnRequest(
+            sessionId: _sessionId!,
+            turnId: turnId,
+            mode: ingress_v2.InterruptMode.INTERRUPT_MODE_HARD,
+          ),
+        )
         .catchError((Object e) {
-      print('DEBUG: [CarbonGrpc] InterruptTurn RPC error: $e');
-      return ingress_v2.InterruptTurnResponse();
-    });
+          print('DEBUG: [CarbonGrpc] InterruptTurn RPC error: $e');
+          return ingress_v2.InterruptTurnResponse();
+        });
     // Local cancellation: end the await-for loop in sendMessage immediately
     // and discard daemon-emitted events from the cancelled turn until the
     // next TurnStarted.
@@ -519,18 +561,23 @@ class CarbonGrpcService {
   /// Approve or deny a pending tool call. The first positional arg is the
   /// daemon-issued [approvalId] from [CarbonToolApprovalRequest.approvalId],
   /// NOT the tool_call_id (v2 key change vs. v1).
-  void approveToolCall(String approvalId, ingress_v2.ApprovalDecision decision) {
+  void approveToolCall(
+    String approvalId,
+    ingress_v2.ApprovalDecision decision,
+  ) {
     if (!_isReady) return;
     print('DEBUG: [CarbonGrpc] ApproveTool $approvalId -> $decision');
     _ingressClient!
-        .approveTool(ingress_v2.ApproveToolRequest(
-          approvalId: approvalId,
-          decision: decision,
-        ))
+        .approveTool(
+          ingress_v2.ApproveToolRequest(
+            approvalId: approvalId,
+            decision: decision,
+          ),
+        )
         .catchError((Object e) {
-      print('DEBUG: [CarbonGrpc] ApproveTool RPC error: $e');
-      return ingress_v2.ApproveToolResponse();
-    });
+          print('DEBUG: [CarbonGrpc] ApproveTool RPC error: $e');
+          return ingress_v2.ApproveToolResponse();
+        });
   }
 
   void _broadcastError(String message, {bool fatal = false}) {
@@ -608,7 +655,10 @@ class CarbonGrpcService {
       content: ingress_v2.IngressContent(text: text),
       intent: ingress_v2.IngressIntent.INGRESS_INTENT_RUN_TURN,
       thread: ingress_v2.ThreadTarget(auto: ingress_v2.AutoTarget()),
-      options: ingress_v2.IngressOptions(source: 'ai-chat-flutter'),
+      options: ingress_v2.IngressOptions(
+        source: _kSource,
+        metadata: _buildIngressMetadata(),
+      ),
       clientRequestId: clientRequestId,
       steer: steer,
     );
@@ -659,7 +709,9 @@ class CarbonGrpcService {
     // STEERED gets its own event so the UI knows the prompt landed on the
     // existing turn's steer queue (vs. STARTED_NOW = its own fresh turn).
     if (resp.disposition == ingress_v2.Disposition.DISPOSITION_STEERED) {
-      _eventController.add(CarbonSubmitSteered(resp.turnId, resp.clientRequestId));
+      _eventController.add(
+        CarbonSubmitSteered(resp.turnId, resp.clientRequestId),
+      );
     }
   }
 
