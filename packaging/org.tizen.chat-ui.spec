@@ -39,9 +39,9 @@ install packaging/arm64/%{internal_name}-%{version}.tpk %{buildroot}/%{preload_t
 unrpm packaging/arm64/%{bridge_name}-0.1.0-1.aarch64.rpm
 %endif
 
-mkdir -p %{buildroot}%{_bindir} \
-         %{buildroot}/usr/lib/systemd/system \
-         %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
+mkdir -p %{buildroot}%{_bindir}
+mkdir -p %{buildroot}/usr/lib/systemd/system
+mkdir -p %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
 
 install -m 0755 usr/bin/%{bridge_name} %{buildroot}%{_bindir}/%{bridge_name}
 install -m 0644 usr/lib/systemd/system/%{bridge_name}.service \
@@ -56,8 +56,6 @@ ln -sf /usr/lib/systemd/system/%{bridge_name}.service \
 ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path \
        %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
 
-%post
-
 %files
 %defattr(-,root,root,-)
 %{preload_tpk_path}/*
@@ -65,7 +63,7 @@ ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path \
 %manifest %{bridge_name}.manifest
 %{_bindir}/%{bridge_name}
 /usr/lib/systemd/system/%{bridge_name}.service
+/usr/lib/systemd/system/multi-user.target.wants/%{bridge_name}.service
 /usr/lib/systemd/system/carbon-daemon-config-watch.path
 /usr/lib/systemd/system/carbon-daemon-config-reload.service
-/usr/lib/systemd/system/multi-user.target.wants/%{bridge_name}.service
 /usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
