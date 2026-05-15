@@ -7,7 +7,10 @@ import 'dart:convert';
 import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
 import '../services/carbon_grpc_service.dart';
-import '../generated/carbon/v1/agent.pbenum.dart';
+import '../generated/carbon/v2/ingress_service.pbenum.dart';
+import '../platform/platform_flags.dart' as platform_flags;
+import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
+import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -64,12 +67,40 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // 누적된다. null = 진행 중인 응답 없음.
   int? _activeReplyIndex;
   String _currentSegmentText = '';
+  String? _activeToolName;
+
+  // Thread-level "agent is doing something" flag for the spinner UI.
+  // Goes true on the first Submit of a thread, stays true through
+  // round-boundary gaps (between TurnComplete and the next TurnStarted —
+  // e.g. steer-recovery), and only clears on ThreadCompleted / fatal
+  // error / SessionEnded. Without this the spinner blinks off whenever
+  // the active reply bubble seals while another turn is about to spin
+  // up, giving the impression that the agent stopped.
+  bool _threadInFlight = false;
+
+  // ── Pending submission slot ───────────────────────────────────
+  // While the daemon is processing a turn, a new submission lands here
+  // instead of immediately becoming a user bubble. The slot holds at
+  // most one entry (UI constraint — see /plan-eng-review discussion).
+  // It releases when:
+  //   - steer mode:  the next CarbonTurnComplete arrives (means the
+  //                  daemon drained its steer queue at the next round
+  //                  boundary and ran another LLM call). Safety net:
+  //                  CarbonThreadComplete unconditionally clears too.
+  //   - queue mode:  CarbonTurnStarted with the matching client_request_id
+  //                  arrives (the queued submission has been popped and
+  //                  started as a new turn).
+  // On release the user bubble materializes at the bottom of the chat
+  // and the input is unlocked.
+  _PendingSubmission? _pending;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    AppControl.onAppControl.listen(_onAppControlReceived);
+    if (kIsTizen) {
+      AppControl.onAppControl.listen(_onAppControlReceived);
+    }
 
     // gRPC 의 broadcast 이벤트 스트림을 단일 핸들러로 받는다. 연결이 아직
     // 완료되지 않아도 broadcast 라 재구독 없이 이후 이벤트를 모두 받는다.
@@ -180,20 +211,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
   }
 
-  String _todayKey() {
-    final now = DateTime.now();
-    return '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-  }
-
   Future<void> _initializeServices() async {
     try {
       // 1. 온보딩 상태 확인
       final onboardingOk = await _checkOnboarding();
 
-      // 2. 세션 이름 동기 계산 (파일 I/O 없음)
-      final sessionName = _todayKey();
+      // 2. 오늘 날짜 세션 확보 + 로컬 목록에 기록
+      final sessionName = await SessionRepository.instance.ensureTodaySession();
       debugPrint('[Init] Session name: $sessionName');
       if (mounted) setState(() => _sessionTitle = sessionName);
 
@@ -310,11 +334,86 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // 이어지는 글리치가 생긴다. 한 버블로 두면 그 트랜지션이 그냥 같은
   // 버블 안에서 자연스러운 텍스트 흐름으로 보인다.
 
-  Future<void> _handleSend(String text) async {
-    debugPrint('[Chat] _handleSend called with text: $text');
+  Future<void> _handleSend(String text, {bool steer = true}) async {
+    debugPrint(
+      '[Chat] _handleSend called: text="${text.length > 40 ? "${text.substring(0, 40)}..." : text}" steer=$steer',
+    );
 
-    final userBubble = ChatMessage(text: text, type: MessageType.sent);
+    // 1-slot pending: refuse second submissions while one is in flight.
+    if (_pending != null) {
+      debugPrint('[Chat] _handleSend ignored — pending slot occupied');
+      return;
+    }
 
+    final turnBusy = _grpcService.isTurnBusy;
+    // Spinner stays on from prompt-sent until ThreadCompleted. Set BEFORE
+    // both branches so the idle-daemon path also gets a stable spinner.
+    setState(() => _threadInFlight = true);
+
+    if (!turnBusy) {
+      // Idle daemon → STARTED_NOW. Go straight to a finalized user bubble.
+      _materializeUserBubble(text, isWaiting: false);
+      unawaited(_grpcService.sendPrompt(text, steer: steer));
+      return;
+    }
+
+    // Turn is in flight. Submit with the chosen mode (daemon routes to
+    // its steer queue or post-thread queue). Place a "pending" user
+    // bubble in the chat right away so the user can see what's been
+    // sent — visually marked with a STEER/QUEUE prefix so the buffer
+    // it landed in is obvious. The bubble gets rewritten to clean text
+    // when the daemon's TurnComplete (steer) or TurnStarted (queue)
+    // confirms pickup.
+    final reqId = await _grpcService.sendPrompt(text, steer: steer);
+    if (reqId == null) {
+      _materializeUserBubble(text, isWaiting: false);
+      return;
+    }
+    setState(() {
+      _isVisible = true;
+      // Append the pending bubble at the END of the chat (below any
+      // active agent reply / tool indicator). Per UX spec: while
+      // waiting, the queued prompt sits visually under the agent's
+      // current activity. On resolve we leave the bubble in place —
+      // the next round's agent bubble is appended AFTER it, producing
+      // the natural "old turn → applied user prompt → new turn"
+      // reading order.
+      final index = _messages.length;
+      _messages.insert(
+        index,
+        ChatMessage(
+          text: _pendingBubbleText(text, steer),
+          type: MessageType.sent,
+          isWaiting: true,
+        ),
+      );
+      _pending = _PendingSubmission(
+        text: text,
+        reqId: reqId,
+        steer: steer,
+        submittedAt: DateTime.now(),
+        bubbleIndex: index,
+      );
+    });
+    _scrollToBottom();
+    debugPrint('[Chat] held in pending slot: $reqId');
+    _logUiSnapshot('after-pending-insert');
+  }
+
+  String _pendingBubbleText(String text, bool steer) {
+    final tag = steer ? '↪ STEER · 대기' : '⏳ QUEUE · 대기';
+    return '$tag\n$text';
+  }
+
+  /// User bubble materialization for the idle-daemon path. (The pending
+  /// path inserts its own bubble inside `_handleSend` so the pending
+  /// state is visible while it waits.)
+  void _materializeUserBubble(String text, {required bool isWaiting}) {
+    final userBubble = ChatMessage(
+      text: text,
+      type: MessageType.sent,
+      isWaiting: isWaiting,
+    );
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
@@ -322,14 +421,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
       _isVisible = true;
       _isWaiting = true;
-      // agent 버블이 이미 활성이면 새 typing 인디케이터는 띄우지 않는다
-      // (그 버블에 곧 또 delta 가 도착해 자연스럽게 이어지므로).
       if (_activeReplyIndex == null) {
         _isTyping = true;
       }
-
       if (_activeReplyIndex != null) {
-        // mid-turn: agent 버블 위에 새 user 버블 삽입.
         _messages.insert(_activeReplyIndex!, userBubble);
         _activeReplyIndex = _activeReplyIndex! + 1;
       } else {
@@ -337,14 +432,83 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
     });
     unawaited(WindowFocusService.setFocusable(false));
-    debugPrint(
-      '[Chat] State updated. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible',
-    );
     _scrollToBottom();
+  }
 
-    // Fire-and-forget. carbon_grpc_service 가 항상 steer:true 로 전송하므로
-    // 데몬은 (a) 진행 중 turn 이면 round 경계에 inject, (b) 아니면 새 turn 시작.
-    await _grpcService.sendPrompt(text);
+  /// SteerApplied-specific path: the daemon injected our prompt into the
+  /// in-flight turn at a tool/result boundary, so the steer landed
+  /// *between* the pre-steer assistant output and the post-steer
+  /// continuation. The pending bubble currently sits at the end of the
+  /// chat (below the still-streaming active reply); semantically it
+  /// belongs between the now-sealed pre-steer reply and the next
+  /// continuation. Snap the active reply at this point, slot the steer
+  /// bubble right after it, and clear active-streaming state so the next
+  /// delta opens a fresh post-steer bubble.
+  void _applySteerSplit() {
+    final p = _pending;
+    if (p == null) return;
+    final activeIdx = _activeReplyIndex;
+    debugPrint(
+      '[Chat] applying steer split: ${p.reqId} bubbleIdx=${p.bubbleIndex} activeIdx=$activeIdx',
+    );
+    setState(() {
+      if (activeIdx != null &&
+          p.bubbleIndex > activeIdx &&
+          p.bubbleIndex < _messages.length) {
+        // Seal the in-flight assistant bubble at its current pre-steer
+        // content (no text rewrite — _refreshActiveBubble already painted
+        // it). Just freeze it.
+        _messages[activeIdx].isWaiting = false;
+        // Re-home the steer bubble: remove from its end-of-chat slot and
+        // re-insert right after the sealed pre-steer reply.
+        _messages.removeAt(p.bubbleIndex);
+        final steerBubble = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+        _messages.insert(activeIdx + 1, steerBubble);
+        // Reset active streaming state so the very next CarbonTextDelta /
+        // CarbonToolUseStart materializes a fresh post-steer agent bubble
+        // below the relocated steer message.
+        _activeReplyIndex = null;
+        _currentSegmentText = '';
+        _activeToolName = null;
+      } else if (p.bubbleIndex < _messages.length) {
+        // No active reply to split around (rare race) — just seal the
+        // bubble in place as a regular sent message.
+        _messages[p.bubbleIndex] = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+      }
+      _pending = null;
+    });
+    _scrollToBottom();
+    _logUiSnapshot('after-steer-apply');
+  }
+
+  /// Daemon confirmed the pending submission has been picked up (steer
+  /// queue drained at a round boundary, or queue popped into a new turn).
+  /// Rewrite the pending bubble to clean text and clear the slot.
+  void _resolvePending(String reason) {
+    final p = _pending;
+    if (p == null) return;
+    debugPrint(
+      '[Chat] pending slot resolved ($reason): ${p.reqId} bubbleIdx=${p.bubbleIndex}',
+    );
+    setState(() {
+      if (p.bubbleIndex < _messages.length) {
+        _messages[p.bubbleIndex] = ChatMessage(
+          text: p.text,
+          type: MessageType.sent,
+          isWaiting: false,
+        );
+      }
+      _pending = null;
+    });
+    _logUiSnapshot('after-resolve($reason)');
   }
 
   void _handleAgentEvent(CarbonEvent event) {
@@ -355,92 +519,296 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _appendDelta(content);
         break;
 
+      case CarbonMessageFinalized():
+        _onMessageFinalized(event);
+        break;
+
       case CarbonToolUseStart(:final toolName):
         _markToolUse(toolName);
         break;
 
       case CarbonToolResult():
+        _onToolResult();
         break;
 
       case CarbonTurnComplete():
-        _finalizeActiveReply();
+        // Do NOT finalize here. The daemon emits TurnCompleted at every
+        // agent_loop continuation/validation boundary (per the dedupe
+        // comment in carbon_grpc_service.dart), and the runtime's
+        // disposition feedback work surfaced that turn_id is currently
+        // empty on every TurnCompleted (project/issue/2026-05-15-v2-
+        // ingress-empty-turn-id.md), so the dart-side dedupe matches the
+        // first round and seals the bubble before round-2's deltas /
+        // tool events can append into it. Bubble sealing belongs on
+        // ThreadComplete — the genuine "this Submit is done" boundary,
+        // already wired below as the existing safety-net path. Pending
+        // submission resolution stays on SteerApplied / TurnStarted /
+        // ThreadComplete; nothing to do here.
+        break;
+
+      case CarbonSteerApplied(:final clientRequestId):
+        // Real signal from the daemon: the steer queue drained at a
+        // round boundary and our prompt is now in the live agent loop.
+        // Release the pending slot iff this confirmation is for our
+        // submission (other clients can steer the same turn).
+        if (_pending != null &&
+            _pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _applySteerSplit();
+        }
+        break;
+
+      case CarbonSteerFailed(:final clientRequestId, :final reason):
+        // Daemon couldn't land the steer on the originally-targeted
+        // turn (typically late-recovery re-injection). The submission
+        // is preserved on the daemon side — it'll surface in a later
+        // turn — so release the slot and tell the user it slipped.
+        if (_pending != null &&
+            _pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _resolvePending('SteerFailed: $reason');
+        }
+        break;
+
+      case CarbonSubmitQueued():
+        // No UI action: the pending bubble was already placed
+        // synchronously inside _handleSend. It'll resolve later when
+        // the queued submission pops as a fresh TurnStarted (matched
+        // by client_request_id below).
+        break;
+
+      case CarbonSubmitSteered():
+        // No UI action: this is the wire receipt of "daemon accepted
+        // into steer queue". The user-visible release happens later on
+        // CarbonSteerApplied (drained at round boundary).
+        break;
+
+      case CarbonTurnStarted(:final clientRequestId):
+        // Queue slot release: a queued submission has been popped and
+        // is starting as a new turn. Match by client_request_id.
+        if (_pending != null &&
+            !_pending!.steer &&
+            _pending!.reqId == clientRequestId) {
+          _resolvePending('TurnStarted (queued popped)');
+        }
+        break;
+
+      case CarbonThreadComplete():
+        // Safety net 1: if a pending submission never resolved (steer
+        // dropped on the floor, queue never popped), free the slot.
+        if (_pending != null) {
+          _resolvePending('ThreadComplete (safety net)');
+        }
+        // Safety net 2: a trailing un-finalized bubble (single mode +
+        // validation continuation: the dedupe swallows round-2+
+        // TurnCompleted, so a round-2 bubble keeps isWaiting=true
+        // until thread end seals it).
+        if (_activeReplyIndex != null) {
+          _finalizeActiveReply();
+        }
+        // Thread done → kill the spinner. This is the ONLY happy-path
+        // clear; per-round TurnComplete intentionally does NOT clear it
+        // so the spinner stays on through round-boundary gaps (e.g.
+        // steer-recovery turn spinning up after the first turn ends).
+        if (_threadInFlight) {
+          setState(() => _threadInFlight = false);
+        }
         break;
 
       case CarbonError(:final code, :final message, :final fatal):
+        // Non-fatal "continuation:*" codes are agent_loop retry signals
+        // (e.g. validator rejected round N, daemon will run round N+1).
+        // The turn keeps going — don't hijack the active bubble with
+        // "요청 중단됨" or clear pending state.
+        if (!fatal && code.startsWith('continuation:')) {
+          debugPrint('[Chat] continuation notice: $code (informational, ignored)');
+          break;
+        }
+        // Clear any pending slot on error so the user can recover.
+        if (_pending != null) {
+          _resolvePending('Error: $code');
+        }
+        if (fatal && _threadInFlight) {
+          setState(() => _threadInFlight = false);
+        }
         _handleAgentError(code, message, fatal);
         break;
 
       case CarbonSessionEnded():
+        if (_pending != null) {
+          _resolvePending('SessionEnded');
+        }
+        if (_threadInFlight) {
+          setState(() => _threadInFlight = false);
+        }
         unawaited(WindowFocusService.setFocusable(true));
         _grpcService.reconnect();
         break;
 
-      case CarbonToolApprovalRequest(:final toolCallId, :final toolName):
+      case CarbonToolApprovalRequest(:final approvalId, :final toolName):
         debugPrint(
           '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
         );
         _grpcService.approveToolCall(
-          toolCallId,
+          approvalId,
           ApprovalDecision.APPROVAL_DECISION_APPROVE,
         );
         break;
     }
   }
 
-  void _appendDelta(String content) {
-    if (_messages.isEmpty) return;
+  // ─────────────────────────────────────────────────────────────
+  // Bubble layout — V1 (single morphing) vs V2 (multi, finalize-driven).
+  // See platform_flags.dart kBubbleMode for the build switch.
+  //
+  // Shared state:
+  //   _currentSegmentText — accumulated text of the *current* block
+  //   _activeReplyIndex   — index of the bubble currently being mutated
+  //   _activeToolName     — current tool indicator (null = none)
+  //
+  // V1: a single bubble per turn. _currentSegmentText accumulates EVERY
+  //     TextDelta in the turn; MessageFinalized is ignored for bubble
+  //     boundaries. Commentary stays visible through tool calls.
+  //
+  // V2: a bubble per finalized assistant message. MessageFinalized seals
+  //     the active bubble; the next TextDelta starts a fresh one. Tool
+  //     indicators live inside whichever bubble is active when the tool
+  //     fires.
+  // ─────────────────────────────────────────────────────────────
 
-    _currentSegmentText += content;
+  /// Dump the current `_messages` list to stderr as a structured snapshot.
+  /// One log entry per bubble: index, type, isWaiting, first-30-chars preview.
+  /// Lets us diff UI bubble order against the daemon's event stream.
+  void _logUiSnapshot(String tag) {
+    final lines = <String>[
+      'UI_SNAPSHOT[$tag] count=${_messages.length} active=$_activeReplyIndex pending=${_pending?.bubbleIndex}',
+    ];
+    for (int i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      final preview = m.text
+          .replaceAll('\n', ' ')
+          .substring(0, m.text.length > 50 ? 50 : m.text.length);
+      lines.add('  [$i] type=${m.type.name} wait=${m.isWaiting} "$preview"');
+    }
+    debugPrint(lines.join('\n'));
+  }
+
+  String _composeBubbleText() {
+    if (_activeToolName != null) {
+      return _currentSegmentText.isNotEmpty
+          ? '$_currentSegmentText\n\n🔧 $_activeToolName 실행 중...'
+          : '🔧 $_activeToolName 실행 중...';
+    }
+    return _currentSegmentText;
+  }
+
+  void _refreshActiveBubble({required bool isWaiting}) {
     setState(() {
       _isTyping = false;
+      final display = _composeBubbleText();
       if (_activeReplyIndex == null) {
-        _activeReplyIndex = _messages.length;
-        _messages.add(
-          ChatMessage(
-            text: _currentSegmentText,
-            type: MessageType.received,
-            isWaiting: true,
-          ),
-        );
+        if (display.isEmpty) return;
+        // Where does a brand-new agent bubble go? While a steer/queue is
+        // still pending (not yet picked up by the daemon), the current
+        // turn's output BELONGS visually above the pending submission —
+        // because the pending submission hasn't taken effect yet. So we
+        // insert AT the pending bubble's slot (pushing it down by one).
+        // Once the daemon picks up the pending (TurnComplete /
+        // TurnStarted), `_pending = null`, and subsequent agent bubbles
+        // naturally fall to the end of the list — which is *below* the
+        // now-resolved user prompt, exactly what the UX spec asks for.
+        if (_pending != null && _pending!.bubbleIndex < _messages.length) {
+          final insertAt = _pending!.bubbleIndex;
+          _messages.insert(
+            insertAt,
+            ChatMessage(
+              text: display,
+              type: MessageType.received,
+              isWaiting: isWaiting,
+            ),
+          );
+          _activeReplyIndex = insertAt;
+          _pending!.bubbleIndex = _pending!.bubbleIndex + 1;
+          debugPrint(
+            '[Chat] new agent bubble inserted ABOVE pending (idx=$insertAt, pending now at ${_pending!.bubbleIndex})',
+          );
+          _logUiSnapshot('insert-above-pending');
+        } else {
+          _activeReplyIndex = _messages.length;
+          _messages.add(
+            ChatMessage(
+              text: display,
+              type: MessageType.received,
+              isWaiting: isWaiting,
+            ),
+          );
+          debugPrint(
+            '[Chat] new agent bubble appended at end (idx=$_activeReplyIndex)',
+          );
+          _logUiSnapshot('append-agent-end');
+        }
       } else {
         _messages[_activeReplyIndex!] = ChatMessage(
-          text: _currentSegmentText,
+          text: display,
           type: MessageType.received,
-          isWaiting: true,
+          isWaiting: isWaiting,
         );
       }
     });
     _scrollToBottom();
   }
 
-  void _markToolUse(String toolName) {
-    if (_messages.isEmpty) return;
+  void _appendDelta(String content) {
+    _currentSegmentText += content;
+    debugPrint(
+      '[Chat] _appendDelta(+${content.length} chars) total=${_currentSegmentText.length} '
+      'preview="${_currentSegmentText.length > 60 ? "${_currentSegmentText.substring(0, 60)}..." : _currentSegmentText}"',
+    );
+    _refreshActiveBubble(isWaiting: true);
+  }
 
-    final toolMessage = _currentSegmentText.trim();
-    _currentSegmentText = '';
-    final toolText = toolMessage.isNotEmpty
-        ? '�� $toolName 실행 중...\n$toolMessage'
-        : '�� $toolName 실행 중...';
+  void _markToolUse(String toolName) {
+    // Both V1 and V2: tool indicator overlays the current bubble's text.
+    // CRITICAL: do NOT clear _currentSegmentText — that's the v1 bug that
+    // hid commentary. The accumulated text stays; the tool indicator
+    // appends in _composeBubbleText.
+    _activeToolName = toolName;
+    _refreshActiveBubble(isWaiting: true);
+  }
+
+  void _onToolResult() {
+    // Intentionally do NOT refresh the bubble here. If the daemon is about
+    // to start another tool (typical agentic loop), refreshing now would
+    // briefly drop the tool indicator just to bring it back in a few ms,
+    // producing visible flicker for any turn with multiple tools. We just
+    // record that the active tool slot is free; the next _markToolUse
+    // will replace the indicator name in place, or the next _appendDelta /
+    // MessageFinalized / TurnComplete will repaint without it.
+    _activeToolName = null;
+  }
+
+  void _onMessageFinalized(CarbonMessageFinalized event) {
+    if (platform_flags.kBubbleMode != BubbleMode.multi) return;
+    // V2 with phase-aware sealing (option C): Commentary blocks are
+    // intermediate reasoning that interleaves with tool calls. Sealing
+    // on every Commentary makes the tool indicator vanish before the
+    // user can see it (daemon emits ToolUseStart → MessageFinalized
+    // milliseconds apart). Only seal on FinalAnswer — that's the
+    // explicit "this is the user-visible answer block" signal from the
+    // daemon. Commentary blocks keep accumulating into the same active
+    // bubble until FinalAnswer (or TurnComplete) closes it out.
+    if (!event.isFinalAnswer) return;
+    if (_activeReplyIndex == null) return;
+    _activeToolName = null;
     setState(() {
-      _isTyping = false;
-      if (_activeReplyIndex == null) {
-        _activeReplyIndex = _messages.length;
-        _messages.add(
-          ChatMessage(
-            text: toolText,
-            type: MessageType.received,
-            isWaiting: true,
-          ),
-        );
-      } else {
-        _messages[_activeReplyIndex!] = ChatMessage(
-          text: toolText,
-          type: MessageType.received,
-          isWaiting: true,
-        );
-      }
+      _messages[_activeReplyIndex!] = ChatMessage(
+        text: _currentSegmentText,
+        type: MessageType.received,
+        isWaiting: false,
+      );
     });
-    _scrollToBottom();
+    _activeReplyIndex = null;
+    _currentSegmentText = '';
   }
 
   void _finalizeActiveReply() {
@@ -453,7 +821,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _chatScrollFocusNode.requestFocus();
       return;
     }
+    debugPrint(
+      '[Chat] _finalizeActiveReply: _currentSegmentText.length=${_currentSegmentText.length} '
+      'first200="${_currentSegmentText.length > 200 ? "${_currentSegmentText.substring(0, 200)}..." : _currentSegmentText}"',
+    );
     final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
+    debugPrint(
+      '[Chat] parsed.displayType=${parsedResponse.displayType} '
+      'parsed.content.length=${parsedResponse.content.length} '
+      'parsed.first200="${parsedResponse.content.length > 200 ? "${parsedResponse.content.substring(0, 200)}..." : parsedResponse.content}"',
+    );
     setState(() {
       _isWaiting = false;
       _isTyping = false;
@@ -658,9 +1035,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                           }
                         },
                         isVisible: _isVisible,
-                        isWaiting: _isWaiting,
+                        // Lock the bar only while a submission is sitting
+                        // in the pending slot (the 1-slot UI constraint).
+                        // During an in-flight turn with the slot empty
+                        // the user is free to type a new steer/queue.
+                        isWaiting: _pending != null,
                         hasChatStarted: _hasChatStarted,
-                        onSend: _handleSend,
+                        onSend: (text) => _handleSend(text),
                         onCancel: () {
                           _grpcService.interruptTurn();
                         },
@@ -720,7 +1101,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     }
                   },
                   messages: _messages,
-                  isTyping: _isTyping,
+                  // Bottom-of-list typing indicator: show only when the
+                  // thread is busy AND there's no active reply bubble.
+                  // When a bubble is filling (or showing a tool
+                  // indicator) it carries its own waiting state — a
+                  // second spinner below would be a visual duplicate.
+                  // The gap that previously left users wondering — between
+                  // one round ending and the next round's first delta —
+                  // is what this guards: _activeReplyIndex is null in
+                  // that window, so the dots fill in for the spinner.
+                  isTyping: _threadInFlight && _activeReplyIndex == null,
                   sessionTitle: _sessionTitle,
                   onHeaderTap: () {
                     debugPrint(
@@ -735,4 +1125,29 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       ),
     );
   }
+}
+
+/// One in-flight submission held in the pending slot. The slot can hold
+/// at most one of these at a time — second submissions are rejected by
+/// `_handleSend` until this resolves.
+class _PendingSubmission {
+  final String text;
+  final String reqId;
+
+  /// True = daemon was asked to inject mid-turn (steer queue). False =
+  /// daemon was asked to queue behind the current thread.
+  final bool steer;
+  final DateTime submittedAt;
+
+  /// Index in `_messages` where this submission's "pending" bubble lives.
+  /// On resolution the bubble's text is rewritten to drop the
+  /// "STEER/QUEUE 대기" prefix and `isWaiting` flips off.
+  int bubbleIndex;
+  _PendingSubmission({
+    required this.text,
+    required this.reqId,
+    required this.steer,
+    required this.submittedAt,
+    required this.bubbleIndex,
+  });
 }
