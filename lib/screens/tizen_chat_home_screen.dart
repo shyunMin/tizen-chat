@@ -377,11 +377,18 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonTurnComplete():
-        // No pending resolve here anymore — SteerApplied is the real
-        // signal (fires at the round boundary BEFORE this turn-end).
-        // ThreadComplete remains the safety net if SteerApplied never
-        // arrives (e.g. turn ended mid-race before drain).
-        _finalizeActiveReply();
+        // Do NOT finalize here. The daemon emits TurnCompleted at every
+        // agent_loop continuation/validation boundary (per the dedupe
+        // comment in carbon_grpc_service.dart), and the runtime's
+        // disposition feedback work surfaced that turn_id is currently
+        // empty on every TurnCompleted (project/issue/2026-05-15-v2-
+        // ingress-empty-turn-id.md), so the dart-side dedupe matches the
+        // first round and seals the bubble before round-2's deltas /
+        // tool events can append into it. Bubble sealing belongs on
+        // ThreadComplete — the genuine "this Submit is done" boundary,
+        // already wired below as the existing safety-net path. Pending
+        // submission resolution stays on SteerApplied / TurnStarted /
+        // ThreadComplete; nothing to do here.
         break;
 
       case CarbonSteerApplied(:final clientRequestId):
