@@ -44,17 +44,12 @@ mkdir -p %{buildroot}/usr/lib/systemd/system
 mkdir -p %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
 
 install -m 0755 usr/bin/%{bridge_name} %{buildroot}%{_bindir}/%{bridge_name}
-install -m 0644 usr/lib/systemd/system/%{bridge_name}.service \
-        %{buildroot}/usr/lib/systemd/system/%{bridge_name}.service
-install -m 0644 usr/lib/systemd/system/carbon-daemon-config-watch.path \
-        %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-watch.path
-install -m 0644 usr/lib/systemd/system/carbon-daemon-config-reload.service \
-        %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-reload.service
+install -m 0644 usr/lib/systemd/system/%{bridge_name}.service %{buildroot}/usr/lib/systemd/system/%{bridge_name}.service      
+install -m 0644 usr/lib/systemd/system/carbon-daemon-config-watch.path %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-watch.path
+install -m 0644 usr/lib/systemd/system/carbon-daemon-config-reload.service %{buildroot}/usr/lib/systemd/system/carbon-daemon-config-reload.service
 
-ln -sf /usr/lib/systemd/system/%{bridge_name}.service \
-       %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/%{bridge_name}.service
-ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path \
-       %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
+ln -sf /usr/lib/systemd/system/%{bridge_name}.service %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/%{bridge_name}.service
+ln -sf /usr/lib/systemd/system/carbon-daemon-config-watch.path %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/carbon-daemon-config-watch.path
 
 %files
 %defattr(-,root,root,-)
