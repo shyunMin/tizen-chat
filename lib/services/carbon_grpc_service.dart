@@ -136,6 +136,106 @@ class CarbonSubmitSteered extends CarbonEvent {
   CarbonSubmitSteered(this.turnId, this.clientRequestId);
 }
 
+/// Daemon's agent_loop will run another LLM round on the same logical
+/// turn — validator failed, plan-frontier advanced, budget exhausted, etc.
+/// Replaces the prior `continuation:*` Error-code path (Slice B made it
+/// a typed wire body). UI should drop the accumulated round-1 text so the
+/// regenerated round-2 content doesn't append onto it.
+class CarbonContinuationRequested extends CarbonEvent {
+  /// Raw v2 enum value: see ContinuationReason in
+  /// generated/carbon/v2/event_service.pbenum.dart.
+  final int reason;
+  final String message;
+  CarbonContinuationRequested(this.reason, this.message);
+}
+
+/// Validator gate started for a turn (begins after the model emits its
+/// final-answer phase). Informational only; UI can show a "검증 중" sub-
+/// indicator if it wants finer-grained progress.
+class CarbonValidationStarted extends CarbonEvent {
+  final String turnId;
+  CarbonValidationStarted(this.turnId);
+}
+
+/// Validator gate finished. [passed] = whether the model's answer was
+/// accepted. [reason] is the validator's free-text rationale. [attempt]
+/// is the 1-based attempt index in this thread.
+class CarbonValidationCompleted extends CarbonEvent {
+  final String turnId;
+  final bool passed;
+  final String reason;
+  final int attempt;
+  CarbonValidationCompleted(this.turnId, this.passed, this.reason, this.attempt);
+}
+
+/// Phase metadata that travels with TurnStarted. Each plan-driven thread
+/// emits a chain of turns; the phase tells the UI which role this turn
+/// is playing so each turn can be rendered as its own bubble with a
+/// header.
+sealed class CarbonTurnPhase {
+  /// One-line UI title for this phase, e.g.
+  /// "🛠 Step 3/4 · 기사 URL 추출". Null = no header (FinalAnswer-style).
+  String? title();
+}
+
+class CarbonTurnPhasePrompt extends CarbonTurnPhase {
+  @override
+  String? title() => '💬 Prompt';
+}
+
+class CarbonTurnPhaseStep extends CarbonTurnPhase {
+  final String stepId;
+  final String stepText;
+  /// 1-based. May be 0 when daemon didn't fill it (pre-Slice D).
+  final int stepIndex;
+  /// Total step count for this thread's plan.
+  final int planStepCount;
+  CarbonTurnPhaseStep({
+    required this.stepId,
+    required this.stepText,
+    required this.stepIndex,
+    required this.planStepCount,
+  });
+
+  @override
+  String? title() {
+    if (planStepCount > 0 && stepIndex > 0) {
+      return '🛠 Step $stepIndex/$planStepCount · $stepText';
+    }
+    return '🛠 $stepText';
+  }
+}
+
+class CarbonTurnPhaseValidation extends CarbonTurnPhase {
+  final int attempt;
+  CarbonTurnPhaseValidation(this.attempt);
+
+  // Returning null prevents a Validation-phase bubble from materializing.
+  // Validator pass / fail is communicated visually on the bubble that
+  // CARRIED the answer being validated (via validationPassed ✓), not as
+  // a separate "🧪 Validation" bubble. If the validator emits the
+  // final-answer delta inside this turn, the bubble that lazily
+  // materializes for that delta gets phaseTitle=null (clean answer
+  // style) and inherits the pending validationPassed flag.
+  @override
+  String? title() => null;
+}
+
+class CarbonTurnPhaseRecovery extends CarbonTurnPhase {
+  @override
+  String? title() => '⚠️ Recovery';
+}
+
+class CarbonTurnPhaseFree extends CarbonTurnPhase {
+  @override
+  String? title() => '💭 Free';
+}
+
+class CarbonTurnPhaseUnknown extends CarbonTurnPhase {
+  @override
+  String? title() => null;
+}
+
 /// New turn started. The [clientRequestId] echoes whatever was on the
 /// originating SubmitRequest, which is how a chat client tells "this is
 /// the turn for my queued prompt." Sources other than the chat client
@@ -146,12 +246,17 @@ class CarbonTurnStarted extends CarbonEvent {
   final String source;
   final String clientRequestId;
   final String prompt;
+  /// Phase metadata from TurnStarted.phase. Plan-driven threads put a
+  /// PhaseStep / PhaseValidation / PhaseRecovery here so the UI can
+  /// render a header on the resulting bubble.
+  final CarbonTurnPhase phase;
   CarbonTurnStarted(
     this.turnId,
     this.threadId,
     this.source,
     this.clientRequestId,
     this.prompt,
+    this.phase,
   );
 }
 
@@ -193,6 +298,31 @@ class CarbonToolApprovalRequest extends CarbonEvent {
     this.reason,
     this.timeoutSecs,
   );
+}
+
+/// Pull TurnPhase off a TurnStarted proto and map it onto the dart-side
+/// sealed [CarbonTurnPhase] hierarchy. Falls back to
+/// [CarbonTurnPhaseUnknown] when the daemon didn't emit a phase (older
+/// daemons, schedule-originated turns, etc.).
+CarbonTurnPhase _carbonPhaseFromProto(event_v2.TurnStarted t) {
+  if (!t.hasPhase()) return CarbonTurnPhaseUnknown();
+  final p = t.phase;
+  if (p.hasPrompt()) return CarbonTurnPhasePrompt();
+  if (p.hasStep()) {
+    final s = p.step;
+    return CarbonTurnPhaseStep(
+      stepId: s.stepId,
+      stepText: s.stepText,
+      stepIndex: s.stepIndex,
+      planStepCount: s.planStepCount,
+    );
+  }
+  if (p.hasValidation()) {
+    return CarbonTurnPhaseValidation(p.validation.attempt);
+  }
+  if (p.hasRecovery()) return CarbonTurnPhaseRecovery();
+  if (p.hasFree()) return CarbonTurnPhaseFree();
+  return CarbonTurnPhaseUnknown();
 }
 
 class CarbonGrpcService {
@@ -402,18 +532,29 @@ class CarbonGrpcService {
     }
 
     if (body.hasMessageDelta()) {
-      _eventController.add(CarbonTextDelta(body.messageDelta.content));
+      final d = body.messageDelta;
+      print(
+        'DEBUG: [CarbonGrpc] MessageDelta turn=${d.turnId} '
+        'itemId=${d.itemId} len=${d.content.length}',
+      );
+      _eventController.add(CarbonTextDelta(d.content));
     } else if (body.hasMessageFinalized()) {
       _eventController.add(
         CarbonMessageFinalized(body.messageFinalized.phase.value),
       );
     } else if (body.hasToolUseStart()) {
       final t = body.toolUseStart;
+      print(
+        'DEBUG: [CarbonGrpc] ToolUseStart name=${t.toolName} callId=${t.toolCallId} args=${t.argumentsJson.length > 80 ? "${t.argumentsJson.substring(0, 80)}..." : t.argumentsJson}',
+      );
       _eventController.add(
         CarbonToolUseStart(t.toolName, t.toolCallId, t.argumentsJson),
       );
     } else if (body.hasToolResult()) {
       final r = body.toolResult;
+      print(
+        'DEBUG: [CarbonGrpc] ToolResult callId=${r.toolCallId} err=${r.isError} out=${r.output.length}B',
+      );
       _eventController.add(CarbonToolResult(r.toolCallId, r.output, r.isError));
     } else if (body.hasTurnCompleted()) {
       final c = body.turnCompleted;
@@ -452,6 +593,26 @@ class CarbonGrpcService {
       );
       _eventController.add(
         CarbonSteerFailed(s.turnId, s.clientRequestId, s.reason),
+      );
+    } else if (body.hasContinuationRequested()) {
+      final c = body.continuationRequested;
+      print(
+        'DEBUG: [CarbonGrpc] ContinuationRequested reason=${c.reason} message=${c.message.length > 80 ? "${c.message.substring(0, 80)}..." : c.message}',
+      );
+      _eventController.add(
+        CarbonContinuationRequested(c.reason.value, c.message),
+      );
+    } else if (body.hasValidationStarted()) {
+      final v = body.validationStarted;
+      print('DEBUG: [CarbonGrpc] ValidationStarted turn=${v.turnId}');
+      _eventController.add(CarbonValidationStarted(v.turnId));
+    } else if (body.hasValidationCompleted()) {
+      final v = body.validationCompleted;
+      print(
+        'DEBUG: [CarbonGrpc] ValidationCompleted turn=${v.turnId} passed=${v.passed} attempt=${v.attempt} reason=${v.reason}',
+      );
+      _eventController.add(
+        CarbonValidationCompleted(v.turnId, v.passed, v.reason, v.attempt),
       );
     } else if (body.hasError()) {
       final err = body.error;
@@ -493,8 +654,15 @@ class CarbonGrpcService {
       );
       // Reconcile turn_id (SubmitResponse is authoritative when we sent the
       // turn, but daemon-originated turns — sub-agent, schedule — only
-      // surface here).
-      _currentTurnId = t.turnId;
+      // surface here). Guard against empty turn_id: older daemons (pre
+      // turn_id-propagation fix) emit empty turn_id on continuation
+      // TurnStarted; overwriting with "" left `isTurnBusy` stuck true
+      // because the matching TurnCompleted carried a real id and never
+      // cleared `_currentTurnId`. Skip empty so the prior live turn id
+      // (or `null`) remains the source of truth.
+      if (t.turnId.isNotEmpty) {
+        _currentTurnId = t.turnId;
+      }
       // A new logical turn — release the finalize-dedupe so the next
       // TurnCompleted is allowed through.
       _lastFinalizedTurnId = null;
@@ -511,6 +679,7 @@ class CarbonGrpcService {
           t.source,
           t.clientRequestId,
           t.prompt,
+          _carbonPhaseFromProto(t),
         ),
       );
     } else if (body.hasThreadCompleted()) {
@@ -519,6 +688,12 @@ class CarbonGrpcService {
       // Thread done — any future TurnCompleted will be on a different turn.
       _lastFinalizedTurnId = null;
       _clientThinksTurnBusy = false;
+      // Slice C/E emits multiple TurnStarted/TurnCompleted per thread; if
+      // the per-turn matching ever leaves `_currentTurnId` stuck on an
+      // old id, the thread boundary is the authoritative "we're done"
+      // signal. Always clear so `isTurnBusy` returns false for the next
+      // user submission.
+      _currentTurnId = null;
       _eventController.add(CarbonThreadComplete(tc.threadId));
     } else if (body.hasScheduleChanged()) {
       print(

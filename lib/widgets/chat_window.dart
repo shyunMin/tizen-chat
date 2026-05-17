@@ -230,6 +230,11 @@ class ChatWindowState extends State<ChatWindow>
                                 avatarInitial: message.senderInitial,
                                 isWaiting: message.isWaiting,
                                 displayType: message.displayType,
+                                phaseTitle: message.phaseTitle,
+                                tools: message.tools,
+                                validationPassed: message.validationPassed,
+                                currentToolIndicator:
+                                    message.currentToolIndicator,
                               );
                               break;
                           }
