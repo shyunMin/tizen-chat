@@ -60,12 +60,10 @@ class ListSkillsRequest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<ListSkillsRequest>(create);
   static ListSkillsRequest? _defaultInstance;
 
-  /// RFC 0008: optional session id. When set, the daemon merges the
-  /// session's workspace skills (highest priority) with global / extra /
-  /// bundled skills via SkillLoader's existing precedence rules. Empty
-  /// string preserves the original workspace-blind behaviour (global +
-  /// bundled + extra only). The cli passes its session id so the
-  /// dispatcher's skill index sees workspace-local skills.
+  /// Optional session id. When set, the daemon merges the session's
+  /// workspace skills (highest priority) with global / extra / bundled
+  /// skills via the loader's precedence rules. Empty string preserves the
+  /// workspace-blind listing (global + bundled + extra only).
   @$pb.TagNumber(2)
   $core.String get sessionId => $_getSZ(0);
   @$pb.TagNumber(2)
@@ -182,9 +180,8 @@ class ResolveSkillRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearTrigger() => $_clearField(1);
 
-  /// RFC 0008: optional session id; same semantics as in
-  /// ListSkillsRequest.session_id. Empty string falls back to the
-  /// workspace-blind resolve path.
+  /// Optional session id; same semantics as ListSkillsRequest.session_id.
+  /// Empty string falls back to the workspace-blind resolve path.
   @$pb.TagNumber(2)
   $core.String get sessionId => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -275,11 +272,10 @@ class ResolvedSkill extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   void clearDescription() => $_clearField(3);
 
-  /// RFC 0008 slice 10: scope label as defined by SkillScope
-  /// ("global" | "workspace" | "bundled" | "extra"). Used by the cli's
-  /// dispatcher to build scope-qualified aliases (e.g. "global/foo")
-  /// so SkillLoader's namespace lookup is reachable end-to-end. Empty
-  /// string is reserved for legacy daemons that pre-date this field.
+  /// Scope label: "global" | "workspace" | "bundled" | "extra". Lets
+  /// clients build scope-qualified aliases (e.g. "global/foo") for
+  /// namespace lookups. Empty string is reserved for legacy daemons
+  /// that pre-date this field.
   @$pb.TagNumber(4)
   $core.String get scope => $_getSZ(3);
   @$pb.TagNumber(4)
@@ -454,7 +450,7 @@ class InstallSkillRequest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<InstallSkillRequest>(create);
   static InstallSkillRequest? _defaultInstance;
 
-  /// URL or local path. Trust / sandbox model is a slice 6 design item.
+  /// URL or local path. Trust / sandbox model is not yet enforced.
   @$pb.TagNumber(1)
   $core.String get source => $_getSZ(0);
   @$pb.TagNumber(1)

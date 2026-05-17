@@ -17,8 +17,8 @@ import 'package:protobuf/protobuf.dart' as $pb;
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
 /// Token / cost usage summary. Carried by TurnCompleted and SubAgentCompleted.
-/// Shape mirrors the v1 `usage_json` payload to keep the wire compatible
-/// during migration. A structured replacement may follow in a later slice.
+/// Currently carried as an opaque JSON string; a structured replacement may
+/// follow once the field set stabilizes.
 class Usage extends $pb.GeneratedMessage {
   factory Usage({
     $core.String? usageJson,

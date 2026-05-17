@@ -395,9 +395,8 @@ class GetTurnRequest extends $pb.GeneratedMessage {
   void clearTurnId() => $_clearField(1);
 }
 
-/// Logical episode within a session.
-/// Field set is intentionally minimal in slice 1; slice 13 (ThreadService
-/// wiring) fleshes out item summaries, compaction state, etc.
+/// Logical episode within a session. Field set is intentionally minimal;
+/// item summaries and compaction state may be added later.
 class Thread extends $pb.GeneratedMessage {
   factory Thread({
     $core.String? threadId,
@@ -487,7 +486,7 @@ class Thread extends $pb.GeneratedMessage {
   void clearOpen() => $_clearField(4);
 }
 
-/// One execution unit. Items live inside a turn; slice 13 carries item refs.
+/// One execution unit within a thread. Item references may be added later.
 class Turn extends $pb.GeneratedMessage {
   factory Turn({
     $core.String? turnId,

@@ -155,8 +155,6 @@ class SubmitRequest extends $pb.GeneratedMessage {
   ///   false = MailboxPolicy decides. With turn in flight this lands in
   ///           the post-thread queue (QUEUED). With no turn it starts
   ///           immediately (STARTED_NOW).
-  /// Mirrors the runtime's IngressMessage.steer so chat clients keep
-  /// direct control over mid-turn injection vs. queue-after-thread.
   @$pb.TagNumber(7)
   $core.bool get steer => $_getBF(6);
   @$pb.TagNumber(7)
@@ -239,7 +237,6 @@ class SubmitResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearThreadId() => $_clearField(2);
 
-  /// Case-dependent per RFC 0007 §IngressService disposition table.
   /// STARTED_NOW / STEERED = set. QUEUED = "" (assigned when turn starts).
   @$pb.TagNumber(3)
   $core.String get turnId => $_getSZ(2);
@@ -659,7 +656,7 @@ class IngressOptions extends $pb.GeneratedMessage {
 
 enum ThreadTarget_Target { auto, resume, newThread, notSet }
 
-/// Where this ingress should land. RFC 0007 §IngressService.
+/// Where this ingress should land.
 class ThreadTarget extends $pb.GeneratedMessage {
   factory ThreadTarget({
     AutoTarget? auto,
@@ -1122,7 +1119,7 @@ class ApproveToolRequest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<ApproveToolRequest>(create);
   static ApproveToolRequest? _defaultInstance;
 
-  /// Daemon-issued approval handle (see RFC 0007 tool approval flow).
+  /// Daemon-issued approval handle.
   @$pb.TagNumber(1)
   $core.String get approvalId => $_getSZ(0);
   @$pb.TagNumber(1)

@@ -28,12 +28,22 @@ if [[ ! -d "$CARBON_REPO" ]]; then
   exit 1
 fi
 
-PROTO_ROOT="$CARBON_REPO/crates/core/proto/proto"
-V2_DIR="$PROTO_ROOT/carbon/v2"
+# Carbon has shifted the proto crate path historically; check both.
+# Older layout:  crates/core/proto/proto/carbon/v2
+# Newer layout: crates/carbon-proto/proto/carbon/v2
+for candidate in \
+  "$CARBON_REPO/crates/carbon-proto/proto" \
+  "$CARBON_REPO/crates/core/proto/proto"; do
+  if [[ -d "$candidate/carbon/v2" ]]; then
+    PROTO_ROOT="$candidate"
+    V2_DIR="$PROTO_ROOT/carbon/v2"
+    break
+  fi
+done
 
-if [[ ! -d "$V2_DIR" ]]; then
-  echo "error: expected v2 proto dir not found: $V2_DIR" >&2
-  echo "       (is this really the carbon repo root?)" >&2
+if [[ -z "${V2_DIR:-}" ]]; then
+  echo "error: expected v2 proto dir not found under $CARBON_REPO" >&2
+  echo "       tried crates/carbon-proto/proto and crates/core/proto/proto" >&2
   exit 1
 fi
 

@@ -193,7 +193,7 @@ class SetApprovalPolicyRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearSessionId() => $_clearField(1);
 
-  /// String for now; slice 15 may promote to a typed enum once the policy
+  /// String for now; may be promoted to a typed enum once the policy
   /// surface is finalized.
   @$pb.TagNumber(2)
   $core.String get approvalPolicy => $_getSZ(1);
