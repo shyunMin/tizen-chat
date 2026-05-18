@@ -83,6 +83,8 @@ class _PromptBarState extends State<PromptBar>
         } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           widget.onArrowUp?.call();
           return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          return KeyEventResult.handled;
         }
       }
       return KeyEventResult.ignored;
@@ -190,6 +192,7 @@ class _PromptBarState extends State<PromptBar>
   Widget build(BuildContext context) {
     return Focus(
       focusNode: _outerFocusNode,
+      autofocus: true,
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.select ||
@@ -206,6 +209,9 @@ class _PromptBarState extends State<PromptBar>
           }
           if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
             widget.onArrowUp?.call();
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
             return KeyEventResult.handled;
           }
         }
