@@ -36,6 +36,9 @@ const EventKind$json = {
     {'1': 'EVENT_KIND_STEER_APPLIED', '2': 14},
     {'1': 'EVENT_KIND_STEER_FAILED', '2': 15},
     {'1': 'EVENT_KIND_ERROR', '2': 16},
+    {'1': 'EVENT_KIND_CONTINUATION_REQUESTED', '2': 17},
+    {'1': 'EVENT_KIND_VALIDATION_STARTED', '2': 18},
+    {'1': 'EVENT_KIND_VALIDATION_COMPLETED', '2': 19},
   ],
 };
 
@@ -50,7 +53,9 @@ final $typed_data.Uint8List eventKindDescriptor = $convert.base64Decode(
     'X0tJTkRfU0VTU0lPTl9FTkRFRBAKEh8KG0VWRU5UX0tJTkRfU0NIRURVTEVfQ0hBTkdFRBALEi'
     'AKHEVWRU5UX0tJTkRfU1VCX0FHRU5UX1NQQVdORUQQDBIiCh5FVkVOVF9LSU5EX1NVQl9BR0VO'
     'VF9DT01QTEVURUQQDRIcChhFVkVOVF9LSU5EX1NURUVSX0FQUExJRUQQDhIbChdFVkVOVF9LSU'
-    '5EX1NURUVSX0ZBSUxFRBAPEhQKEEVWRU5UX0tJTkRfRVJST1IQEA==');
+    '5EX1NURUVSX0ZBSUxFRBAPEhQKEEVWRU5UX0tJTkRfRVJST1IQEBIlCiFFVkVOVF9LSU5EX0NP'
+    'TlRJTlVBVElPTl9SRVFVRVNURUQQERIhCh1FVkVOVF9LSU5EX1ZBTElEQVRJT05fU1RBUlRFRB'
+    'ASEiMKH0VWRU5UX0tJTkRfVkFMSURBVElPTl9DT01QTEVURUQQEw==');
 
 @$core.Deprecated('Use assistantMessagePhaseDescriptor instead')
 const AssistantMessagePhase$json = {
@@ -67,6 +72,26 @@ final $typed_data.Uint8List assistantMessagePhaseDescriptor = $convert.base64Dec
     'ChVBc3Npc3RhbnRNZXNzYWdlUGhhc2USJwojQVNTSVNUQU5UX01FU1NBR0VfUEhBU0VfVU5TUE'
     'VDSUZJRUQQABImCiJBU1NJU1RBTlRfTUVTU0FHRV9QSEFTRV9DT01NRU5UQVJZEAESKAokQVNT'
     'SVNUQU5UX01FU1NBR0VfUEhBU0VfRklOQUxfQU5TV0VSEAI=');
+
+@$core.Deprecated('Use threadCompleteReasonDescriptor instead')
+const ThreadCompleteReason$json = {
+  '1': 'ThreadCompleteReason',
+  '2': [
+    {'1': 'THREAD_COMPLETE_REASON_UNSPECIFIED', '2': 0},
+    {'1': 'THREAD_COMPLETE_REASON_COMPLETED', '2': 1},
+    {'1': 'THREAD_COMPLETE_REASON_CANCELLED', '2': 2},
+    {'1': 'THREAD_COMPLETE_REASON_PAUSED_VALIDATION_EXHAUSTED', '2': 3},
+    {'1': 'THREAD_COMPLETE_REASON_FATAL', '2': 4},
+  ],
+};
+
+/// Descriptor for `ThreadCompleteReason`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List threadCompleteReasonDescriptor = $convert.base64Decode(
+    'ChRUaHJlYWRDb21wbGV0ZVJlYXNvbhImCiJUSFJFQURfQ09NUExFVEVfUkVBU09OX1VOU1BFQ0'
+    'lGSUVEEAASJAogVEhSRUFEX0NPTVBMRVRFX1JFQVNPTl9DT01QTEVURUQQARIkCiBUSFJFQURf'
+    'Q09NUExFVEVfUkVBU09OX0NBTkNFTExFRBACEjYKMlRIUkVBRF9DT01QTEVURV9SRUFTT05fUE'
+    'FVU0VEX1ZBTElEQVRJT05fRVhIQVVTVEVEEAMSIAocVEhSRUFEX0NPTVBMRVRFX1JFQVNPTl9G'
+    'QVRBTBAE');
 
 @$core.Deprecated('Use scheduleChangeDescriptor instead')
 const ScheduleChange$json = {
@@ -103,6 +128,37 @@ const SpawnMode$json = {
 final $typed_data.Uint8List spawnModeDescriptor = $convert.base64Decode(
     'CglTcGF3bk1vZGUSGgoWU1BBV05fTU9ERV9VTlNQRUNJRklFRBAAEhMKD1NQQVdOX01PREVfU1'
     'lOQxABEhQKEFNQQVdOX01PREVfQVNZTkMQAhIXChNTUEFXTl9NT0RFX0RFVEFDSEVEEAM=');
+
+@$core.Deprecated('Use continuationReasonDescriptor instead')
+const ContinuationReason$json = {
+  '1': 'ContinuationReason',
+  '2': [
+    {'1': 'CONTINUATION_REASON_UNSPECIFIED', '2': 0},
+    {'1': 'CONTINUATION_REASON_BUDGET_EXCEEDED', '2': 1},
+    {'1': 'CONTINUATION_REASON_PLAN_FRONTIER_CHANGED', '2': 2},
+    {'1': 'CONTINUATION_REASON_UNRESOLVED_FRONTIER', '2': 3},
+    {'1': 'CONTINUATION_REASON_DEPTH_LIMIT_REACHED', '2': 4},
+    {'1': 'CONTINUATION_REASON_CONTEXT_WINDOW_PRESSURE', '2': 5},
+    {'1': 'CONTINUATION_REASON_ACCEPTANCE_CRITERIA_MISSING', '2': 6},
+    {'1': 'CONTINUATION_REASON_VALIDATION_FAILED', '2': 7},
+    {'1': 'CONTINUATION_REASON_STEP_EXHAUSTED', '2': 8},
+    {'1': 'CONTINUATION_REASON_CATASTROPHIC_FAILURE', '2': 9},
+    {'1': 'CONTINUATION_REASON_VALIDATE', '2': 10},
+  ],
+};
+
+/// Descriptor for `ContinuationReason`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List continuationReasonDescriptor = $convert.base64Decode(
+    'ChJDb250aW51YXRpb25SZWFzb24SIwofQ09OVElOVUFUSU9OX1JFQVNPTl9VTlNQRUNJRklFRB'
+    'AAEicKI0NPTlRJTlVBVElPTl9SRUFTT05fQlVER0VUX0VYQ0VFREVEEAESLQopQ09OVElOVUFU'
+    'SU9OX1JFQVNPTl9QTEFOX0ZST05USUVSX0NIQU5HRUQQAhIrCidDT05USU5VQVRJT05fUkVBU0'
+    '9OX1VOUkVTT0xWRURfRlJPTlRJRVIQAxIrCidDT05USU5VQVRJT05fUkVBU09OX0RFUFRIX0xJ'
+    'TUlUX1JFQUNIRUQQBBIvCitDT05USU5VQVRJT05fUkVBU09OX0NPTlRFWFRfV0lORE9XX1BSRV'
+    'NTVVJFEAUSMwovQ09OVElOVUFUSU9OX1JFQVNPTl9BQ0NFUFRBTkNFX0NSSVRFUklBX01JU1NJ'
+    'TkcQBhIpCiVDT05USU5VQVRJT05fUkVBU09OX1ZBTElEQVRJT05fRkFJTEVEEAcSJgoiQ09OVE'
+    'lOVUFUSU9OX1JFQVNPTl9TVEVQX0VYSEFVU1RFRBAIEiwKKENPTlRJTlVBVElPTl9SRUFTT05f'
+    'Q0FUQVNUUk9QSElDX0ZBSUxVUkUQCRIgChxDT05USU5VQVRJT05fUkVBU09OX1ZBTElEQVRFEA'
+    'o=');
 
 @$core.Deprecated('Use subscribeRequestDescriptor instead')
 const SubscribeRequest$json = {
@@ -320,6 +376,33 @@ const EventBody$json = {
       '9': 0,
       '10': 'error'
     },
+    {
+      '1': 'continuation_requested',
+      '3': 17,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.ContinuationRequested',
+      '9': 0,
+      '10': 'continuationRequested'
+    },
+    {
+      '1': 'validation_started',
+      '3': 18,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.ValidationStarted',
+      '9': 0,
+      '10': 'validationStarted'
+    },
+    {
+      '1': 'validation_completed',
+      '3': 19,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.ValidationCompleted',
+      '9': 0,
+      '10': 'validationCompleted'
+    },
   ],
   '8': [
     {'1': 'body'},
@@ -347,7 +430,12 @@ final $typed_data.Uint8List eventBodyDescriptor = $convert.base64Decode(
     'dENvbXBsZXRlZEgAUhFzdWJBZ2VudENvbXBsZXRlZBI+Cg1zdGVlcl9hcHBsaWVkGA4gASgLMh'
     'cuY2FyYm9uLnYyLlN0ZWVyQXBwbGllZEgAUgxzdGVlckFwcGxpZWQSOwoMc3RlZXJfZmFpbGVk'
     'GA8gASgLMhYuY2FyYm9uLnYyLlN0ZWVyRmFpbGVkSABSC3N0ZWVyRmFpbGVkEigKBWVycm9yGB'
-    'AgASgLMhAuY2FyYm9uLnYyLkVycm9ySABSBWVycm9yQgYKBGJvZHk=');
+    'AgASgLMhAuY2FyYm9uLnYyLkVycm9ySABSBWVycm9yElkKFmNvbnRpbnVhdGlvbl9yZXF1ZXN0'
+    'ZWQYESABKAsyIC5jYXJib24udjIuQ29udGludWF0aW9uUmVxdWVzdGVkSABSFWNvbnRpbnVhdG'
+    'lvblJlcXVlc3RlZBJNChJ2YWxpZGF0aW9uX3N0YXJ0ZWQYEiABKAsyHC5jYXJib24udjIuVmFs'
+    'aWRhdGlvblN0YXJ0ZWRIAFIRdmFsaWRhdGlvblN0YXJ0ZWQSUwoUdmFsaWRhdGlvbl9jb21wbG'
+    'V0ZWQYEyABKAsyHi5jYXJib24udjIuVmFsaWRhdGlvbkNvbXBsZXRlZEgAUhN2YWxpZGF0aW9u'
+    'Q29tcGxldGVkQgYKBGJvZHk=');
 
 @$core.Deprecated('Use turnStartedDescriptor instead')
 const TurnStarted$json = {
@@ -358,6 +446,22 @@ const TurnStarted$json = {
     {'1': 'source', '3': 3, '4': 1, '5': 9, '10': 'source'},
     {'1': 'client_request_id', '3': 4, '4': 1, '5': 9, '10': 'clientRequestId'},
     {'1': 'prompt', '3': 5, '4': 1, '5': 9, '10': 'prompt'},
+    {
+      '1': 'continuation_reason',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.carbon.v2.ContinuationReason',
+      '10': 'continuationReason'
+    },
+    {
+      '1': 'phase',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.TurnPhase',
+      '10': 'phase'
+    },
   ],
 };
 
@@ -365,7 +469,140 @@ const TurnStarted$json = {
 final $typed_data.Uint8List turnStartedDescriptor = $convert.base64Decode(
     'CgtUdXJuU3RhcnRlZBIXCgd0dXJuX2lkGAEgASgJUgZ0dXJuSWQSGwoJdGhyZWFkX2lkGAIgAS'
     'gJUgh0aHJlYWRJZBIWCgZzb3VyY2UYAyABKAlSBnNvdXJjZRIqChFjbGllbnRfcmVxdWVzdF9p'
-    'ZBgEIAEoCVIPY2xpZW50UmVxdWVzdElkEhYKBnByb21wdBgFIAEoCVIGcHJvbXB0');
+    'ZBgEIAEoCVIPY2xpZW50UmVxdWVzdElkEhYKBnByb21wdBgFIAEoCVIGcHJvbXB0Ek4KE2Nvbn'
+    'RpbnVhdGlvbl9yZWFzb24YBiABKA4yHS5jYXJib24udjIuQ29udGludWF0aW9uUmVhc29uUhJj'
+    'b250aW51YXRpb25SZWFzb24SKgoFcGhhc2UYByABKAsyFC5jYXJib24udjIuVHVyblBoYXNlUg'
+    'VwaGFzZQ==');
+
+@$core.Deprecated('Use turnPhaseDescriptor instead')
+const TurnPhase$json = {
+  '1': 'TurnPhase',
+  '2': [
+    {
+      '1': 'prompt',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.PhasePrompt',
+      '9': 0,
+      '10': 'prompt'
+    },
+    {
+      '1': 'step',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.PhaseStep',
+      '9': 0,
+      '10': 'step'
+    },
+    {
+      '1': 'validation',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.PhaseValidation',
+      '9': 0,
+      '10': 'validation'
+    },
+    {
+      '1': 'recovery',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.PhaseRecovery',
+      '9': 0,
+      '10': 'recovery'
+    },
+    {
+      '1': 'free',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.carbon.v2.PhaseFree',
+      '9': 0,
+      '10': 'free'
+    },
+  ],
+  '8': [
+    {'1': 'variant'},
+  ],
+};
+
+/// Descriptor for `TurnPhase`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List turnPhaseDescriptor = $convert.base64Decode(
+    'CglUdXJuUGhhc2USMAoGcHJvbXB0GAEgASgLMhYuY2FyYm9uLnYyLlBoYXNlUHJvbXB0SABSBn'
+    'Byb21wdBIqCgRzdGVwGAIgASgLMhQuY2FyYm9uLnYyLlBoYXNlU3RlcEgAUgRzdGVwEjwKCnZh'
+    'bGlkYXRpb24YAyABKAsyGi5jYXJib24udjIuUGhhc2VWYWxpZGF0aW9uSABSCnZhbGlkYXRpb2'
+    '4SNgoIcmVjb3ZlcnkYBCABKAsyGC5jYXJib24udjIuUGhhc2VSZWNvdmVyeUgAUghyZWNvdmVy'
+    'eRIqCgRmcmVlGAUgASgLMhQuY2FyYm9uLnYyLlBoYXNlRnJlZUgAUgRmcmVlQgkKB3Zhcmlhbn'
+    'Q=');
+
+@$core.Deprecated('Use phasePromptDescriptor instead')
+const PhasePrompt$json = {
+  '1': 'PhasePrompt',
+};
+
+/// Descriptor for `PhasePrompt`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List phasePromptDescriptor =
+    $convert.base64Decode('CgtQaGFzZVByb21wdA==');
+
+@$core.Deprecated('Use phaseStepDescriptor instead')
+const PhaseStep$json = {
+  '1': 'PhaseStep',
+  '2': [
+    {'1': 'step_id', '3': 1, '4': 1, '5': 9, '10': 'stepId'},
+    {'1': 'step_text', '3': 2, '4': 1, '5': 9, '10': 'stepText'},
+    {'1': 'depends_on', '3': 3, '4': 3, '5': 9, '10': 'dependsOn'},
+    {'1': 'done_when', '3': 4, '4': 3, '5': 9, '10': 'doneWhen'},
+    {'1': 'artifacts', '3': 5, '4': 3, '5': 9, '10': 'artifacts'},
+    {'1': 'step_index', '3': 6, '4': 1, '5': 13, '10': 'stepIndex'},
+    {'1': 'plan_step_count', '3': 7, '4': 1, '5': 13, '10': 'planStepCount'},
+  ],
+};
+
+/// Descriptor for `PhaseStep`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List phaseStepDescriptor = $convert.base64Decode(
+    'CglQaGFzZVN0ZXASFwoHc3RlcF9pZBgBIAEoCVIGc3RlcElkEhsKCXN0ZXBfdGV4dBgCIAEoCV'
+    'IIc3RlcFRleHQSHQoKZGVwZW5kc19vbhgDIAMoCVIJZGVwZW5kc09uEhsKCWRvbmVfd2hlbhgE'
+    'IAMoCVIIZG9uZVdoZW4SHAoJYXJ0aWZhY3RzGAUgAygJUglhcnRpZmFjdHMSHQoKc3RlcF9pbm'
+    'RleBgGIAEoDVIJc3RlcEluZGV4EiYKD3BsYW5fc3RlcF9jb3VudBgHIAEoDVINcGxhblN0ZXBD'
+    'b3VudA==');
+
+@$core.Deprecated('Use phaseValidationDescriptor instead')
+const PhaseValidation$json = {
+  '1': 'PhaseValidation',
+  '2': [
+    {'1': 'attempt', '3': 1, '4': 1, '5': 13, '10': 'attempt'},
+  ],
+};
+
+/// Descriptor for `PhaseValidation`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List phaseValidationDescriptor = $convert.base64Decode(
+    'Cg9QaGFzZVZhbGlkYXRpb24SGAoHYXR0ZW1wdBgBIAEoDVIHYXR0ZW1wdA==');
+
+@$core.Deprecated('Use phaseRecoveryDescriptor instead')
+const PhaseRecovery$json = {
+  '1': 'PhaseRecovery',
+  '2': [
+    {'1': 'attempt', '3': 1, '4': 1, '5': 13, '10': 'attempt'},
+    {'1': 'validator_reason', '3': 2, '4': 1, '5': 9, '10': 'validatorReason'},
+  ],
+};
+
+/// Descriptor for `PhaseRecovery`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List phaseRecoveryDescriptor = $convert.base64Decode(
+    'Cg1QaGFzZVJlY292ZXJ5EhgKB2F0dGVtcHQYASABKA1SB2F0dGVtcHQSKQoQdmFsaWRhdG9yX3'
+    'JlYXNvbhgCIAEoCVIPdmFsaWRhdG9yUmVhc29u');
+
+@$core.Deprecated('Use phaseFreeDescriptor instead')
+const PhaseFree$json = {
+  '1': 'PhaseFree',
+};
+
+/// Descriptor for `PhaseFree`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List phaseFreeDescriptor =
+    $convert.base64Decode('CglQaGFzZUZyZWU=');
 
 @$core.Deprecated('Use turnCompletedDescriptor instead')
 const TurnCompleted$json = {
@@ -504,12 +741,21 @@ const ThreadCompleted$json = {
   '1': 'ThreadCompleted',
   '2': [
     {'1': 'thread_id', '3': 1, '4': 1, '5': 9, '10': 'threadId'},
+    {
+      '1': 'reason',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.carbon.v2.ThreadCompleteReason',
+      '10': 'reason'
+    },
   ],
 };
 
 /// Descriptor for `ThreadCompleted`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List threadCompletedDescriptor = $convert.base64Decode(
-    'Cg9UaHJlYWRDb21wbGV0ZWQSGwoJdGhyZWFkX2lkGAEgASgJUgh0aHJlYWRJZA==');
+    'Cg9UaHJlYWRDb21wbGV0ZWQSGwoJdGhyZWFkX2lkGAEgASgJUgh0aHJlYWRJZBI3CgZyZWFzb2'
+    '4YAiABKA4yHy5jYXJib24udjIuVGhyZWFkQ29tcGxldGVSZWFzb25SBnJlYXNvbg==');
 
 @$core.Deprecated('Use sessionEndedDescriptor instead')
 const SessionEnded$json = {
@@ -636,3 +882,53 @@ const Error$json = {
 final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'CgVFcnJvchISCgRjb2RlGAEgASgJUgRjb2RlEhgKB21lc3NhZ2UYAiABKAlSB21lc3NhZ2USFA'
     'oFZmF0YWwYAyABKAhSBWZhdGFsEhcKB3R1cm5faWQYBCABKAlSBnR1cm5JZA==');
+
+@$core.Deprecated('Use validationStartedDescriptor instead')
+const ValidationStarted$json = {
+  '1': 'ValidationStarted',
+  '2': [
+    {'1': 'turn_id', '3': 1, '4': 1, '5': 9, '10': 'turnId'},
+  ],
+};
+
+/// Descriptor for `ValidationStarted`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List validationStartedDescriptor = $convert.base64Decode(
+    'ChFWYWxpZGF0aW9uU3RhcnRlZBIXCgd0dXJuX2lkGAEgASgJUgZ0dXJuSWQ=');
+
+@$core.Deprecated('Use validationCompletedDescriptor instead')
+const ValidationCompleted$json = {
+  '1': 'ValidationCompleted',
+  '2': [
+    {'1': 'turn_id', '3': 1, '4': 1, '5': 9, '10': 'turnId'},
+    {'1': 'passed', '3': 2, '4': 1, '5': 8, '10': 'passed'},
+    {'1': 'reason', '3': 3, '4': 1, '5': 9, '10': 'reason'},
+    {'1': 'attempt', '3': 4, '4': 1, '5': 13, '10': 'attempt'},
+  ],
+};
+
+/// Descriptor for `ValidationCompleted`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List validationCompletedDescriptor = $convert.base64Decode(
+    'ChNWYWxpZGF0aW9uQ29tcGxldGVkEhcKB3R1cm5faWQYASABKAlSBnR1cm5JZBIWCgZwYXNzZW'
+    'QYAiABKAhSBnBhc3NlZBIWCgZyZWFzb24YAyABKAlSBnJlYXNvbhIYCgdhdHRlbXB0GAQgASgN'
+    'UgdhdHRlbXB0');
+
+@$core.Deprecated('Use continuationRequestedDescriptor instead')
+const ContinuationRequested$json = {
+  '1': 'ContinuationRequested',
+  '2': [
+    {
+      '1': 'reason',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.carbon.v2.ContinuationReason',
+      '10': 'reason'
+    },
+    {'1': 'message', '3': 2, '4': 1, '5': 9, '10': 'message'},
+  ],
+};
+
+/// Descriptor for `ContinuationRequested`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List continuationRequestedDescriptor = $convert.base64Decode(
+    'ChVDb250aW51YXRpb25SZXF1ZXN0ZWQSNQoGcmVhc29uGAEgASgOMh0uY2FyYm9uLnYyLkNvbn'
+    'RpbnVhdGlvblJlYXNvblIGcmVhc29uEhgKB21lc3NhZ2UYAiABKAlSB21lc3NhZ2U=');

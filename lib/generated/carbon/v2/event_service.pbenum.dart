@@ -49,6 +49,12 @@ class EventKind extends $pb.ProtobufEnum {
       EventKind._(15, _omitEnumNames ? '' : 'EVENT_KIND_STEER_FAILED');
   static const EventKind EVENT_KIND_ERROR =
       EventKind._(16, _omitEnumNames ? '' : 'EVENT_KIND_ERROR');
+  static const EventKind EVENT_KIND_CONTINUATION_REQUESTED = EventKind._(
+      17, _omitEnumNames ? '' : 'EVENT_KIND_CONTINUATION_REQUESTED');
+  static const EventKind EVENT_KIND_VALIDATION_STARTED =
+      EventKind._(18, _omitEnumNames ? '' : 'EVENT_KIND_VALIDATION_STARTED');
+  static const EventKind EVENT_KIND_VALIDATION_COMPLETED =
+      EventKind._(19, _omitEnumNames ? '' : 'EVENT_KIND_VALIDATION_COMPLETED');
 
   static const $core.List<EventKind> values = <EventKind>[
     EVENT_KIND_UNSPECIFIED,
@@ -68,10 +74,13 @@ class EventKind extends $pb.ProtobufEnum {
     EVENT_KIND_STEER_APPLIED,
     EVENT_KIND_STEER_FAILED,
     EVENT_KIND_ERROR,
+    EVENT_KIND_CONTINUATION_REQUESTED,
+    EVENT_KIND_VALIDATION_STARTED,
+    EVENT_KIND_VALIDATION_COMPLETED,
   ];
 
   static final $core.List<EventKind?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 16);
+      $pb.ProtobufEnum.$_initByValueList(values, 19);
   static EventKind? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
@@ -102,6 +111,43 @@ class AssistantMessagePhase extends $pb.ProtobufEnum {
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const AssistantMessagePhase._(super.value, super.name);
+}
+
+class ThreadCompleteReason extends $pb.ProtobufEnum {
+  static const ThreadCompleteReason THREAD_COMPLETE_REASON_UNSPECIFIED =
+      ThreadCompleteReason._(
+          0, _omitEnumNames ? '' : 'THREAD_COMPLETE_REASON_UNSPECIFIED');
+  static const ThreadCompleteReason THREAD_COMPLETE_REASON_COMPLETED =
+      ThreadCompleteReason._(
+          1, _omitEnumNames ? '' : 'THREAD_COMPLETE_REASON_COMPLETED');
+  static const ThreadCompleteReason THREAD_COMPLETE_REASON_CANCELLED =
+      ThreadCompleteReason._(
+          2, _omitEnumNames ? '' : 'THREAD_COMPLETE_REASON_CANCELLED');
+  static const ThreadCompleteReason
+      THREAD_COMPLETE_REASON_PAUSED_VALIDATION_EXHAUSTED =
+      ThreadCompleteReason._(
+          3,
+          _omitEnumNames
+              ? ''
+              : 'THREAD_COMPLETE_REASON_PAUSED_VALIDATION_EXHAUSTED');
+  static const ThreadCompleteReason THREAD_COMPLETE_REASON_FATAL =
+      ThreadCompleteReason._(
+          4, _omitEnumNames ? '' : 'THREAD_COMPLETE_REASON_FATAL');
+
+  static const $core.List<ThreadCompleteReason> values = <ThreadCompleteReason>[
+    THREAD_COMPLETE_REASON_UNSPECIFIED,
+    THREAD_COMPLETE_REASON_COMPLETED,
+    THREAD_COMPLETE_REASON_CANCELLED,
+    THREAD_COMPLETE_REASON_PAUSED_VALIDATION_EXHAUSTED,
+    THREAD_COMPLETE_REASON_FATAL,
+  ];
+
+  static final $core.List<ThreadCompleteReason?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static ThreadCompleteReason? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const ThreadCompleteReason._(super.value, super.name);
 }
 
 class ScheduleChange extends $pb.ProtobufEnum {
@@ -165,6 +211,72 @@ class SpawnMode extends $pb.ProtobufEnum {
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const SpawnMode._(super.value, super.name);
+}
+
+/// Mirrors crates/core/runtime/src/thread.rs::ContinuationReason. Wire
+/// shape lives here so consumers can branch on the structural reason
+/// instead of parsing a "continuation:Foo" string code.
+class ContinuationReason extends $pb.ProtobufEnum {
+  static const ContinuationReason CONTINUATION_REASON_UNSPECIFIED =
+      ContinuationReason._(
+          0, _omitEnumNames ? '' : 'CONTINUATION_REASON_UNSPECIFIED');
+  static const ContinuationReason CONTINUATION_REASON_BUDGET_EXCEEDED =
+      ContinuationReason._(
+          1, _omitEnumNames ? '' : 'CONTINUATION_REASON_BUDGET_EXCEEDED');
+  static const ContinuationReason CONTINUATION_REASON_PLAN_FRONTIER_CHANGED =
+      ContinuationReason._(
+          2, _omitEnumNames ? '' : 'CONTINUATION_REASON_PLAN_FRONTIER_CHANGED');
+  static const ContinuationReason CONTINUATION_REASON_UNRESOLVED_FRONTIER =
+      ContinuationReason._(
+          3, _omitEnumNames ? '' : 'CONTINUATION_REASON_UNRESOLVED_FRONTIER');
+  static const ContinuationReason CONTINUATION_REASON_DEPTH_LIMIT_REACHED =
+      ContinuationReason._(
+          4, _omitEnumNames ? '' : 'CONTINUATION_REASON_DEPTH_LIMIT_REACHED');
+  static const ContinuationReason CONTINUATION_REASON_CONTEXT_WINDOW_PRESSURE =
+      ContinuationReason._(5,
+          _omitEnumNames ? '' : 'CONTINUATION_REASON_CONTEXT_WINDOW_PRESSURE');
+  static const ContinuationReason
+      CONTINUATION_REASON_ACCEPTANCE_CRITERIA_MISSING = ContinuationReason._(
+          6,
+          _omitEnumNames
+              ? ''
+              : 'CONTINUATION_REASON_ACCEPTANCE_CRITERIA_MISSING');
+  static const ContinuationReason CONTINUATION_REASON_VALIDATION_FAILED =
+      ContinuationReason._(
+          7, _omitEnumNames ? '' : 'CONTINUATION_REASON_VALIDATION_FAILED');
+  static const ContinuationReason CONTINUATION_REASON_STEP_EXHAUSTED =
+      ContinuationReason._(
+          8, _omitEnumNames ? '' : 'CONTINUATION_REASON_STEP_EXHAUSTED');
+  static const ContinuationReason CONTINUATION_REASON_CATASTROPHIC_FAILURE =
+      ContinuationReason._(
+          9, _omitEnumNames ? '' : 'CONTINUATION_REASON_CATASTROPHIC_FAILURE');
+
+  /// Reserved for Slice E: signals the Step → Validation transition.
+  /// Declared in Slice B for forward compatibility; not emitted yet.
+  static const ContinuationReason CONTINUATION_REASON_VALIDATE =
+      ContinuationReason._(
+          10, _omitEnumNames ? '' : 'CONTINUATION_REASON_VALIDATE');
+
+  static const $core.List<ContinuationReason> values = <ContinuationReason>[
+    CONTINUATION_REASON_UNSPECIFIED,
+    CONTINUATION_REASON_BUDGET_EXCEEDED,
+    CONTINUATION_REASON_PLAN_FRONTIER_CHANGED,
+    CONTINUATION_REASON_UNRESOLVED_FRONTIER,
+    CONTINUATION_REASON_DEPTH_LIMIT_REACHED,
+    CONTINUATION_REASON_CONTEXT_WINDOW_PRESSURE,
+    CONTINUATION_REASON_ACCEPTANCE_CRITERIA_MISSING,
+    CONTINUATION_REASON_VALIDATION_FAILED,
+    CONTINUATION_REASON_STEP_EXHAUSTED,
+    CONTINUATION_REASON_CATASTROPHIC_FAILURE,
+    CONTINUATION_REASON_VALIDATE,
+  ];
+
+  static final $core.List<ContinuationReason?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 10);
+  static ContinuationReason? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const ContinuationReason._(super.value, super.name);
 }
 
 const $core.bool _omitEnumNames =

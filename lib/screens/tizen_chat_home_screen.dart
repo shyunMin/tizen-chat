@@ -67,7 +67,24 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // 누적된다. null = 진행 중인 응답 없음.
   int? _activeReplyIndex;
   String _currentSegmentText = '';
+  /// Inline "🔧 toolName 실행 중..." overlay shown inside the active
+  /// reply bubble's text. Cleared on tool result. The persistent tool
+  /// history per turn lives on ChatMessage.tools (rendered as a list
+  /// inside the bubble) — this field only drives the in-bubble
+  /// "currently running" hint.
   String? _activeToolName;
+
+  /// Phase metadata of the in-flight turn (captured on CarbonTurnStarted,
+  /// cleared on CarbonTurnComplete). The bubble that materializes for
+  /// this turn — lazily, on the first delta / tool — gets this phase as
+  /// its header title.
+  CarbonTurnPhase? _currentPhase;
+
+  /// Stash a successful ValidationCompleted result that arrived before
+  /// the validation-phase bubble materialized (the assistant's final-
+  /// answer delta usually lands a few ms after). Applied to the next
+  /// bubble created within the same turn.
+  bool _pendingValidationPassed = false;
 
   // Thread-level "agent is doing something" flag for the spinner UI.
   // Goes true on the first Submit of a thread, stays true through
@@ -457,8 +474,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           p.bubbleIndex < _messages.length) {
         // Seal the in-flight assistant bubble at its current pre-steer
         // content (no text rewrite — _refreshActiveBubble already painted
-        // it). Just freeze it.
+        // it). Just freeze it + drop any active tool indicator so it
+        // doesn't spin forever (the active reply moves to a fresh
+        // bubble below, and TurnCompleted for the steered turn lands
+        // there, not here).
         _messages[activeIdx].isWaiting = false;
+        _messages[activeIdx].currentToolIndicator = null;
         // Re-home the steer bubble: remove from its end-of-chat slot and
         // re-insert right after the sealed pre-steer reply.
         _messages.removeAt(p.bubbleIndex);
@@ -523,27 +544,33 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _onMessageFinalized(event);
         break;
 
-      case CarbonToolUseStart(:final toolName):
-        _markToolUse(toolName);
+      case CarbonToolUseStart(:final toolName, :final toolCallId, :final argumentsJson):
+        // Indicator is derived from bubble.tools (computed via
+        // _computeIndicator), so _recordToolStart alone handles both
+        // adding the entry and refreshing the indicator.
+        _activeToolName = toolName; // kept for legacy refresh-gate logic
+        _recordToolStart(toolCallId, toolName, argumentsJson);
         break;
 
-      case CarbonToolResult():
-        _onToolResult();
+      case CarbonToolResult(:final toolCallId, :final output, :final isError):
+        // Indicator advance is driven by _computeIndicator inside
+        // _recordToolResult — once the matching entry's outputPreview
+        // is populated, the next pending tool (if any) becomes the
+        // active indicator, or null clears it.
+        _recordToolResult(toolCallId, output, isError);
         break;
 
       case CarbonTurnComplete():
-        // Do NOT finalize here. The daemon emits TurnCompleted at every
-        // agent_loop continuation/validation boundary (per the dedupe
-        // comment in carbon_grpc_service.dart), and the runtime's
-        // disposition feedback work surfaced that turn_id is currently
-        // empty on every TurnCompleted (project/issue/2026-05-15-v2-
-        // ingress-empty-turn-id.md), so the dart-side dedupe matches the
-        // first round and seals the bubble before round-2's deltas /
-        // tool events can append into it. Bubble sealing belongs on
-        // ThreadComplete — the genuine "this Submit is done" boundary,
-        // already wired below as the existing safety-net path. Pending
-        // submission resolution stays on SteerApplied / TurnStarted /
-        // ThreadComplete; nothing to do here.
+        // Slice C/E daemon model: each plan phase / validation gate is
+        // its own turn, so TurnComplete = bubble seal boundary. (The
+        // earlier "do nothing here" comment applied to the pre-Slice-B
+        // daemon that emitted multiple TurnCompleted per logical turn —
+        // no longer.)
+        if (_activeReplyIndex != null) {
+          _finalizeActiveReply();
+        }
+        // Phase ends here; next CarbonTurnStarted will set a new one.
+        _currentPhase = null;
         break;
 
       case CarbonSteerApplied(:final clientRequestId):
@@ -583,13 +610,27 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // CarbonSteerApplied (drained at round boundary).
         break;
 
-      case CarbonTurnStarted(:final clientRequestId):
+      case CarbonTurnStarted(:final clientRequestId, :final phase):
         // Queue slot release: a queued submission has been popped and
         // is starting as a new turn. Match by client_request_id.
         if (_pending != null &&
             !_pending!.steer &&
             _pending!.reqId == clientRequestId) {
           _resolvePending('TurnStarted (queued popped)');
+        }
+        _currentPhase = phase;
+        debugPrint('[Chat] TurnStarted phase=${phase.title() ?? "(none)"}');
+        // Materialize the bubble EAGERLY when the phase has a title.
+        // The phase header itself reads as "I'm about to do X" (e.g.
+        // "🛠 Step 1/4 · 기사 목록 가져오기"), so showing it the
+        // instant TurnStarted arrives gives the user an immediate
+        // "agent is starting this step" signal — they don't have to
+        // wait for the LLM's first delta to know what's happening.
+        // Subsequent deltas / tools refresh the same bubble in place.
+        if (phase.title() != null) {
+          setState(() {
+            _materializeAgentBubble('', isWaiting: true);
+          });
         }
         break;
 
@@ -615,13 +656,57 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         break;
 
+      case CarbonContinuationRequested(:final reason, :final message):
+        // Slice C/E daemon: each phase is its own turn, so the per-turn
+        // bubble was already sealed by the preceding TurnCompleted.
+        // No segment reset needed here — the next phase's TurnStarted
+        // sets a new _currentPhase and the next delta/tool will
+        // materialize a fresh bubble.
+        debugPrint(
+          '[Chat] ContinuationRequested reason=$reason msg=${message.length > 80 ? "${message.substring(0, 80)}..." : message}',
+        );
+        break;
+
+      case CarbonValidationStarted():
+        // Informational — could surface as a sub-indicator inside the
+        // active reply bubble (e.g. "검증 중…"). For now we just log;
+        // the thread-level spinner stays on regardless.
+        break;
+
+      case CarbonValidationCompleted(:final passed, :final attempt, :final reason):
+        // Mark the validation phase's bubble with a ✓ check when the
+        // validator accepts the turn. The bubble may not yet exist (the
+        // validation turn often only materializes after the assistant
+        // emits the final-answer delta), so we also stash the latest
+        // result on _pendingValidationPassed for the next bubble that
+        // lands inside this same turn.
+        debugPrint(
+          '[Chat] ValidationCompleted passed=$passed attempt=$attempt '
+          'reason=${reason.length > 80 ? "${reason.substring(0, 80)}..." : reason}',
+        );
+        if (passed) {
+          if (_activeReplyIndex != null) {
+            setState(() {
+              _messages[_activeReplyIndex!].validationPassed = true;
+            });
+          } else {
+            _pendingValidationPassed = true;
+          }
+        }
+        break;
+
       case CarbonError(:final code, :final message, :final fatal):
-        // Non-fatal "continuation:*" codes are agent_loop retry signals
-        // (e.g. validator rejected round N, daemon will run round N+1).
-        // The turn keeps going — don't hijack the active bubble with
-        // "요청 중단됨" or clear pending state.
+        // continuation:* Error codes were the pre-Slice-B path for
+        // continuation notices. Slice B promoted them to typed
+        // ContinuationRequested wire bodies, so this guard is now a
+        // backwards-compat catch-all for daemons that haven't shipped
+        // Slice B yet.
         if (!fatal && code.startsWith('continuation:')) {
-          debugPrint('[Chat] continuation notice: $code (informational, ignored)');
+          debugPrint('[Chat] continuation notice (legacy Error path): $code');
+          if (_activeReplyIndex != null) {
+            _currentSegmentText = '';
+            _activeToolName = null;
+          }
           break;
         }
         // Clear any pending slot on error so the user can recover.
@@ -688,74 +773,192 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       final preview = m.text
           .replaceAll('\n', ' ')
           .substring(0, m.text.length > 50 ? 50 : m.text.length);
-      lines.add('  [$i] type=${m.type.name} wait=${m.isWaiting} "$preview"');
+      final phase = m.phaseTitle != null ? ' phase="${m.phaseTitle}"' : '';
+      final tool = m.currentToolIndicator != null
+          ? ' tool="${m.currentToolIndicator}"'
+          : '';
+      final vp = m.validationPassed ? ' ✓' : '';
+      lines.add(
+        '  [$i] type=${m.type.name} wait=${m.isWaiting}$phase$tool$vp "$preview"',
+      );
     }
     debugPrint(lines.join('\n'));
   }
 
-  String _composeBubbleText() {
-    if (_activeToolName != null) {
-      return _currentSegmentText.isNotEmpty
-          ? '$_currentSegmentText\n\n🔧 $_activeToolName 실행 중...'
-          : '🔧 $_activeToolName 실행 중...';
-    }
-    return _currentSegmentText;
-  }
-
+  /// Push the screen-level "in-flight turn" state (_currentSegmentText,
+  /// bubble.tools) onto the active bubble. The bubble has TWO regions:
+  /// a tool indicator (computed from the bubble's tools list — picks
+  /// the first not-yet-completed entry so the user can see exactly
+  /// which call is running right now) and a text region (append-only
+  /// as deltas stream). At TurnComplete the indicator is dropped,
+  /// leaving only the text.
   void _refreshActiveBubble({required bool isWaiting}) {
     setState(() {
       _isTyping = false;
-      final display = _composeBubbleText();
       if (_activeReplyIndex == null) {
-        if (display.isEmpty) return;
-        // Where does a brand-new agent bubble go? While a steer/queue is
-        // still pending (not yet picked up by the daemon), the current
-        // turn's output BELONGS visually above the pending submission —
-        // because the pending submission hasn't taken effect yet. So we
-        // insert AT the pending bubble's slot (pushing it down by one).
-        // Once the daemon picks up the pending (TurnComplete /
-        // TurnStarted), `_pending = null`, and subsequent agent bubbles
-        // naturally fall to the end of the list — which is *below* the
-        // now-resolved user prompt, exactly what the UX spec asks for.
-        if (_pending != null && _pending!.bubbleIndex < _messages.length) {
-          final insertAt = _pending!.bubbleIndex;
-          _messages.insert(
-            insertAt,
-            ChatMessage(
-              text: display,
-              type: MessageType.received,
-              isWaiting: isWaiting,
-            ),
-          );
-          _activeReplyIndex = insertAt;
-          _pending!.bubbleIndex = _pending!.bubbleIndex + 1;
-          debugPrint(
-            '[Chat] new agent bubble inserted ABOVE pending (idx=$insertAt, pending now at ${_pending!.bubbleIndex})',
-          );
-          _logUiSnapshot('insert-above-pending');
-        } else {
-          _activeReplyIndex = _messages.length;
-          _messages.add(
-            ChatMessage(
-              text: display,
-              type: MessageType.received,
-              isWaiting: isWaiting,
-            ),
-          );
-          debugPrint(
-            '[Chat] new agent bubble appended at end (idx=$_activeReplyIndex)',
-          );
-          _logUiSnapshot('append-agent-end');
-        }
-      } else {
-        _messages[_activeReplyIndex!] = ChatMessage(
-          text: display,
-          type: MessageType.received,
-          isWaiting: isWaiting,
-        );
+        if (_currentSegmentText.isEmpty && _activeToolName == null) return;
+        _materializeAgentBubble('', isWaiting: isWaiting);
       }
+      final old = _messages[_activeReplyIndex!];
+      _messages[_activeReplyIndex!] = ChatMessage(
+        text: _currentSegmentText,
+        type: MessageType.received,
+        isWaiting: isWaiting,
+        phaseTitle: old.phaseTitle,
+        tools: old.tools,
+        validationPassed: old.validationPassed,
+        displayType: old.displayType,
+        currentToolIndicator: _computeIndicator(old.tools),
+      );
     });
     _scrollToBottom();
+  }
+
+  /// Pick the indicator string from a turn's tool list:
+  ///   * first not-yet-completed entry → "<tool> · <arg> (N/M)"
+  ///     where N = completed count + 1, M = total
+  ///   * all completed → null (TurnComplete clears it, but this is
+  ///     called from refresh too, so the indicator may briefly read
+  ///     null between final result and TurnComplete)
+  /// Returns null if the list is empty or all done.
+  String? _computeIndicator(List<TurnToolEntry> tools) {
+    if (tools.isEmpty) return null;
+    // Prefer the first still-pending tool (so the indicator advances as
+    // each Result lands). When every tool has completed, keep showing
+    // the LAST tool of the turn — TurnCompleted is the only event that
+    // clears the indicator (see _finalizeActiveReply).
+    final pendingIdx = tools.indexWhere((t) => t.isPending);
+    final activeIdx = pendingIdx >= 0 ? pendingIdx : tools.length - 1;
+    final active = tools[activeIdx];
+    final total = tools.length;
+    final pos = activeIdx + 1;
+    final progress = total > 1 ? ' ($pos/$total)' : '';
+    final arg = active.argumentsPreview.isEmpty ? '' : ' · ${active.argumentsPreview}';
+    return '${active.toolName}$arg$progress';
+  }
+
+  /// Create the bubble for the in-flight turn. Used by [_refreshActiveBubble]
+  /// when the first text delta arrives, and by [_recordToolStart] when the
+  /// turn opens with a tool call (no text). Carries the current phase
+  /// title onto the bubble so each turn's bubble renders its own header.
+  void _materializeAgentBubble(String text, {required bool isWaiting}) {
+    final phaseTitle = _currentPhase?.title();
+    final validationPassed = _pendingValidationPassed;
+    _pendingValidationPassed = false;
+    // Where does a brand-new agent bubble go? While a steer/queue is
+    // still pending (not yet picked up by the daemon), the current
+    // turn's output BELONGS visually above the pending submission —
+    // because the pending submission hasn't taken effect yet. So we
+    // insert AT the pending bubble's slot (pushing it down by one).
+    if (_pending != null && _pending!.bubbleIndex < _messages.length) {
+      final insertAt = _pending!.bubbleIndex;
+      _messages.insert(
+        insertAt,
+        ChatMessage(
+          text: text,
+          type: MessageType.received,
+          isWaiting: isWaiting,
+          phaseTitle: phaseTitle,
+          validationPassed: validationPassed,
+        ),
+      );
+      _activeReplyIndex = insertAt;
+      _pending!.bubbleIndex = _pending!.bubbleIndex + 1;
+      debugPrint(
+        '[Chat] new agent bubble inserted ABOVE pending (idx=$insertAt, pending now at ${_pending!.bubbleIndex}) phase=${phaseTitle ?? "(none)"}',
+      );
+      _logUiSnapshot('insert-above-pending');
+    } else {
+      _activeReplyIndex = _messages.length;
+      _messages.add(
+        ChatMessage(
+          text: text,
+          type: MessageType.received,
+          isWaiting: isWaiting,
+          phaseTitle: phaseTitle,
+          validationPassed: validationPassed,
+        ),
+      );
+      debugPrint(
+        '[Chat] new agent bubble appended at end (idx=$_activeReplyIndex) phase=${phaseTitle ?? "(none)"}',
+      );
+      _logUiSnapshot('append-agent-end');
+    }
+  }
+
+  /// Append a new tool entry to the active bubble's tool list. Creates
+  /// the bubble lazily if this is the first event of the turn (some
+  /// phases open straight with a tool call before any narration).
+  void _recordToolStart(String toolCallId, String toolName, String argsJson) {
+    setState(() {
+      if (_activeReplyIndex == null) {
+        _materializeAgentBubble('', isWaiting: true);
+      }
+      final bubble = _messages[_activeReplyIndex!];
+      bubble.tools.add(TurnToolEntry(
+        toolCallId: toolCallId,
+        toolName: toolName,
+        argumentsPreview: _summarizeArgsJson(argsJson),
+      ));
+      bubble.isWaiting = true;
+      // Recompute the indicator from the up-to-date tools list so the
+      // new entry's name + arg shows immediately (or, if a prior tool
+      // is still mid-flight per outputPreview==null, keep that one).
+      bubble.currentToolIndicator = _computeIndicator(bubble.tools);
+    });
+  }
+
+  /// Complete the matching tool entry on the active bubble. Matches by
+  /// [toolCallId] so out-of-order results stay attached to the right call.
+  /// Advances the indicator to the next pending tool (carbon emits all
+  /// ToolUseStart upfront, then ToolResults sequentially as each
+  /// executes, so the "currently running" tool is whichever pending
+  /// entry comes first in the list).
+  void _recordToolResult(String toolCallId, String output, bool isError) {
+    if (_activeReplyIndex == null) return;
+    setState(() {
+      final bubble = _messages[_activeReplyIndex!];
+      for (final t in bubble.tools) {
+        if (t.toolCallId == toolCallId) {
+          t.outputPreview = _summarizeToolOutput(output);
+          t.isError = isError;
+          break;
+        }
+      }
+      bubble.currentToolIndicator = _computeIndicator(bubble.tools);
+    });
+  }
+
+  /// Render a one-line preview of a tool's arguments_json. Picks the
+  /// most identifying field for the common tools (url for web_fetch,
+  /// command for shell, plan summary for update_plan) and falls back to
+  /// a truncated dump.
+  String _summarizeArgsJson(String argsJson) {
+    if (argsJson.isEmpty) return '';
+    try {
+      final decoded = jsonDecode(argsJson);
+      if (decoded is Map<String, dynamic>) {
+        for (final key in const ['url', 'command', '_tool', 'query']) {
+          final v = decoded[key];
+          if (v is String && v.isNotEmpty) return v;
+        }
+        if (decoded['plan'] is List) {
+          final steps = (decoded['plan'] as List).length;
+          return 'plan: $steps step${steps == 1 ? '' : 's'}';
+        }
+      }
+    } catch (_) {}
+    return argsJson.length > 120 ? '${argsJson.substring(0, 120)}…' : argsJson;
+  }
+
+  String _summarizeToolOutput(String output) {
+    final trimmed = output.replaceAll('\n', ' ').trim();
+    final lineCount = '\n'.allMatches(output).length + 1;
+    final bytes = output.length;
+    final preview = trimmed.length > 80
+        ? '${trimmed.substring(0, 80)}…'
+        : trimmed;
+    return '${bytes}B · ${lineCount}L · $preview';
   }
 
   void _appendDelta(String content) {
@@ -767,25 +970,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _refreshActiveBubble(isWaiting: true);
   }
 
-  void _markToolUse(String toolName) {
-    // Both V1 and V2: tool indicator overlays the current bubble's text.
-    // CRITICAL: do NOT clear _currentSegmentText — that's the v1 bug that
-    // hid commentary. The accumulated text stays; the tool indicator
-    // appends in _composeBubbleText.
-    _activeToolName = toolName;
-    _refreshActiveBubble(isWaiting: true);
-  }
-
-  void _onToolResult() {
-    // Intentionally do NOT refresh the bubble here. If the daemon is about
-    // to start another tool (typical agentic loop), refreshing now would
-    // briefly drop the tool indicator just to bring it back in a few ms,
-    // producing visible flicker for any turn with multiple tools. We just
-    // record that the active tool slot is free; the next _markToolUse
-    // will replace the indicator name in place, or the next _appendDelta /
-    // MessageFinalized / TurnComplete will repaint without it.
-    _activeToolName = null;
-  }
 
   void _onMessageFinalized(CarbonMessageFinalized event) {
     if (platform_flags.kBubbleMode != BubbleMode.multi) return;
@@ -797,18 +981,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     // explicit "this is the user-visible answer block" signal from the
     // daemon. Commentary blocks keep accumulating into the same active
     // bubble until FinalAnswer (or TurnComplete) closes it out.
-    if (!event.isFinalAnswer) return;
-    if (_activeReplyIndex == null) return;
-    _activeToolName = null;
-    setState(() {
-      _messages[_activeReplyIndex!] = ChatMessage(
-        text: _currentSegmentText,
-        type: MessageType.received,
-        isWaiting: false,
-      );
-    });
-    _activeReplyIndex = null;
-    _currentSegmentText = '';
+    // In the per-phase bubble model, MessageFinalized is just a
+    // message-block boundary marker — not the bubble seal moment. The
+    // bubble is owned by TurnStarted (creates) and TurnCompleted
+    // (seals). Dropping phase header here was killing the header for
+    // every Prompt-phase final answer too — exactly the regression the
+    // user spotted. So no-op now; the seal logic lives in
+    // _finalizeActiveReply.
+    return;
   }
 
   void _finalizeActiveReply() {
@@ -825,24 +1005,52 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       '[Chat] _finalizeActiveReply: _currentSegmentText.length=${_currentSegmentText.length} '
       'first200="${_currentSegmentText.length > 200 ? "${_currentSegmentText.substring(0, 200)}..." : _currentSegmentText}"',
     );
-    final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
-    debugPrint(
-      '[Chat] parsed.displayType=${parsedResponse.displayType} '
-      'parsed.content.length=${parsedResponse.content.length} '
-      'parsed.first200="${parsedResponse.content.length > 200 ? "${parsedResponse.content.substring(0, 200)}..." : parsedResponse.content}"',
-    );
+    final old = _messages[_activeReplyIndex!];
+    // Seal-time body:
+    //  * commentary streamed → parse + use the parser's content
+    //  * silent turn (no text, just tools) → empty body; phase header
+    //    alone tells the user what happened, no fake tool summary
+    final String sealedText;
+    final String sealedDisplayType;
+    final String? sealedUiCode;
+    final List<String> sealedButtons;
+    if (_currentSegmentText.isNotEmpty) {
+      final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
+      debugPrint(
+        '[Chat] parsed.displayType=${parsedResponse.displayType} '
+        'parsed.content.length=${parsedResponse.content.length} '
+        'parsed.first200="${parsedResponse.content.length > 200 ? "${parsedResponse.content.substring(0, 200)}..." : parsedResponse.content}"',
+      );
+      sealedText = parsedResponse.content;
+      sealedDisplayType = parsedResponse.displayType;
+      sealedUiCode = parsedResponse.uiCode;
+      sealedButtons = parsedResponse.actionButtons;
+    } else {
+      sealedText = '';
+      sealedDisplayType = old.displayType;
+      sealedUiCode = old.uiCode;
+      sealedButtons = old.actionButtons;
+      debugPrint('[Chat] _finalizeActiveReply: silent turn — phase header only');
+    }
     setState(() {
       _isWaiting = false;
       _isTyping = false;
       _messages[_activeReplyIndex!] = ChatMessage(
-        text: parsedResponse.content,
-        displayType: parsedResponse.displayType,
+        text: sealedText,
+        displayType: sealedDisplayType,
         type: MessageType.received,
         isWaiting: false,
-        uiCode: parsedResponse.uiCode,
-        actionButtons: parsedResponse.actionButtons,
+        uiCode: sealedUiCode,
+        actionButtons: sealedButtons,
+        phaseTitle: old.phaseTitle,
+        tools: old.tools,
+        validationPassed: old.validationPassed,
+        // Drop the tool indicator: turn is done, no tool is running.
+        // The text region (or tool summary above) carries the result.
+        currentToolIndicator: null,
       );
     });
+    _activeToolName = null;
     _activeReplyIndex = null;
     _currentSegmentText = '';
     _scrollToBottom();

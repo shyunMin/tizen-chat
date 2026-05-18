@@ -179,7 +179,6 @@ class ListSessionsRequest extends $pb.GeneratedMessage {
   static ListSessionsRequest? _defaultInstance;
 
   /// Empty = all sessions visible to this caller.
-  /// Filter shape to be refined in slice 3.
   @$pb.TagNumber(1)
   $core.bool get includeArchived => $_getBF(0);
   @$pb.TagNumber(1)

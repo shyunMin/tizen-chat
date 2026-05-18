@@ -89,7 +89,7 @@ class InterruptMode extends $pb.ProtobufEnum {
       InterruptMode._(1, _omitEnumNames ? '' : 'INTERRUPT_MODE_HARD');
 
   /// Cancel only the in-flight tool call, immediately apply pending steers,
-  /// then continue the same turn. Slice 11b — design TBD.
+  /// then continue the same turn. Reserved — not yet implemented.
   static const InterruptMode INTERRUPT_MODE_SOFT =
       InterruptMode._(2, _omitEnumNames ? '' : 'INTERRUPT_MODE_SOFT');
 

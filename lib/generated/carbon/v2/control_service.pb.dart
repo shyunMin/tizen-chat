@@ -73,10 +73,9 @@ class CompactSessionRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearSessionId() => $_clearField(1);
 
-  /// RFC 0008: free-form user-supplied cue / reason for the compaction.
-  /// Carried opaquely; runtime decides how it influences the compaction
-  /// prompt or policy. None for compactions that have no caller-supplied
-  /// framing (e.g., internal auto-compact when no reason applies).
+  /// Free-form user-supplied cue / reason for the compaction. Carried
+  /// opaquely; the runtime decides how it influences the compaction prompt
+  /// or policy. Unset for internal auto-compactions with no caller framing.
   @$pb.TagNumber(2)
   $core.String get cue => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -161,8 +160,9 @@ class CompactSessionResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearThreadId() => $_clearField(2);
 
-  /// log_id after the rotation that compaction performs. Stable session_id
-  /// (field 1) does NOT change — only the internal rotating log_id moves.
+  /// log_id after the rotation that compaction performs. session_id
+  /// (field 1) is stable across compaction — only the internal rotating
+  /// log_id moves.
   @$pb.TagNumber(3)
   $core.String get newLogId => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -295,8 +295,8 @@ class ClearSessionResponse extends $pb.GeneratedMessage {
   void clearSessionId() => $_clearField(1);
 
   /// log_id of the freshly-rotated empty log segment. session_id (field 1)
-  /// is the same value the caller passed in — stability invariant per
-  /// ADR 0004.
+  /// is the same value the caller passed in — session ids are stable
+  /// across clears.
   @$pb.TagNumber(2)
   $core.String get newLogId => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -449,8 +449,8 @@ class Status extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearSessionId() => $_clearField(1);
 
-  /// Current rotating internal log_id (ADR 0004). Changes after /compact
-  /// or /clear; the stable session_id (field 1) does not.
+  /// Current rotating internal log_id. Changes after compaction or clear;
+  /// the stable session_id (field 1) does not.
   @$pb.TagNumber(2)
   $core.String get logId => $_getSZ(1);
   @$pb.TagNumber(2)

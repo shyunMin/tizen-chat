@@ -88,7 +88,7 @@ class SubscribeRequest extends $pb.GeneratedMessage {
   EventFilter ensureFilter() => $_ensure(1);
 
   /// Cursor. Single-session subscribe only — must be empty when
-  /// session_ids has 0 or ≥2 entries (see RFC 0007 §Cursor scope).
+  /// session_ids has 0 or ≥2 entries.
   ///   ""        = live tail
   ///   "begin"   = full session replay
   ///   "<id>"    = resume from this event_id (exclusive)
@@ -263,6 +263,9 @@ enum EventBody_Body {
   steerApplied,
   steerFailed,
   error,
+  continuationRequested,
+  validationStarted,
+  validationCompleted,
   notSet
 }
 
@@ -284,6 +287,9 @@ class EventBody extends $pb.GeneratedMessage {
     SteerApplied? steerApplied,
     SteerFailed? steerFailed,
     Error? error,
+    ContinuationRequested? continuationRequested,
+    ValidationStarted? validationStarted,
+    ValidationCompleted? validationCompleted,
   }) {
     final result = create();
     if (turnStarted != null) result.turnStarted = turnStarted;
@@ -303,6 +309,11 @@ class EventBody extends $pb.GeneratedMessage {
     if (steerApplied != null) result.steerApplied = steerApplied;
     if (steerFailed != null) result.steerFailed = steerFailed;
     if (error != null) result.error = error;
+    if (continuationRequested != null)
+      result.continuationRequested = continuationRequested;
+    if (validationStarted != null) result.validationStarted = validationStarted;
+    if (validationCompleted != null)
+      result.validationCompleted = validationCompleted;
     return result;
   }
 
@@ -332,13 +343,16 @@ class EventBody extends $pb.GeneratedMessage {
     14: EventBody_Body.steerApplied,
     15: EventBody_Body.steerFailed,
     16: EventBody_Body.error,
+    17: EventBody_Body.continuationRequested,
+    18: EventBody_Body.validationStarted,
+    19: EventBody_Body.validationCompleted,
     0: EventBody_Body.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EventBody',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
     ..aOM<TurnStarted>(1, _omitFieldNames ? '' : 'turnStarted',
         subBuilder: TurnStarted.create)
     ..aOM<TurnCompleted>(2, _omitFieldNames ? '' : 'turnCompleted',
@@ -370,6 +384,13 @@ class EventBody extends $pb.GeneratedMessage {
     ..aOM<SteerFailed>(15, _omitFieldNames ? '' : 'steerFailed',
         subBuilder: SteerFailed.create)
     ..aOM<Error>(16, _omitFieldNames ? '' : 'error', subBuilder: Error.create)
+    ..aOM<ContinuationRequested>(
+        17, _omitFieldNames ? '' : 'continuationRequested',
+        subBuilder: ContinuationRequested.create)
+    ..aOM<ValidationStarted>(18, _omitFieldNames ? '' : 'validationStarted',
+        subBuilder: ValidationStarted.create)
+    ..aOM<ValidationCompleted>(19, _omitFieldNames ? '' : 'validationCompleted',
+        subBuilder: ValidationCompleted.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -406,6 +427,9 @@ class EventBody extends $pb.GeneratedMessage {
   @$pb.TagNumber(14)
   @$pb.TagNumber(15)
   @$pb.TagNumber(16)
+  @$pb.TagNumber(17)
+  @$pb.TagNumber(18)
+  @$pb.TagNumber(19)
   EventBody_Body whichBody() => _EventBody_BodyByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
@@ -423,6 +447,9 @@ class EventBody extends $pb.GeneratedMessage {
   @$pb.TagNumber(14)
   @$pb.TagNumber(15)
   @$pb.TagNumber(16)
+  @$pb.TagNumber(17)
+  @$pb.TagNumber(18)
+  @$pb.TagNumber(19)
   void clearBody() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -600,6 +627,40 @@ class EventBody extends $pb.GeneratedMessage {
   void clearError() => $_clearField(16);
   @$pb.TagNumber(16)
   Error ensureError() => $_ensure(15);
+
+  @$pb.TagNumber(17)
+  ContinuationRequested get continuationRequested => $_getN(16);
+  @$pb.TagNumber(17)
+  set continuationRequested(ContinuationRequested value) =>
+      $_setField(17, value);
+  @$pb.TagNumber(17)
+  $core.bool hasContinuationRequested() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearContinuationRequested() => $_clearField(17);
+  @$pb.TagNumber(17)
+  ContinuationRequested ensureContinuationRequested() => $_ensure(16);
+
+  @$pb.TagNumber(18)
+  ValidationStarted get validationStarted => $_getN(17);
+  @$pb.TagNumber(18)
+  set validationStarted(ValidationStarted value) => $_setField(18, value);
+  @$pb.TagNumber(18)
+  $core.bool hasValidationStarted() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearValidationStarted() => $_clearField(18);
+  @$pb.TagNumber(18)
+  ValidationStarted ensureValidationStarted() => $_ensure(17);
+
+  @$pb.TagNumber(19)
+  ValidationCompleted get validationCompleted => $_getN(18);
+  @$pb.TagNumber(19)
+  set validationCompleted(ValidationCompleted value) => $_setField(19, value);
+  @$pb.TagNumber(19)
+  $core.bool hasValidationCompleted() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearValidationCompleted() => $_clearField(19);
+  @$pb.TagNumber(19)
+  ValidationCompleted ensureValidationCompleted() => $_ensure(18);
 }
 
 class TurnStarted extends $pb.GeneratedMessage {
@@ -609,6 +670,8 @@ class TurnStarted extends $pb.GeneratedMessage {
     $core.String? source,
     $core.String? clientRequestId,
     $core.String? prompt,
+    ContinuationReason? continuationReason,
+    TurnPhase? phase,
   }) {
     final result = create();
     if (turnId != null) result.turnId = turnId;
@@ -616,6 +679,9 @@ class TurnStarted extends $pb.GeneratedMessage {
     if (source != null) result.source = source;
     if (clientRequestId != null) result.clientRequestId = clientRequestId;
     if (prompt != null) result.prompt = prompt;
+    if (continuationReason != null)
+      result.continuationReason = continuationReason;
+    if (phase != null) result.phase = phase;
     return result;
   }
 
@@ -637,6 +703,10 @@ class TurnStarted extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'source')
     ..aOS(4, _omitFieldNames ? '' : 'clientRequestId')
     ..aOS(5, _omitFieldNames ? '' : 'prompt')
+    ..aE<ContinuationReason>(6, _omitFieldNames ? '' : 'continuationReason',
+        enumValues: ContinuationReason.values)
+    ..aOM<TurnPhase>(7, _omitFieldNames ? '' : 'phase',
+        subBuilder: TurnPhase.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -677,7 +747,9 @@ class TurnStarted extends $pb.GeneratedMessage {
   void clearThreadId() => $_clearField(2);
 
   /// Source label of the trigger (e.g. "grpc", "schedule:<id>", "telegram",
-  /// "sub-agent-result").
+  /// "sub-agent-result"). When the turn opens because the runtime
+  /// continued itself across a frontier boundary the source is
+  /// "continuation".
   @$pb.TagNumber(3)
   $core.String get source => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -705,6 +777,486 @@ class TurnStarted extends $pb.GeneratedMessage {
   $core.bool hasPrompt() => $_has(4);
   @$pb.TagNumber(5)
   void clearPrompt() => $_clearField(5);
+
+  /// Populated only when source == "continuation". Mirrors the runtime's
+  /// own ContinuationReason. Slice C populates this for plan-frontier
+  /// transitions; Slice E adds VALIDATE.
+  @$pb.TagNumber(6)
+  ContinuationReason get continuationReason => $_getN(5);
+  @$pb.TagNumber(6)
+  set continuationReason(ContinuationReason value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasContinuationReason() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContinuationReason() => $_clearField(6);
+
+  /// The phase this turn occupies (Prompt / Step / Validation / Recovery
+  /// / Free). Slice C populates Prompt and Step; Validation and Recovery
+  /// are filled in by Slice E. Pre-Slice-C JSONL replays leave the
+  /// oneof absent — clients must render an absent phase as the legacy
+  /// "user-prompt turn" shape.
+  @$pb.TagNumber(7)
+  TurnPhase get phase => $_getN(6);
+  @$pb.TagNumber(7)
+  set phase(TurnPhase value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPhase() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPhase() => $_clearField(7);
+  @$pb.TagNumber(7)
+  TurnPhase ensurePhase() => $_ensure(6);
+}
+
+enum TurnPhase_Variant { prompt, step, validation, recovery, free, notSet }
+
+/// Phase metadata carried by TurnStarted. Each oneof arm corresponds to
+/// one role a turn can play in a plan-driven thread (see ADR 0005). The
+/// PhaseStep arm grows step.* fields in Slice D; here we declare the
+/// minimal surface needed to thread phase through the wire.
+class TurnPhase extends $pb.GeneratedMessage {
+  factory TurnPhase({
+    PhasePrompt? prompt,
+    PhaseStep? step,
+    PhaseValidation? validation,
+    PhaseRecovery? recovery,
+    PhaseFree? free,
+  }) {
+    final result = create();
+    if (prompt != null) result.prompt = prompt;
+    if (step != null) result.step = step;
+    if (validation != null) result.validation = validation;
+    if (recovery != null) result.recovery = recovery;
+    if (free != null) result.free = free;
+    return result;
+  }
+
+  TurnPhase._();
+
+  factory TurnPhase.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TurnPhase.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, TurnPhase_Variant> _TurnPhase_VariantByTag =
+      {
+    1: TurnPhase_Variant.prompt,
+    2: TurnPhase_Variant.step,
+    3: TurnPhase_Variant.validation,
+    4: TurnPhase_Variant.recovery,
+    5: TurnPhase_Variant.free,
+    0: TurnPhase_Variant.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TurnPhase',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..oo(0, [1, 2, 3, 4, 5])
+    ..aOM<PhasePrompt>(1, _omitFieldNames ? '' : 'prompt',
+        subBuilder: PhasePrompt.create)
+    ..aOM<PhaseStep>(2, _omitFieldNames ? '' : 'step',
+        subBuilder: PhaseStep.create)
+    ..aOM<PhaseValidation>(3, _omitFieldNames ? '' : 'validation',
+        subBuilder: PhaseValidation.create)
+    ..aOM<PhaseRecovery>(4, _omitFieldNames ? '' : 'recovery',
+        subBuilder: PhaseRecovery.create)
+    ..aOM<PhaseFree>(5, _omitFieldNames ? '' : 'free',
+        subBuilder: PhaseFree.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TurnPhase clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TurnPhase copyWith(void Function(TurnPhase) updates) =>
+      super.copyWith((message) => updates(message as TurnPhase)) as TurnPhase;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TurnPhase create() => TurnPhase._();
+  @$core.override
+  TurnPhase createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TurnPhase getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TurnPhase>(create);
+  static TurnPhase? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  TurnPhase_Variant whichVariant() => _TurnPhase_VariantByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  void clearVariant() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  PhasePrompt get prompt => $_getN(0);
+  @$pb.TagNumber(1)
+  set prompt(PhasePrompt value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPrompt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPrompt() => $_clearField(1);
+  @$pb.TagNumber(1)
+  PhasePrompt ensurePrompt() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  PhaseStep get step => $_getN(1);
+  @$pb.TagNumber(2)
+  set step(PhaseStep value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStep() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStep() => $_clearField(2);
+  @$pb.TagNumber(2)
+  PhaseStep ensureStep() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  PhaseValidation get validation => $_getN(2);
+  @$pb.TagNumber(3)
+  set validation(PhaseValidation value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasValidation() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearValidation() => $_clearField(3);
+  @$pb.TagNumber(3)
+  PhaseValidation ensureValidation() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  PhaseRecovery get recovery => $_getN(3);
+  @$pb.TagNumber(4)
+  set recovery(PhaseRecovery value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRecovery() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRecovery() => $_clearField(4);
+  @$pb.TagNumber(4)
+  PhaseRecovery ensureRecovery() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  PhaseFree get free => $_getN(4);
+  @$pb.TagNumber(5)
+  set free(PhaseFree value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasFree() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearFree() => $_clearField(5);
+  @$pb.TagNumber(5)
+  PhaseFree ensureFree() => $_ensure(4);
+}
+
+class PhasePrompt extends $pb.GeneratedMessage {
+  factory PhasePrompt() => create();
+
+  PhasePrompt._();
+
+  factory PhasePrompt.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PhasePrompt.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PhasePrompt',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhasePrompt clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhasePrompt copyWith(void Function(PhasePrompt) updates) =>
+      super.copyWith((message) => updates(message as PhasePrompt))
+          as PhasePrompt;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PhasePrompt create() => PhasePrompt._();
+  @$core.override
+  PhasePrompt createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PhasePrompt getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PhasePrompt>(create);
+  static PhasePrompt? _defaultInstance;
+}
+
+class PhaseStep extends $pb.GeneratedMessage {
+  factory PhaseStep({
+    $core.String? stepId,
+    $core.String? stepText,
+    $core.Iterable<$core.String>? dependsOn,
+    $core.Iterable<$core.String>? doneWhen,
+    $core.Iterable<$core.String>? artifacts,
+    $core.int? stepIndex,
+    $core.int? planStepCount,
+  }) {
+    final result = create();
+    if (stepId != null) result.stepId = stepId;
+    if (stepText != null) result.stepText = stepText;
+    if (dependsOn != null) result.dependsOn.addAll(dependsOn);
+    if (doneWhen != null) result.doneWhen.addAll(doneWhen);
+    if (artifacts != null) result.artifacts.addAll(artifacts);
+    if (stepIndex != null) result.stepIndex = stepIndex;
+    if (planStepCount != null) result.planStepCount = planStepCount;
+    return result;
+  }
+
+  PhaseStep._();
+
+  factory PhaseStep.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PhaseStep.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PhaseStep',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'stepId')
+    ..aOS(2, _omitFieldNames ? '' : 'stepText')
+    ..pPS(3, _omitFieldNames ? '' : 'dependsOn')
+    ..pPS(4, _omitFieldNames ? '' : 'doneWhen')
+    ..pPS(5, _omitFieldNames ? '' : 'artifacts')
+    ..aI(6, _omitFieldNames ? '' : 'stepIndex', fieldType: $pb.PbFieldType.OU3)
+    ..aI(7, _omitFieldNames ? '' : 'planStepCount',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseStep clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseStep copyWith(void Function(PhaseStep) updates) =>
+      super.copyWith((message) => updates(message as PhaseStep)) as PhaseStep;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PhaseStep create() => PhaseStep._();
+  @$core.override
+  PhaseStep createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PhaseStep getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PhaseStep>(create);
+  static PhaseStep? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get stepId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set stepId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStepId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStepId() => $_clearField(1);
+
+  /// Slice D fills in the rest of the briefing fields below — declared
+  /// now so the proto doesn't churn between Slice C and Slice D.
+  @$pb.TagNumber(2)
+  $core.String get stepText => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set stepText($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStepText() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStepText() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $pb.PbList<$core.String> get dependsOn => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<$core.String> get doneWhen => $_getList(3);
+
+  @$pb.TagNumber(5)
+  $pb.PbList<$core.String> get artifacts => $_getList(4);
+
+  @$pb.TagNumber(6)
+  $core.int get stepIndex => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set stepIndex($core.int value) => $_setUnsignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasStepIndex() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearStepIndex() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get planStepCount => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set planStepCount($core.int value) => $_setUnsignedInt32(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPlanStepCount() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPlanStepCount() => $_clearField(7);
+}
+
+class PhaseValidation extends $pb.GeneratedMessage {
+  factory PhaseValidation({
+    $core.int? attempt,
+  }) {
+    final result = create();
+    if (attempt != null) result.attempt = attempt;
+    return result;
+  }
+
+  PhaseValidation._();
+
+  factory PhaseValidation.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PhaseValidation.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PhaseValidation',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'attempt', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseValidation clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseValidation copyWith(void Function(PhaseValidation) updates) =>
+      super.copyWith((message) => updates(message as PhaseValidation))
+          as PhaseValidation;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PhaseValidation create() => PhaseValidation._();
+  @$core.override
+  PhaseValidation createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PhaseValidation getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PhaseValidation>(create);
+  static PhaseValidation? _defaultInstance;
+
+  /// Slice E populates retry attempt count.
+  @$pb.TagNumber(1)
+  $core.int get attempt => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set attempt($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAttempt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAttempt() => $_clearField(1);
+}
+
+class PhaseRecovery extends $pb.GeneratedMessage {
+  factory PhaseRecovery({
+    $core.int? attempt,
+    $core.String? validatorReason,
+  }) {
+    final result = create();
+    if (attempt != null) result.attempt = attempt;
+    if (validatorReason != null) result.validatorReason = validatorReason;
+    return result;
+  }
+
+  PhaseRecovery._();
+
+  factory PhaseRecovery.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PhaseRecovery.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PhaseRecovery',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'attempt', fieldType: $pb.PbFieldType.OU3)
+    ..aOS(2, _omitFieldNames ? '' : 'validatorReason')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseRecovery clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseRecovery copyWith(void Function(PhaseRecovery) updates) =>
+      super.copyWith((message) => updates(message as PhaseRecovery))
+          as PhaseRecovery;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PhaseRecovery create() => PhaseRecovery._();
+  @$core.override
+  PhaseRecovery createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PhaseRecovery getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PhaseRecovery>(create);
+  static PhaseRecovery? _defaultInstance;
+
+  /// Slice E populates these from the failed validation report.
+  @$pb.TagNumber(1)
+  $core.int get attempt => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set attempt($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAttempt() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAttempt() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get validatorReason => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set validatorReason($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasValidatorReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearValidatorReason() => $_clearField(2);
+}
+
+class PhaseFree extends $pb.GeneratedMessage {
+  factory PhaseFree() => create();
+
+  PhaseFree._();
+
+  factory PhaseFree.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PhaseFree.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PhaseFree',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseFree clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PhaseFree copyWith(void Function(PhaseFree) updates) =>
+      super.copyWith((message) => updates(message as PhaseFree)) as PhaseFree;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PhaseFree create() => PhaseFree._();
+  @$core.override
+  PhaseFree createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PhaseFree getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PhaseFree>(create);
+  static PhaseFree? _defaultInstance;
 }
 
 class TurnCompleted extends $pb.GeneratedMessage {
@@ -1334,9 +1886,11 @@ class ThreadStarted extends $pb.GeneratedMessage {
 class ThreadCompleted extends $pb.GeneratedMessage {
   factory ThreadCompleted({
     $core.String? threadId,
+    ThreadCompleteReason? reason,
   }) {
     final result = create();
     if (threadId != null) result.threadId = threadId;
+    if (reason != null) result.reason = reason;
     return result;
   }
 
@@ -1354,6 +1908,8 @@ class ThreadCompleted extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'threadId')
+    ..aE<ThreadCompleteReason>(2, _omitFieldNames ? '' : 'reason',
+        enumValues: ThreadCompleteReason.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1383,6 +1939,20 @@ class ThreadCompleted extends $pb.GeneratedMessage {
   $core.bool hasThreadId() => $_has(0);
   @$pb.TagNumber(1)
   void clearThreadId() => $_clearField(1);
+
+  /// Terminal disposition (D14). Slice E populates COMPLETED for normal
+  /// exits and PAUSED_VALIDATION_EXHAUSTED when the validation retry
+  /// budget is exhausted; legacy JSONL replays decode to UNSPECIFIED so
+  /// clients should render the absent value as "legacy completion,
+  /// semantics unknown" (permissive).
+  @$pb.TagNumber(2)
+  ThreadCompleteReason get reason => $_getN(1);
+  @$pb.TagNumber(2)
+  set reason(ThreadCompleteReason value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReason() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReason() => $_clearField(2);
 }
 
 class SessionEnded extends $pb.GeneratedMessage {
@@ -1578,8 +2148,7 @@ class SubAgentSpawned extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearProduct() => $_clearField(2);
 
-  /// May contain sensitive context — redaction policy is a slice 7 design
-  /// item (see RFC 0007 §Deferred concerns).
+  /// May contain sensitive context — redaction is not yet enforced.
   @$pb.TagNumber(3)
   $core.String get prompt => $_getSZ(2);
   @$pb.TagNumber(3)
@@ -1924,6 +2493,231 @@ class Error extends $pb.GeneratedMessage {
   $core.bool hasTurnId() => $_has(3);
   @$pb.TagNumber(4)
   void clearTurnId() => $_clearField(4);
+}
+
+/// Validation gate events (Slice E from project/plan/2026-05-13-turn-lifecycle-final-gate.md).
+/// ValidationStarted fires immediately before the validator's
+/// model.complete(); ValidationCompleted carries the gate's pass/fail
+/// decision. In an acceptance-absent thread, ValidationCompleted still
+/// fires with `passed: true, reason: "no acceptance criteria"` (no LLM
+/// call) so clients see a uniform shape.
+class ValidationStarted extends $pb.GeneratedMessage {
+  factory ValidationStarted({
+    $core.String? turnId,
+  }) {
+    final result = create();
+    if (turnId != null) result.turnId = turnId;
+    return result;
+  }
+
+  ValidationStarted._();
+
+  factory ValidationStarted.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ValidationStarted.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ValidationStarted',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'turnId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidationStarted clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidationStarted copyWith(void Function(ValidationStarted) updates) =>
+      super.copyWith((message) => updates(message as ValidationStarted))
+          as ValidationStarted;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ValidationStarted create() => ValidationStarted._();
+  @$core.override
+  ValidationStarted createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ValidationStarted getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ValidationStarted>(create);
+  static ValidationStarted? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get turnId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set turnId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTurnId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTurnId() => $_clearField(1);
+}
+
+class ValidationCompleted extends $pb.GeneratedMessage {
+  factory ValidationCompleted({
+    $core.String? turnId,
+    $core.bool? passed,
+    $core.String? reason,
+    $core.int? attempt,
+  }) {
+    final result = create();
+    if (turnId != null) result.turnId = turnId;
+    if (passed != null) result.passed = passed;
+    if (reason != null) result.reason = reason;
+    if (attempt != null) result.attempt = attempt;
+    return result;
+  }
+
+  ValidationCompleted._();
+
+  factory ValidationCompleted.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ValidationCompleted.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ValidationCompleted',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'turnId')
+    ..aOB(2, _omitFieldNames ? '' : 'passed')
+    ..aOS(3, _omitFieldNames ? '' : 'reason')
+    ..aI(4, _omitFieldNames ? '' : 'attempt', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidationCompleted clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ValidationCompleted copyWith(void Function(ValidationCompleted) updates) =>
+      super.copyWith((message) => updates(message as ValidationCompleted))
+          as ValidationCompleted;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ValidationCompleted create() => ValidationCompleted._();
+  @$core.override
+  ValidationCompleted createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ValidationCompleted getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ValidationCompleted>(create);
+  static ValidationCompleted? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get turnId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set turnId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasTurnId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearTurnId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get passed => $_getBF(1);
+  @$pb.TagNumber(2)
+  set passed($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPassed() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPassed() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get reason => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set reason($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReason() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReason() => $_clearField(3);
+
+  /// 1-based attempt count for this validation pass within the thread.
+  @$pb.TagNumber(4)
+  $core.int get attempt => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set attempt($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAttempt() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAttempt() => $_clearField(4);
+}
+
+/// Structural between-turns signal that the runtime is auto-continuing.
+/// Replaces the legacy `Error{code: "continuation:<reason>"}` mapping.
+/// Always appears between turns (after TurnCompleted, before the next
+/// TurnStarted) and never after `ThreadCompleted` for the same thread.
+class ContinuationRequested extends $pb.GeneratedMessage {
+  factory ContinuationRequested({
+    ContinuationReason? reason,
+    $core.String? message,
+  }) {
+    final result = create();
+    if (reason != null) result.reason = reason;
+    if (message != null) result.message = message;
+    return result;
+  }
+
+  ContinuationRequested._();
+
+  factory ContinuationRequested.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ContinuationRequested.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ContinuationRequested',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'carbon.v2'),
+      createEmptyInstance: create)
+    ..aE<ContinuationReason>(1, _omitFieldNames ? '' : 'reason',
+        enumValues: ContinuationReason.values)
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContinuationRequested clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ContinuationRequested copyWith(
+          void Function(ContinuationRequested) updates) =>
+      super.copyWith((message) => updates(message as ContinuationRequested))
+          as ContinuationRequested;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ContinuationRequested create() => ContinuationRequested._();
+  @$core.override
+  ContinuationRequested createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ContinuationRequested getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ContinuationRequested>(create);
+  static ContinuationRequested? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ContinuationReason get reason => $_getN(0);
+  @$pb.TagNumber(1)
+  set reason(ContinuationReason value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasReason() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearReason() => $_clearField(1);
+
+  /// Human-readable rationale (often the validator's reason or
+  /// model-facing repair text).
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set message($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMessage() => $_clearField(2);
 }
 
 const $core.bool _omitFieldNames =
