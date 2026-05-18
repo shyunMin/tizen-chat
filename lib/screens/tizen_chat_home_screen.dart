@@ -131,11 +131,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
+          unawaited(WindowFocusService.setFocusable(true));
           setState(() => _isVisible = true);
-          // rebuild 완료 후 포커스 부여 (isVisible=true 상태에서 shimmer 표시 보장)
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _promptBarFocusNode.requestFocus();
-          });
+          _promptBarFocusNode.requestFocus();
         }
       });
     });
@@ -241,6 +239,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       // 3. PromptBar 표시 (gRPC 연결 전 — 비활성 상태)
       // AppControl 대기 중이어도 온보딩 완료 후 복귀 시 화면을 보여줘야 한다.
       if (mounted) {
+        if (!_hasPendingAppControl) unawaited(WindowFocusService.setFocusable(true));
         setState(() => _isVisible = true);
       }
 
@@ -254,9 +253,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (mounted) {
         setState(() => _isGrpcReady = true);
         if (!_hasPendingAppControl) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _promptBarFocusNode.requestFocus();
-          });
+          // 요청 없는 일반 실행: 앱이 준비된 시점에 윈도우 포커스를 명시적으로
+          // 확보한다. AppControl 경로는 _handleSend → setFocusable(false) →
+          // ThreadComplete → setFocusable(true) 순으로 처리되므로 여기서 제외.
+          unawaited(WindowFocusService.setFocusable(true));
+          _promptBarFocusNode.requestFocus();
         }
       }
 
@@ -654,6 +655,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_threadInFlight) {
           setState(() => _threadInFlight = false);
         }
+        // Restore window focus only here — not on per-phase TurnComplete.
+        // setFocusable(false) fires once on user send; the matching true
+        // must wait until the entire thread (all phases) is done.
+        unawaited(WindowFocusService.setFocusable(true));
+        _chatScrollFocusNode.requestFocus();
         break;
 
       case CarbonContinuationRequested(:final reason, :final message):
@@ -992,13 +998,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _finalizeActiveReply() {
-    unawaited(WindowFocusService.setFocusable(true));
     if (_activeReplyIndex == null) {
       setState(() {
         _isWaiting = false;
         _isTyping = false;
       });
-      _chatScrollFocusNode.requestFocus();
       return;
     }
     debugPrint(
@@ -1054,7 +1058,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _activeReplyIndex = null;
     _currentSegmentText = '';
     _scrollToBottom();
-    _chatScrollFocusNode.requestFocus();
   }
 
   Future<void> _handleAgentError(
@@ -1183,7 +1186,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       backgroundColor: Colors.transparent,
       body: Focus(
         focusNode: _keyboardFocusNode,
-        autofocus: true,
         descendantsAreFocusable: true,
         onKeyEvent: (node, event) {
           if (event.logicalKey.keyLabel == 'XF86BTVoice' ||

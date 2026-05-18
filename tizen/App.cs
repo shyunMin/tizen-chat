@@ -30,7 +30,7 @@ namespace Runner
             // Setting IsTopLevel = true moves the window to E_LAYER_CLIENT_NOTIFICATION_TOP.
             // It is disabled here to allow fine-grained layer control via SetTopLevelWindow().
             // IsTopLevel = true;
-            IsWindowFocusable = false;
+            IsWindowFocusable = true;
             UserPixelRatio = 1.6;
 
             base.OnCreate();
