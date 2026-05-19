@@ -107,23 +107,6 @@ class ReceivedMessage extends StatelessWidget {
                 ),
               ),
             ),
-            if (validationPassed)
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(2),
-                  child: const Icon(
-                    Icons.check,
-                    size: 10,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
           ],
         ),
         const SizedBox(width: TizenStyles.avatarGap),
@@ -189,29 +172,11 @@ class _ToolIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                TizenStyles.cyan400.withValues(alpha: 0.8),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '🔧 $toolName 실행 중...',
-            style: TizenStyles.bodyText.copyWith(
-              fontSize: (TizenStyles.bodyText.fontSize ?? 14) - 1,
-              color: TizenStyles.bodyText.color?.withValues(alpha: 0.75),
-              fontStyle: FontStyle.italic,
-              fontFamily: 'monospace',
-            ),
-          ),
-        ],
+      child: Text(
+        '🔧 $toolName 실행 중...',
+        style: TizenStyles.bodyText.copyWith(
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -223,26 +188,11 @@ class _PhaseHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Visibility-loud styling: a saturated cyan strip with bold text so
-    // the phase boundary is impossible to miss on a dark theme. We can
-    // tone it down later once the layout is confirmed visible.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: TizenStyles.cyan400.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: TizenStyles.cyan400.withValues(alpha: 0.8),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        title,
-        style: TizenStyles.bodyText.copyWith(
-          fontSize: (TizenStyles.bodyText.fontSize ?? 14),
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
+    return Text(
+      title,
+      style: TizenStyles.bodyText.copyWith(
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
