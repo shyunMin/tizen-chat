@@ -459,6 +459,10 @@ class CarbonGrpcService {
         onDone: () {
           print('DEBUG: [CarbonGrpc] Subscribe stream closed');
           _isReady = false;
+          if (!subscribeReady.isCompleted) {
+            subscribeReady.completeError('stream closed');
+          }
+          _broadcastError('Subscribe stream closed', fatal: true);
         },
       );
 

@@ -9,6 +9,7 @@ import 'sent_message.dart';
 class ChatWindow extends StatefulWidget {
   final List<ChatMessage> messages;
   final bool isTyping;
+  final String? typingLabel;
   final String sessionTitle;
   final VoidCallback? onHeaderTap;
   final FocusNode? focusNode;
@@ -18,6 +19,7 @@ class ChatWindow extends StatefulWidget {
     super.key,
     required this.messages,
     required this.isTyping,
+    this.typingLabel,
     required this.sessionTitle,
     this.onHeaderTap,
     this.focusNode,
@@ -152,11 +154,7 @@ class ChatWindowState extends State<ChatWindow>
             maxWidth: screenWidth / 2,
             maxHeight: screenHeight - TizenStyles.chatWindowHeightReserved,
           ),
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.bottomCenter,
-            child: AnimatedBuilder(
+          child: AnimatedBuilder(
               animation: _scrollFocusNode,
               builder: (context, child) {
                 final isFocused = _scrollFocusNode.hasFocus;
@@ -208,9 +206,12 @@ class ChatWindowState extends State<ChatWindow>
                         itemBuilder: (context, index) {
                           if (widget.isTyping &&
                               index == widget.messages.length) {
-                            return const Padding(
-                              padding: EdgeInsets.only(bottom: TizenStyles.messageSpacing),
-                              child: TypingIndicator(showAvatar: true),
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: TizenStyles.messageSpacing),
+                              child: TypingIndicator(
+                                showAvatar: true,
+                                label: widget.typingLabel ?? '생각 중이에요...',
+                              ),
                             );
                           }
 
@@ -250,7 +251,6 @@ class ChatWindowState extends State<ChatWindow>
                 ),
               ),
             ),
-          ),
         ),
       ),
     );
