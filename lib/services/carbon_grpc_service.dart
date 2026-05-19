@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
 import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart'
@@ -429,18 +428,9 @@ class CarbonGrpcService {
       _ingressClient = ingress_v2.IngressServiceClient(_channel!);
       _eventClient = event_v2.EventServiceClient(_channel!);
 
-      final appDir = await getApplicationSupportDirectory();
-      final workspacePath = p.join(appDir.path, 'tizen_ai');
-      final workspaceDir = Directory(workspacePath);
-      if (!await workspaceDir.exists()) {
-        await workspaceDir.create(recursive: true);
-      }
-      print('DEBUG: [CarbonGrpc] Using workspace path: $workspacePath');
-
       final createReq = session_v2.CreateSessionRequest(
         product: 'claw',
         config: {
-          'workspace': workspacePath,
           if (_sessionName != null) 'session': _sessionName!,
           if (_sessionName != null) 'session_date': _sessionName!,
         }.entries,
