@@ -4,14 +4,12 @@ import '../theme/tizen_styles.dart';
 class TypingIndicator extends StatelessWidget {
   final String avatarInitial;
   final bool showAvatar;
-  final bool showBubble;
   final String label;
 
   const TypingIndicator({
     super.key,
     this.avatarInitial = 'T',
     this.showAvatar = true,
-    this.showBubble = true,
     this.label = '생각 중이에요...',
   });
 
@@ -24,7 +22,7 @@ class TypingIndicator extends StatelessWidget {
       ),
     );
 
-    if (!showAvatar && !showBubble) return labelWidget;
+    if (!showAvatar) return labelWidget;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,22 +58,7 @@ class TypingIndicator extends StatelessWidget {
           ),
           const SizedBox(width: TizenStyles.avatarGap),
         ],
-        if (showBubble)
-          Container(
-            padding: TizenStyles.bubblePadding,
-            decoration: BoxDecoration(
-              color: TizenStyles.slate900.withValues(alpha: 0.4),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(TizenStyles.windowBorderRadius),
-                topRight: Radius.circular(TizenStyles.windowBorderRadius),
-                bottomLeft: Radius.circular(TizenStyles.messageTailRadius),
-                bottomRight: Radius.circular(TizenStyles.windowBorderRadius),
-              ),
-            ),
-            child: labelWidget,
-          )
-        else
-          labelWidget,
+        labelWidget,
       ],
     );
   }
