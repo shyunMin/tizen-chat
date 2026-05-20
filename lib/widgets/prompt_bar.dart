@@ -224,11 +224,15 @@ class _PromptBarState extends State<PromptBar>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,
-            width: _isExpanded ? MediaQuery.of(context).size.width / 2 : TizenStyles.promptBarCollapsedWidth,
+            width: _isExpanded
+                ? MediaQuery.of(context).size.width / 2
+                : TizenStyles.promptBarCollapsedWidth,
             height: TizenStyles.promptBarInnerHeight,
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
+              borderRadius: BorderRadius.circular(
+                TizenStyles.windowBorderRadius,
+              ),
               boxShadow: const [TizenStyles.windowShadow],
             ),
             clipBehavior: Clip.antiAlias,
@@ -244,7 +248,9 @@ class _PromptBarState extends State<PromptBar>
                         builder: (context, _) {
                           return DecoratedBox(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
+                              borderRadius: BorderRadius.circular(
+                                TizenStyles.windowBorderRadius,
+                              ),
                               border: Border.all(
                                 color: Colors.white.withValues(
                                   alpha: _shimmerAlpha.value,
@@ -267,7 +273,10 @@ class _PromptBarState extends State<PromptBar>
             AnimatedPositioned(
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
-              left: _isExpanded ? 25 : (TizenStyles.promptBarCollapsedWidth / 2 - TizenStyles.promptBarIconSize / 2),
+              left: _isExpanded
+                  ? 25
+                  : (TizenStyles.promptBarCollapsedWidth / 2 -
+                        TizenStyles.promptBarIconSize / 2),
               top: 0,
               bottom: 0,
               child: Center(
@@ -283,7 +292,11 @@ class _PromptBarState extends State<PromptBar>
                           _outerFocusNode.requestFocus();
                         },
                       )
-                    : const Icon(Icons.mic, color: Colors.blueAccent, size: TizenStyles.promptBarIconSize),
+                    : const Icon(
+                        Icons.mic,
+                        color: Colors.blueAccent,
+                        size: TizenStyles.promptBarIconSize,
+                      ),
               ),
             ),
             AnimatedOpacity(
@@ -397,7 +410,9 @@ class _PromptBarState extends State<PromptBar>
                                 }
                               } else {
                                 setState(() => _isKeyboardMode = true);
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   _inputFocusNode.requestFocus();
                                 });
                               }

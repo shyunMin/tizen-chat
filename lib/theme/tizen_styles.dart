@@ -32,8 +32,8 @@ class TizenStyles {
   static const double sessionHeaderDotSize = 6.0;
   static const double actionBarHeight = 44.0;
   static const double promptBarCollapsedWidth = 64.0;
-  static const double promptBarInnerHeight = 56.0;
-  static const double promptBarContentHeight = 52.0;
+  static const double promptBarInnerHeight = 68.0;
+  static const double promptBarContentHeight = 64.0;
   static const double promptBarIconSize = 24.0;
   static const double iconButtonPadding = 8.0;
   static const double sentMessageLeftSpacing = 40.0;
@@ -61,7 +61,7 @@ class TizenStyles {
   );
   static const EdgeInsets messageListPadding = EdgeInsets.fromLTRB(
     12,
-    4,
+    16,
     12,
     12,
   );
@@ -81,10 +81,10 @@ class TizenStyles {
   static const double promptBarBottomKeyboard = 270.0;
   static const double promptBarLeft = 10.0;
   static const double promptBarContainerHeight = 80.0;
-  static const double actionBarBottom = 98.0;
-  static const double actionBarBottomKeyboard = 358.0;
-  static const double chatWindowBottomBase = 98.0;
-  static const double chatWindowBottomWithActions = 158.0;
+  static const double actionBarBottom = 90.0;
+  static const double actionBarBottomKeyboard = 350.0;
+  static const double chatWindowBottomBase = 90.0;
+  static const double chatWindowBottomWithActions = 146.0;
   static const double chatWindowBottomKeyboard = 358.0;
   static const double chatWindowBottomKeyboardWithActions = 418.0;
 

@@ -124,10 +124,11 @@ class ReceivedMessage extends StatelessWidget {
               // actual tool call. Indicator clears when ToolResult
               // arrives (or another tool replaces it) and is dropped
               // entirely at TurnComplete.
-              if (currentToolIndicator != null) ...[
-                _ToolIndicator(toolName: currentToolIndicator!),
-                if (hasText) const SizedBox(height: 4),
-              ],
+              // step phase 하위 도구 호출은 표시하지 않음
+              // if (currentToolIndicator != null) ...[
+              //   _ToolIndicator(toolName: currentToolIndicator!),
+              //   if (hasText) const SizedBox(height: 4),
+              // ],
               if (hasText)
                 MarkdownBody(
                   data: text,
@@ -164,23 +165,23 @@ class ReceivedMessage extends StatelessWidget {
   }
 }
 
-class _ToolIndicator extends StatelessWidget {
-  final String toolName;
-  const _ToolIndicator({required this.toolName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Text(
-        '🔧 $toolName 실행 중...',
-        style: TizenStyles.bodyText.copyWith(
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
+// class _ToolIndicator extends StatelessWidget {
+//   final String toolName;
+//   const _ToolIndicator({required this.toolName});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Padding(
+//       padding: const EdgeInsets.symmetric(vertical: 2),
+//       child: Text(
+//         '🔧 $toolName 실행 중...',
+//         style: TizenStyles.bodyText.copyWith(
+//           color: Colors.white,
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class _PhaseHeader extends StatelessWidget {
   final String title;

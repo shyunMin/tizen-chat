@@ -1,4 +1,3 @@
-import 'package:ai_chat/widgets/prompt_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/tizen_styles.dart';
@@ -6,11 +5,11 @@ import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:convert';
 import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
+import '../widgets/prompt_bar.dart';
 import '../services/carbon_grpc_service.dart';
 import '../generated/carbon/v2/ingress_service.pbenum.dart';
 import '../platform/platform_flags.dart' as platform_flags;
 import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
-import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -19,6 +18,7 @@ import '../services/window_focus_service.dart';
 import '../services/onboarding_grpc_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
+import '../utils/elapsed_timer.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -33,23 +33,25 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ── UI 상태 ──────────────────────────────────────────────────
   bool _isVisible = false;
   bool _isVoiceKeyPressed = false;
-  bool _isKeyboardFocused = false;
+  bool _isPromptBarVisible = false;
+  Timer? _voiceKeyReleaseTimer;
 
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
   final List<ChatMessage> _messages = [];
-  String _sessionTitle = '';
+  DateTime? _requestStartTime;
   final GlobalKey<ChatWindowState> _chatWindowKey =
       GlobalKey<ChatWindowState>();
   final GlobalKey<ActionButtonBarState> _actionBarKey =
       GlobalKey<ActionButtonBarState>();
 
   bool _isGrpcReady = false;
+  bool _interruptRequested = false;
 
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
-  final FocusNode _promptBarFocusNode = FocusNode();
   final FocusNode _chatScrollFocusNode = FocusNode();
+  final FocusNode _promptBarFocusNode = FocusNode();
   final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
   StreamSubscription<CarbonEvent>? _eventSubscription;
@@ -131,7 +133,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
           unawaited(WindowFocusService.setFocusable(true));
-          setState(() => _isVisible = true);
+          setState(() {
+            _isVisible = true;
+            _isPromptBarVisible = true;
+          });
           _promptBarFocusNode.requestFocus();
         }
       });
@@ -193,9 +198,47 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
       }
 
-      if (messageText != null && messageText.isNotEmpty) {
+      final isFromVoiceApp = appControl.callerAppId == 'org.tizen.voice-app';
+
+      // 음성 이벤트 감지: messageText 자체가 키워드이거나 extraData key/value에 존재
+      bool hasVoiceEvent(String name) {
+        if (messageText == name) return true;
+        if (!isFromVoiceApp) return false;
+        return extraData.entries.any((e) {
+          final val = e.value is List && (e.value as List).isNotEmpty
+              ? (e.value as List).first.toString()
+              : e.value.toString();
+          return e.key == name || val == name;
+        });
+      }
+
+      final isSpeechStart = hasVoiceEvent('SPEECH_START');
+      final isNoSpeech = hasVoiceEvent('NO_SPEECH');
+      debugPrint('[AppControl] isSpeechStart=$isSpeechStart isNoSpeech=$isNoSpeech');
+
+      if (isSpeechStart || isNoSpeech) {
+        // 음성 이벤트 처리 — 요청으로 전달하지 않음
+        if (mounted) {
+          if (isSpeechStart) {
+            setState(() {
+              _isVisible = true;
+              _isVoiceKeyPressed = true;
+            });
+          } else if (isNoSpeech) {
+            // 음성 인식 실패 → voice key 상태 해제, 타이머 로직과 동일하게 복원
+            _voiceKeyReleaseTimer?.cancel();
+            setState(() {
+              _isVoiceKeyPressed = false;
+              if (!_threadInFlight) _isPromptBarVisible = true;
+            });
+          }
+        }
+      } else if (messageText != null && messageText.isNotEmpty) {
+        // 실제 메시지 → 요청 전달
+        if (isFromVoiceApp && mounted) {
+          setState(() => _isVoiceKeyPressed = false);
+        }
         if (!initOk) {
-          // 온보딩 미완료: 요청 메시지를 보여주고 에러 응답 표시
           debugPrint('[AppControl] Onboarding incomplete — showing error');
           if (mounted) {
             setState(() {
@@ -203,8 +246,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               _hasChatStarted = true;
               _messages.add(
                 ChatMessage(
-                  text:
-                      'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
+                  text: 'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
                   type: MessageType.received,
                 ),
               );
@@ -216,8 +258,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           if (mounted) _handleSend(messageText);
         }
       } else {
-        debugPrint('[AppControl] No message content found in extraData.');
-        if (mounted) setState(() => _isVisible = true);
+        debugPrint('[AppControl] No actionable content in extraData.');
       }
     } catch (e) {
       debugPrint('[AppControl] Error processing extraData: $e');
@@ -230,17 +271,21 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       // 1. 온보딩 상태 확인
       final onboardingOk = await _checkOnboarding();
 
-      // 2. 오늘 날짜 세션 확보 + 로컬 목록에 기록
-      final sessionName = await SessionRepository.instance.ensureTodaySession();
+      // 2. 오늘 날짜를 세션 이름으로 사용
+      final now = DateTime.now();
+      final sessionName =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       debugPrint('[Init] Session name: $sessionName');
-      if (mounted) setState(() => _sessionTitle = sessionName);
 
-      // 3. PromptBar 표시 (gRPC 연결 전 — 비활성 상태)
-      // AppControl 대기 중이어도 온보딩 완료 후 복귀 시 화면을 보여줘야 한다.
+      // 3. 화면 표시 (gRPC 연결 전 — 비활성 상태)
+      // AppControl 없는 경우만 PromptBar 노출. AppControl 경로는 _handleSend 후 ChatWindow만 표시.
       if (mounted) {
         if (!_hasPendingAppControl)
           unawaited(WindowFocusService.setFocusable(true));
-        setState(() => _isVisible = true);
+        setState(() {
+          _isVisible = true;
+          _isPromptBarVisible = !_hasPendingAppControl;
+        });
       }
 
       // 4. gRPC 연결 (실패 시 daemon 재시작 대기 포함)
@@ -253,9 +298,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (mounted) {
         setState(() => _isGrpcReady = true);
         if (!_hasPendingAppControl) {
-          // 요청 없는 일반 실행: 앱이 준비된 시점에 윈도우 포커스를 명시적으로
-          // 확보한다. AppControl 경로는 _handleSend → setFocusable(false) →
-          // ThreadComplete → setFocusable(true) 순으로 처리되므로 여기서 제외.
+          // 요청 없는 일반 실행: 윈도우 포커스 확보. AppControl 경로는
+          // _handleSend → setFocusable(false) → ThreadComplete → setFocusable(true) 순.
           unawaited(WindowFocusService.setFocusable(true));
           _promptBarFocusNode.requestFocus();
         }
@@ -339,7 +383,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
 
     final turnBusy = _grpcService.isTurnBusy;
-    setState(() => _threadInFlight = true);
+    _requestStartTime = DateTime.now();
+    setState(() {
+      _threadInFlight = true;
+      _isPromptBarVisible = false;
+    });
+    _chatScrollFocusNode.requestFocus();
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
@@ -376,11 +425,32 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     debugPrint('[Chat] held in pending slot: $reqId');
   }
 
+  void _handleInterrupt() {
+    _interruptRequested = true;
+    _grpcService.interruptTurn();
+    setState(() {
+      _threadInFlight = false;
+      _isPromptBarVisible = true;
+      _activeReplyIndex = null;
+      _currentSegmentText = '';
+      _activeToolName = null;
+      _requestStartTime = null;
+      _messages.clear();
+      _messages.add(ChatMessage(
+        text: '요청이 중단되었습니다.',
+        type: MessageType.received,
+        isWaiting: false,
+      ));
+    });
+    _scrollToBottom();
+    unawaited(WindowFocusService.setFocusable(true));
+  }
+
   void _materializeUserBubble() {
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
-        debugPrint('[Chat] First message! Session: $_sessionTitle');
+        debugPrint('[Chat] First message!');
       }
       _isVisible = true;
     });
@@ -533,16 +603,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // so the spinner stays on through round-boundary gaps (e.g.
         // steer-recovery turn spinning up after the first turn ends).
         if (_threadInFlight) {
-          setState(() => _threadInFlight = false);
+          _appendElapsedToLastMessage();
+          setState(() {
+            _threadInFlight = false;
+            _isPromptBarVisible = true;
+          });
+          _scrollToBottom();
         }
         // Restore window focus only here — not on per-phase TurnComplete.
         // setFocusable(false) fires once on user send; the matching true
         // must wait until the entire thread (all phases) is done.
         unawaited(WindowFocusService.setFocusable(true));
-        // Request focus after rebuild so descendantsAreFocusable is true.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _promptBarFocusNode.requestFocus();
-        });
         break;
 
       case CarbonContinuationRequested(:final reason, :final message):
@@ -589,6 +660,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case CarbonError(:final code, :final message, :final fatal):
+        // 로컬에서 이미 중단 처리한 경우 서버의 cancelled 이벤트는 무시
+        if (_interruptRequested && code == 'cancelled') {
+          _interruptRequested = false;
+          break;
+        }
         // continuation:* Error codes were the pre-Slice-B path for
         // continuation notices. Slice B promoted them to typed
         // ContinuationRequested wire bodies, so this guard is now a
@@ -617,7 +693,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           _resolvePending('SessionEnded');
         }
         if (_threadInFlight) {
-          setState(() => _threadInFlight = false);
+          setState(() {
+            _threadInFlight = false;
+            _isPromptBarVisible = true;
+          });
         }
         unawaited(WindowFocusService.setFocusable(true));
         _grpcService.reconnect();
@@ -665,6 +744,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() {
       if (_activeReplyIndex == null) {
         if (_currentSegmentText.isEmpty && _activeToolName == null) return;
+        // TurnStarted 없이 델타가 도달하는 경우(continuation 경로 등)
+        // 이전 봉인된 버블이 남아있을 수 있으므로 먼저 정리한다.
+        _messages.clear();
         _materializeAgentBubble('', isWaiting: isWaiting);
       }
       final old = _messages[_activeReplyIndex!];
@@ -911,6 +993,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     unawaited(WindowFocusService.setFocusable(true));
 
     setState(() {
+      _isPromptBarVisible = true;
       final displayMessage = '[$code] $message';
 
       if (fatal) {
@@ -999,14 +1082,20 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _messageBusSubscription?.cancel();
     _eventSubscription?.cancel();
+    _voiceKeyReleaseTimer?.cancel();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
-    _promptBarFocusNode.dispose();
     _chatScrollFocusNode.dispose();
+    _promptBarFocusNode.dispose();
     super.dispose();
   }
 
   String get _typingLabel {
+    if (_activeReplyIndex != null && _activeReplyIndex! < _messages.length) {
+      final msg = _messages[_activeReplyIndex!];
+      if (msg.phaseTitle != null) return msg.phaseTitle!;
+      if (msg.currentToolIndicator != null) return msg.currentToolIndicator!;
+    }
     final phase = _currentPhase;
     if (phase is CarbonTurnPhaseValidation || phase is CarbonTurnPhaseUnknown) {
       return '답변을 검토하는 중입니다.';
@@ -1015,6 +1104,33 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return '요청을 분석하는 중입니다.';
     }
     return '다음 단계를 준비하는 중입니다.';
+  }
+
+  void _appendElapsedToLastMessage() {
+    final start = _requestStartTime;
+    if (start == null) return;
+    final label = 'Worked · ${ElapsedTimer.format(start)}';
+
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].type == MessageType.received) {
+        final msg = _messages[i];
+        _messages[i] = ChatMessage(
+          text: '${msg.text}\n\n$label',
+          type: msg.type,
+          senderInitial: msg.senderInitial,
+          isWaiting: msg.isWaiting,
+          displayType: msg.displayType,
+          uiCode: msg.uiCode,
+          actionButtons: msg.actionButtons,
+          phaseTitle: msg.phaseTitle,
+          tools: msg.tools,
+          validationPassed: msg.validationPassed,
+          currentToolIndicator: msg.currentToolIndicator,
+        );
+        break;
+      }
+    }
+    _requestStartTime = null;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -1026,99 +1142,110 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       '[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}',
     );
     final screenHeight = MediaQuery.of(context).size.height;
+    final bool hasButtons = _currentActionButtons.isNotEmpty;
+
+    // 표시 여부 플래그
+    final bool showPromptBar = _isVisible && _isPromptBarVisible;
+    final bool chatWindowOnScreen = _isVisible && (_hasChatStarted || _threadInFlight);
+    // ActionBar: 요청 중(threadInFlight)일 때만 숨김. voice key pressed는 영향 없음.
+    final bool showActionBar = _isVisible && _hasChatStarted && !_threadInFlight && hasButtons;
+
+    // ActionButtonBar: PromptBar 위 고정 위치
+    const double actionBarTargetBottom = TizenStyles.chatWindowBottomBase;
+
+    // ChatWindow 위치:
+    // - chatWindowOnScreen=false: 화면 밖
+    // - voice key 누름 중: 이전 위치 유지 (PromptBar가 있을 때의 위치)
+    // - PromptBar 표시: 98 (버튼 없음) / 158 (버튼 있음)
+    // - PromptBar 숨김 (요청 중 / voice key release 후): bottom=10
+    final double chatWindowTargetBottom;
+    if (!chatWindowOnScreen) {
+      chatWindowTargetBottom = -screenHeight;
+    } else if (_isVoiceKeyPressed) {
+      chatWindowTargetBottom = hasButtons
+          ? TizenStyles.chatWindowBottomWithActions
+          : TizenStyles.chatWindowBottomBase;
+    } else if (showPromptBar) {
+      chatWindowTargetBottom = showActionBar
+          ? TizenStyles.chatWindowBottomWithActions
+          : TizenStyles.chatWindowBottomBase;
+    } else {
+      chatWindowTargetBottom = TizenStyles.promptBarBottom;
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Focus(
         focusNode: _keyboardFocusNode,
-        descendantsAreFocusable: !_threadInFlight,
+        autofocus: true,
         onKeyEvent: (node, event) {
           if (event.logicalKey.keyLabel == 'XF86BTVoice' ||
               event.logicalKey.debugName == 'XF86BTVoice' ||
               event.logicalKey.keyId == 137438953472) {
             if (event is KeyDownEvent && !_isVoiceKeyPressed) {
-              setState(() => _isVoiceKeyPressed = true);
+              _voiceKeyReleaseTimer?.cancel();
+              setState(() {
+                _isVoiceKeyPressed = true;
+                _isPromptBarVisible = false;
+              });
             } else if (event is KeyUpEvent && _isVoiceKeyPressed) {
-              setState(() => _isVoiceKeyPressed = false);
+              _voiceKeyReleaseTimer?.cancel();
+              _voiceKeyReleaseTimer = Timer(const Duration(seconds: 1), () {
+                if (mounted) setState(() {
+                  _isVoiceKeyPressed = false;
+                  if (!_threadInFlight) _isPromptBarVisible = true;
+                });
+              });
             }
             return KeyEventResult.ignored;
           }
 
-          if (event is KeyDownEvent) {
-            if (event.logicalKey == LogicalKeyboardKey.escape ||
-                event.logicalKey == LogicalKeyboardKey.goBack ||
-                event.logicalKey == LogicalKeyboardKey.browserBack) {
+          if (event.logicalKey == LogicalKeyboardKey.escape ||
+              event.logicalKey == LogicalKeyboardKey.goBack ||
+              event.logicalKey == LogicalKeyboardKey.browserBack) {
+            if (event is KeyDownEvent) {
               if (_threadInFlight) {
-                _grpcService.interruptTurn();
+                _handleInterrupt();
               } else {
                 SystemNavigator.pop();
               }
-              return KeyEventResult.handled;
             }
+            // KeyRepeat / KeyUp 도 handled 로 반환해 플랫폼이 앱 종료하지 않도록 차단
+            return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
         },
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // ── PromptBar (bottom: 10, height: 80) ──────────
-              AnimatedPositioned(
-                key: const ValueKey('prompt-bar'),
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                bottom: _isKeyboardFocused
-                    ? TizenStyles.promptBarBottomKeyboard
-                    : TizenStyles.promptBarBottom,
+              // ── PromptBar ─────────────────────────────────────
+              Positioned(
+                bottom: TizenStyles.promptBarBottom,
                 left: TizenStyles.promptBarLeft,
-                right: 0,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: (_isVisible && !_isVoiceKeyPressed) ? 1.0 : 0.0,
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: SizedBox(
-                      height: TizenStyles.promptBarContainerHeight,
-                      child: PromptBar(
-                        outerFocusNode: _promptBarFocusNode,
-                        isConnecting: !_isGrpcReady,
-                        onArrowUp: () {
-                          if (!_hasChatStarted) return;
-                          if (_currentActionButtons.isNotEmpty) {
-                            _actionBarKey.currentState?.focusFirstButton();
-                          } else {
-                            _chatScrollFocusNode.requestFocus();
-                          }
-                        },
-                        isVisible: _isVisible,
-                        // Lock the bar only while a submission is sitting
-                        // in the pending slot (the 1-slot UI constraint).
-                        // During an in-flight turn with the slot empty
-                        // the user is free to type a new steer/queue.
-                        isWaiting: _pending != null,
-                        hasChatStarted: _hasChatStarted,
-                        onSend: (text) => _handleSend(text),
-                        onCancel: () {
-                          _grpcService.interruptTurn();
-                        },
-                        onKeyboardFocusChanged: (isFocused) {
-                          if (mounted) {
-                            setState(() => _isKeyboardFocused = isFocused);
-                          }
-                        },
-                      ),
+                child: IgnorePointer(
+                  ignoring: !showPromptBar,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    opacity: showPromptBar ? 1.0 : 0.0,
+                    child: PromptBar(
+                      isVisible: _isVisible,
+                      isConnecting: !_isGrpcReady,
+                      isWaiting: _threadInFlight,
+                      hasChatStarted: _hasChatStarted,
+                      outerFocusNode: _promptBarFocusNode,
+                      onSend: _handleSend,
+                      onCancel: _handleInterrupt,
+                      onArrowUp: () => _chatScrollFocusNode.requestFocus(),
                     ),
                   ),
                 ),
               ),
 
-              // ── ActionButtonBar (PromptBar 바로 위) ──────────
-              if (_hasChatStarted)
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                  bottom: _isKeyboardFocused
-                      ? TizenStyles.actionBarBottomKeyboard
-                      : TizenStyles.actionBarBottom,
+              // ── ActionButtonBar ───────────────────────────────
+              if (showActionBar)
+                Positioned(
+                  bottom: actionBarTargetBottom,
                   left: 0,
                   right: 0,
                   child: ActionButtonBar(
@@ -1132,47 +1259,25 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
               // ── ChatWindow ───────────────────────────────────
               AnimatedPositioned(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                bottom: _hasChatStarted
-                    ? (_isKeyboardFocused
-                          ? (_currentActionButtons.isNotEmpty
-                                ? TizenStyles
-                                      .chatWindowBottomKeyboardWithActions
-                                : TizenStyles.chatWindowBottomKeyboard)
-                          : (_currentActionButtons.isNotEmpty
-                                ? TizenStyles.chatWindowBottomWithActions
-                                : TizenStyles.chatWindowBottomBase))
-                    : -screenHeight,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                bottom: chatWindowTargetBottom,
                 left: TizenStyles.promptBarLeft,
                 child: ChatWindow(
                   key: _chatWindowKey,
                   focusNode: _chatScrollFocusNode,
                   onScrolledToBottomDown: () {
-                    if (_currentActionButtons.isNotEmpty) {
+                    if (showActionBar) {
                       _actionBarKey.currentState?.focusFirstButton();
-                    } else {
+                    } else if (showPromptBar) {
                       _promptBarFocusNode.requestFocus();
                     }
                   },
                   messages: _messages,
-                  // Bottom-of-list typing indicator: show only when the
-                  // thread is busy AND there's no active reply bubble.
-                  // When a bubble is filling (or showing a tool
-                  // indicator) it carries its own waiting state — a
-                  // second spinner below would be a visual duplicate.
-                  // The gap that previously left users wondering — between
-                  // one round ending and the next round's first delta —
-                  // is what this guards: _activeReplyIndex is null in
-                  // that window, so the dots fill in for the spinner.
-                  isTyping: _threadInFlight && _activeReplyIndex == null,
+                  isConnecting: !_isGrpcReady,
+                  isThreadInFlight: _threadInFlight,
                   typingLabel: _typingLabel,
-                  sessionTitle: _sessionTitle,
-                  onHeaderTap: () {
-                    debugPrint(
-                      '[SessionHeader] tapped — session picker not yet implemented',
-                    );
-                  },
+                  requestStartTime: _requestStartTime,
                 ),
               ),
             ],
