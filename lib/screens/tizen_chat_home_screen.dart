@@ -10,7 +10,6 @@ import '../services/carbon_grpc_service.dart';
 import '../generated/carbon/v2/ingress_service.pbenum.dart';
 import '../platform/platform_flags.dart' as platform_flags;
 import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
-import '../services/session_repository.dart';
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -19,6 +18,7 @@ import '../services/window_focus_service.dart';
 import '../services/onboarding_grpc_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
+import '../utils/elapsed_timer.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
@@ -38,7 +38,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
   final List<ChatMessage> _messages = [];
-  String _sessionTitle = '';
+  DateTime? _requestStartTime;
   final GlobalKey<ChatWindowState> _chatWindowKey =
       GlobalKey<ChatWindowState>();
   final GlobalKey<ActionButtonBarState> _actionBarKey =
@@ -230,10 +230,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       // 1. 온보딩 상태 확인
       final onboardingOk = await _checkOnboarding();
 
-      // 2. 오늘 날짜 세션 확보 + 로컬 목록에 기록
-      final sessionName = await SessionRepository.instance.ensureTodaySession();
+      // 2. 오늘 날짜를 세션 이름으로 사용
+      final now = DateTime.now();
+      final sessionName =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       debugPrint('[Init] Session name: $sessionName');
-      if (mounted) setState(() => _sessionTitle = sessionName);
 
       // 3. PromptBar 표시 (gRPC 연결 전 — 비활성 상태)
       // AppControl 대기 중이어도 온보딩 완료 후 복귀 시 화면을 보여줘야 한다.
@@ -339,6 +340,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
 
     final turnBusy = _grpcService.isTurnBusy;
+    _requestStartTime = DateTime.now();
     setState(() => _threadInFlight = true);
 
     if (!turnBusy) {
@@ -380,7 +382,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
-        debugPrint('[Chat] First message! Session: $_sessionTitle');
+        debugPrint('[Chat] First message!');
       }
       _isVisible = true;
     });
@@ -533,7 +535,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // so the spinner stays on through round-boundary gaps (e.g.
         // steer-recovery turn spinning up after the first turn ends).
         if (_threadInFlight) {
+          _appendElapsedToLastMessage();
           setState(() => _threadInFlight = false);
+          _scrollToBottom();
         }
         // Restore window focus only here — not on per-phase TurnComplete.
         // setFocusable(false) fires once on user send; the matching true
@@ -1007,6 +1011,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   String get _typingLabel {
+    if (_activeReplyIndex != null && _activeReplyIndex! < _messages.length) {
+      final msg = _messages[_activeReplyIndex!];
+      if (msg.phaseTitle != null) return msg.phaseTitle!;
+      if (msg.currentToolIndicator != null) return msg.currentToolIndicator!;
+    }
     final phase = _currentPhase;
     if (phase is CarbonTurnPhaseValidation || phase is CarbonTurnPhaseUnknown) {
       return '답변을 검토하는 중입니다.';
@@ -1015,6 +1024,33 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return '요청을 분석하는 중입니다.';
     }
     return '다음 단계를 준비하는 중입니다.';
+  }
+
+  void _appendElapsedToLastMessage() {
+    final start = _requestStartTime;
+    if (start == null) return;
+    final label = 'Worked · ${ElapsedTimer.format(start)}';
+
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].type == MessageType.received) {
+        final msg = _messages[i];
+        _messages[i] = ChatMessage(
+          text: '${msg.text}\n\n$label',
+          type: msg.type,
+          senderInitial: msg.senderInitial,
+          isWaiting: msg.isWaiting,
+          displayType: msg.displayType,
+          uiCode: msg.uiCode,
+          actionButtons: msg.actionButtons,
+          phaseTitle: msg.phaseTitle,
+          tools: msg.tools,
+          validationPassed: msg.validationPassed,
+          currentToolIndicator: msg.currentToolIndicator,
+        );
+        break;
+      }
+    }
+    _requestStartTime = null;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -1161,18 +1197,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   // When a bubble is filling (or showing a tool
                   // indicator) it carries its own waiting state — a
                   // second spinner below would be a visual duplicate.
-                  // The gap that previously left users wondering — between
-                  // one round ending and the next round's first delta —
-                  // is what this guards: _activeReplyIndex is null in
-                  // that window, so the dots fill in for the spinner.
-                  isTyping: _threadInFlight && _activeReplyIndex == null,
+                  isThreadInFlight: _threadInFlight,
                   typingLabel: _typingLabel,
-                  sessionTitle: _sessionTitle,
-                  onHeaderTap: () {
-                    debugPrint(
-                      '[SessionHeader] tapped — session picker not yet implemented',
-                    );
-                  },
+                  requestStartTime: _requestStartTime,
                 ),
               ),
             ],
