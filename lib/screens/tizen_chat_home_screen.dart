@@ -223,6 +223,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             setState(() {
               _isVisible = true;
               _isVoiceKeyPressed = true;
+              _isPromptBarVisible = false;
             });
           } else if (isNoSpeech) {
             // 음성 인식 실패 → voice key 상태 해제, 타이머 로직과 동일하게 복원
