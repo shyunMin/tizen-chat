@@ -12,6 +12,12 @@ import '../generated/carbon/v2/event_service.pbenum.dart' as event_enum;
 
 const String _kSource = 'ai-chat-flutter';
 
+const String _kSystemInstruction = '''
+[System Instruction]
+When describing steps, actions, or tool usage, always use natural, user-friendly language from the user's perspective. Do not expose raw tool names or technical CLI commands. Instead, describe what is happening in plain terms (e.g. "YouTube에서 콘텐츠를 검색하고 있어요" instead of "tizen-search-content-cli"). Apply this to step titles and any narration text.
+[End System Instruction]
+''';
+
 // Mirror of carbon CLI's IngressOptions.metadata.delivery. The runtime
 // builds the system-prompt "Final Delivery" section + alias table from this
 // — without it, claw's agent loop never sees the egress catalog and the
@@ -837,7 +843,7 @@ class CarbonGrpcService {
     final clientRequestId = _newClientRequestId();
     final req = ingress_v2.SubmitRequest(
       sessionId: _sessionId,
-      content: ingress_v2.IngressContent(text: text),
+      content: ingress_v2.IngressContent(text: '$_kSystemInstruction\n$text'),
       intent: ingress_v2.IngressIntent.INGRESS_INTENT_RUN_TURN,
       thread: ingress_v2.ThreadTarget(auto: ingress_v2.AutoTarget()),
       options: ingress_v2.IngressOptions(

@@ -61,7 +61,7 @@ class TizenStyles {
   );
   static const EdgeInsets messageListPadding = EdgeInsets.fromLTRB(
     12,
-    4,
+    16,
     12,
     12,
   );

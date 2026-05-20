@@ -1,27 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/elapsed_timer.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
-import 'typing_indicator.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
 
 class ChatWindow extends StatefulWidget {
   final List<ChatMessage> messages;
-  final bool isTyping;
+  final bool isThreadInFlight;
   final String? typingLabel;
-  final String sessionTitle;
-  final VoidCallback? onHeaderTap;
+  final DateTime? requestStartTime;
   final FocusNode? focusNode;
   final VoidCallback? onScrolledToBottomDown;
 
   const ChatWindow({
     super.key,
     required this.messages,
-    required this.isTyping,
+    required this.isThreadInFlight,
     this.typingLabel,
-    required this.sessionTitle,
-    this.onHeaderTap,
+    this.requestStartTime,
     this.focusNode,
     this.onScrolledToBottomDown,
   });
@@ -142,8 +142,6 @@ class ChatWindowState extends State<ChatWindow>
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    final itemCount = widget.messages.length + (widget.isTyping ? 1 : 0);
-
     return Focus(
       focusNode: _scrollFocusNode,
       onKeyEvent: _handleKeyEvent,
@@ -193,59 +191,52 @@ class ChatWindowState extends State<ChatWindow>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _SessionHeader(
-                      title: widget.sessionTitle,
-                      onTap: widget.onHeaderTap,
-                    ),
+                    const SizedBox(height: 16),
                     Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        controller: _scrollController,
-                        padding: TizenStyles.messageListPadding,
-                        itemCount: itemCount,
-                        itemBuilder: (context, index) {
-                          if (widget.isTyping &&
-                              index == widget.messages.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: TizenStyles.messageSpacing),
-                              child: TypingIndicator(
-                                showAvatar: true,
-                                label: widget.typingLabel ?? '생각 중이에요...',
-                              ),
-                            );
-                          }
+                      child: widget.isThreadInFlight
+                          ? _LoadingItem(
+                              label: widget.typingLabel ?? '생각 중이에요...',
+                              startTime: widget.requestStartTime ?? DateTime.now(),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              controller: _scrollController,
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              itemCount: widget.messages.length,
+                              itemBuilder: (context, index) {
+                                final message = widget.messages[index];
+                                final Widget messageWidget;
 
-                          final message = widget.messages[index];
-                          final Widget messageWidget;
+                                switch (message.type) {
+                                  case MessageType.sent:
+                                    messageWidget = SentMessage(
+                                      text: message.text,
+                                      isWaiting: message.isWaiting,
+                                    );
+                                    break;
+                                  case MessageType.received:
+                                    messageWidget = ReceivedMessage(
+                                      text: message.text,
+                                      avatarInitial: message.senderInitial,
+                                      isWaiting: message.isWaiting,
+                                      displayType: message.displayType,
+                                      phaseTitle: message.phaseTitle,
+                                      tools: message.tools,
+                                      validationPassed: message.validationPassed,
+                                      currentToolIndicator:
+                                          message.currentToolIndicator,
+                                    );
+                                    break;
+                                }
 
-                          switch (message.type) {
-                            case MessageType.sent:
-                              messageWidget = SentMessage(
-                                text: message.text,
-                                isWaiting: message.isWaiting,
-                              );
-                              break;
-                            case MessageType.received:
-                              messageWidget = ReceivedMessage(
-                                text: message.text,
-                                avatarInitial: message.senderInitial,
-                                isWaiting: message.isWaiting,
-                                displayType: message.displayType,
-                                phaseTitle: message.phaseTitle,
-                                tools: message.tools,
-                                validationPassed: message.validationPassed,
-                                currentToolIndicator:
-                                    message.currentToolIndicator,
-                              );
-                              break;
-                          }
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: TizenStyles.messageSpacing),
-                            child: messageWidget,
-                          );
-                        },
-                      ),
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: TizenStyles.messageSpacing,
+                                  ),
+                                  child: messageWidget,
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
@@ -257,44 +248,105 @@ class ChatWindowState extends State<ChatWindow>
   }
 }
 
-class _SessionHeader extends StatelessWidget {
-  final String title;
-  final VoidCallback? onTap;
+class _LoadingItem extends StatefulWidget {
+  final String label;
+  final DateTime startTime;
 
-  const _SessionHeader({required this.title, this.onTap});
+  const _LoadingItem({required this.label, required this.startTime});
+
+  @override
+  State<_LoadingItem> createState() => _LoadingItemState();
+}
+
+class _LoadingItemState extends State<_LoadingItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    _shimmer.repeat();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: TizenStyles.sessionHeaderPadding,
-        child: Row(
-          children: [
-            Container(
-              width: TizenStyles.sessionHeaderDotSize,
-              height: TizenStyles.sessionHeaderDotSize,
-              decoration: const BoxDecoration(
-                color: Colors.blueAccent,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: TizenStyles.sessionHeaderGap),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: TizenStyles.tinyFontSize,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: TizenStyles.avatarSpinnerSize,
+                height: TizenStyles.avatarSpinnerSize,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    TizenStyles.cyan400.withValues(alpha: 0.8),
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
+              CircleAvatar(
+                radius: TizenStyles.avatarRadius,
+                backgroundColor: TizenStyles.slate800,
+                child: const Text(
+                  'T',
+                  style: TextStyle(
+                    fontSize: TizenStyles.avatarInitialFontSize,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: TizenStyles.avatarGap),
+          Flexible(
+            child: AnimatedBuilder(
+              animation: _shimmer,
+              builder: (context2, child2) {
+                final p = _shimmer.value;
+                return ShaderMask(
+                  blendMode: BlendMode.srcIn,
+                  shaderCallback: (Rect bounds) {
+                    final x = -1.5 + 3.5 * p;
+                    return LinearGradient(
+                      begin: Alignment(x - 0.8, 0),
+                      end: Alignment(x + 0.8, 0),
+                      colors: [
+                        Colors.white.withValues(alpha: 0.45),
+                        Colors.white.withValues(alpha: 0.95),
+                        Colors.white.withValues(alpha: 0.45),
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ).createShader(bounds);
+                  },
+                  child: Text(
+                    '${widget.label}\nWorking · ${ElapsedTimer.format(widget.startTime)}',
+                    style: TizenStyles.bodyText.copyWith(color: Colors.white),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
