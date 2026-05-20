@@ -11,6 +11,7 @@ import 'sent_message.dart';
 class ChatWindow extends StatefulWidget {
   final List<ChatMessage> messages;
   final bool isThreadInFlight;
+  final bool isConnecting;
   final String? typingLabel;
   final DateTime? requestStartTime;
   final FocusNode? focusNode;
@@ -20,6 +21,7 @@ class ChatWindow extends StatefulWidget {
     super.key,
     required this.messages,
     required this.isThreadInFlight,
+    this.isConnecting = false,
     this.typingLabel,
     this.requestStartTime,
     this.focusNode,
@@ -198,13 +200,17 @@ class ChatWindowState extends State<ChatWindow>
                               label: widget.typingLabel ?? '생각 중이에요...',
                               startTime: widget.requestStartTime ?? DateTime.now(),
                             )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              controller: _scrollController,
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                              itemCount: widget.messages.length,
-                              itemBuilder: (context, index) {
-                                final message = widget.messages[index];
+                          : widget.isConnecting
+                              ? const _ConnectingItem()
+                              : widget.messages.isEmpty
+                                  ? const _WelcomeItem()
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      controller: _scrollController,
+                                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                      itemCount: widget.messages.length,
+                                      itemBuilder: (context, index) {
+                                    final message = widget.messages[index];
                                 final Widget messageWidget;
 
                                 switch (message.type) {
@@ -236,7 +242,7 @@ class ChatWindowState extends State<ChatWindow>
                                   child: messageWidget,
                                 );
                               },
-                            ),
+                                      ),
                     ),
                   ],
                 ),
@@ -344,6 +350,121 @@ class _LoadingItemState extends State<_LoadingItem>
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectingItem extends StatefulWidget {
+  const _ConnectingItem();
+
+  @override
+  State<_ConnectingItem> createState() => _ConnectingItemState();
+}
+
+class _ConnectingItemState extends State<_ConnectingItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: TizenStyles.avatarRadius,
+            backgroundColor: TizenStyles.slate800,
+            child: const Text(
+              'T',
+              style: TextStyle(
+                fontSize: TizenStyles.avatarInitialFontSize,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: TizenStyles.avatarGap),
+          Flexible(
+            child: AnimatedBuilder(
+              animation: _shimmer,
+              builder: (context, child) {
+                final p = _shimmer.value;
+                return ShaderMask(
+                  blendMode: BlendMode.srcIn,
+                  shaderCallback: (Rect bounds) {
+                    final x = -1.5 + 3.5 * p;
+                    return LinearGradient(
+                      begin: Alignment(x - 0.8, 0),
+                      end: Alignment(x + 0.8, 0),
+                      colors: [
+                        Colors.white.withValues(alpha: 0.15),
+                        Colors.white.withValues(alpha: 0.65),
+                        Colors.white.withValues(alpha: 0.15),
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ).createShader(bounds);
+                  },
+                  child: Text(
+                    '연결 중이에요...',
+                    style: TizenStyles.bodyText.copyWith(color: Colors.white),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WelcomeItem extends StatelessWidget {
+  const _WelcomeItem();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: TizenStyles.avatarRadius,
+            backgroundColor: TizenStyles.slate800,
+            child: const Text(
+              'T',
+              style: TextStyle(
+                fontSize: TizenStyles.avatarInitialFontSize,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: TizenStyles.avatarGap),
+          Text(
+            '무엇을 도와 드릴까요?',
+            style: TizenStyles.bodyText.copyWith(
+              color: Colors.white.withValues(alpha: 0.6),
             ),
           ),
         ],
