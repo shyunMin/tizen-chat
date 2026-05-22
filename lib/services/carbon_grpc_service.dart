@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'dart:async';
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -437,7 +438,9 @@ class CarbonGrpcService {
       final createReq = session_v2.CreateSessionRequest(
         product: 'claw',
         config: {
+          // ignore: use_null_aware_elements
           if (_sessionName != null) 'session': _sessionName!,
+          // ignore: use_null_aware_elements
           if (_sessionName != null) 'session_date': _sessionName!,
         }.entries,
       );
@@ -500,7 +503,7 @@ class CarbonGrpcService {
   /// Resolve the carbon daemon UDS path. v1 hardcoded /run/user/5001/...; on
   /// linux desktop and any non-Tizen host the runtime UID won't be 5001.
   /// Use $XDG_RUNTIME_DIR when set (Tizen and most linux desktops both set
-  /// it), fall back to /run/user/<uid>/carbon/carbon.sock.
+  /// it), fall back to `/run/user/{uid}/carbon/carbon.sock`.
   String _resolveSocketPath() {
     final xdg = Platform.environment['XDG_RUNTIME_DIR'];
     if (xdg != null && xdg.isNotEmpty) {
