@@ -8,6 +8,7 @@ class PromptBar extends StatefulWidget {
   final bool isConnecting;
   final bool isWaiting;
   final bool hasChatStarted;
+  final bool isFocused;
   final Function(String)? onSend;
   final VoidCallback? onCancel;
   final FocusNode? outerFocusNode;
@@ -22,6 +23,7 @@ class PromptBar extends StatefulWidget {
     this.onCancel,
     this.isWaiting = false,
     this.hasChatStarted = false,
+    this.isFocused = false,
     this.outerFocusNode,
     this.onArrowUp,
     this.onKeyboardFocusChanged,
@@ -100,8 +102,14 @@ class _PromptBarState extends State<PromptBar>
   }
 
   void _onOuterFocusChange() {
-    if (_outerFocusNode.hasPrimaryFocus) {
-      _shimmerController.repeat(reverse: true);
+    _updateShimmer();
+  }
+
+  void _updateShimmer() {
+    if (widget.isFocused || _outerFocusNode.hasPrimaryFocus) {
+      if (!_shimmerController.isAnimating) {
+        _shimmerController.repeat(reverse: true);
+      }
     } else {
       _shimmerController.stop();
       _shimmerController.reset();
@@ -116,6 +124,10 @@ class _PromptBarState extends State<PromptBar>
       _listenedFocusNode?.removeListener(_onOuterFocusChange);
       _listenedFocusNode = _outerFocusNode;
       _listenedFocusNode!.addListener(_onOuterFocusChange);
+    }
+
+    if (widget.isFocused != oldWidget.isFocused) {
+      _updateShimmer();
     }
 
     if (widget.isWaiting && !oldWidget.isWaiting) {
@@ -220,7 +232,7 @@ class _PromptBarState extends State<PromptBar>
       child: AnimatedBuilder(
         animation: _outerFocusNode,
         builder: (context, child) {
-          final isOuterFocused = _outerFocusNode.hasPrimaryFocus;
+          final isOuterFocused = widget.isFocused || _outerFocusNode.hasPrimaryFocus;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,

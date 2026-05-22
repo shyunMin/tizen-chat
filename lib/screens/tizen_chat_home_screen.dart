@@ -34,6 +34,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _isVisible = false;
   bool _isVoiceKeyPressed = false;
   bool _isPromptBarVisible = false;
+  bool _promptBarFocused = false;
   Timer? _voiceKeyReleaseTimer;
 
   // ── 대화창 상태 ──────────────────────────────────────────────
@@ -132,12 +133,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
-          unawaited(WindowFocusService.setFocusable(true));
+          unawaited(WindowFocusService.grabNavigationKeys());
           setState(() {
             _isVisible = true;
             _isPromptBarVisible = true;
           });
-          _promptBarFocusNode.requestFocus();
+          _focusPromptBar();
         }
       });
     });
@@ -281,12 +282,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       // 3. 화면 표시 (gRPC 연결 전 — 비활성 상태)
       // AppControl 없는 경우만 PromptBar 노출. AppControl 경로는 _handleSend 후 ChatWindow만 표시.
       if (mounted) {
-        if (!_hasPendingAppControl)
-          unawaited(WindowFocusService.setFocusable(true));
         setState(() {
           _isVisible = true;
           _isPromptBarVisible = !_hasPendingAppControl;
         });
+        if (!_hasPendingAppControl) {
+          unawaited(WindowFocusService.grabNavigationKeys());
+          _focusPromptBar();
+        }
       }
 
       // 4. gRPC 연결 (실패 시 daemon 재시작 대기 포함)
@@ -299,17 +302,21 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (mounted) {
         setState(() => _isGrpcReady = true);
         if (!_hasPendingAppControl) {
-          // 요청 없는 일반 실행: 윈도우 포커스 확보. AppControl 경로는
-          // _handleSend → setFocusable(false) → ThreadComplete → setFocusable(true) 순.
-          unawaited(WindowFocusService.setFocusable(true));
-          _promptBarFocusNode.requestFocus();
+          // 일반 실행: nav 키 grab + PromptBar 포커스 (케이스 1)
+          unawaited(WindowFocusService.grabNavigationKeys());
+          _focusPromptBar();
         }
       }
 
       if (!_initCompleter.isCompleted) _initCompleter.complete(onboardingOk);
     } catch (e) {
       debugPrint('[Init] Error: $e');
-      if (mounted) setState(() => _isGrpcReady = true);
+      if (mounted) {
+        setState(() => _isGrpcReady = true);
+        if (!_hasPendingAppControl) {
+          unawaited(WindowFocusService.grabNavigationKeys());
+        }
+      }
       if (!_initCompleter.isCompleted) _initCompleter.complete(false);
     }
   }
@@ -389,7 +396,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _threadInFlight = true;
       _isPromptBarVisible = false;
     });
-    _chatScrollFocusNode.requestFocus();
+    _focusChatWindow();
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
@@ -444,7 +451,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       ));
     });
     _scrollToBottom();
-    unawaited(WindowFocusService.setFocusable(true));
+    unawaited(WindowFocusService.grabNavigationKeys());
   }
 
   void _materializeUserBubble() {
@@ -455,7 +462,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
       _isVisible = true;
     });
-    unawaited(WindowFocusService.setFocusable(false));
+    unawaited(WindowFocusService.ungrabNavigationKeys());
   }
 
   /// SteerApplied: A's pre-steer output is discarded and the display is
@@ -611,10 +618,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           });
           _scrollToBottom();
         }
-        // Restore window focus only here — not on per-phase TurnComplete.
-        // setFocusable(false) fires once on user send; the matching true
-        // must wait until the entire thread (all phases) is done.
-        unawaited(WindowFocusService.setFocusable(true));
+        // 처리 완료: nav 키 재grab + ChatWindow 포커스 유지 (케이스 3)
+        unawaited(WindowFocusService.grabNavigationKeys());
+        _focusChatWindow();
         break;
 
       case CarbonContinuationRequested(:final reason, :final message):
@@ -699,7 +705,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             _isPromptBarVisible = true;
           });
         }
-        unawaited(WindowFocusService.setFocusable(true));
+        unawaited(WindowFocusService.grabNavigationKeys());
         _grpcService.reconnect();
         break;
 
@@ -766,7 +772,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   /// Pick the indicator string from a turn's tool list:
-  ///   * first not-yet-completed entry → "<tool> · <arg> (N/M)"
+  ///   * first not-yet-completed entry → "`tool` · `arg` (N/M)"
   ///     where N = completed count + 1, M = total
   ///   * all completed → null (TurnComplete clears it, but this is
   ///     called from refresh too, so the indicator may briefly read
@@ -991,7 +997,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return;
     }
 
-    unawaited(WindowFocusService.setFocusable(true));
+    unawaited(WindowFocusService.grabNavigationKeys());
 
     setState(() {
       _isPromptBarVisible = true;
@@ -1035,7 +1041,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
 
     _scrollToBottom();
-    _chatScrollFocusNode.requestFocus();
+    _focusChatWindow();
 
     if ((fatal && code != 'cancelled') || code == 'NO_SESSION') {
       await _grpcService.reconnect();
@@ -1044,6 +1050,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   void _scrollToBottom() {
     _chatWindowKey.currentState?.scrollToBottom();
+  }
+
+  void _focusPromptBar() {
+    setState(() => _promptBarFocused = true);
+    _promptBarFocusNode.requestFocus();
+  }
+
+  void _focusChatWindow() {
+    setState(() => _promptBarFocused = false);
+    _chatScrollFocusNode.requestFocus();
   }
 
   List<String> get _currentActionButtons {
@@ -1192,10 +1208,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             } else if (event is KeyUpEvent && _isVoiceKeyPressed) {
               _voiceKeyReleaseTimer?.cancel();
               _voiceKeyReleaseTimer = Timer(const Duration(seconds: 1), () {
-                if (mounted) setState(() {
-                  _isVoiceKeyPressed = false;
-                  if (!_threadInFlight) _isPromptBarVisible = true;
-                });
+                if (mounted) {
+                  setState(() {
+                    _isVoiceKeyPressed = false;
+                    if (!_threadInFlight) _isPromptBarVisible = true;
+                  });
+                }
               });
             }
             return KeyEventResult.ignored;
@@ -1234,10 +1252,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                       isConnecting: !_isGrpcReady,
                       isWaiting: _threadInFlight,
                       hasChatStarted: _hasChatStarted,
+                      isFocused: _promptBarFocused,
                       outerFocusNode: _promptBarFocusNode,
                       onSend: _handleSend,
                       onCancel: _handleInterrupt,
-                      onArrowUp: () => _chatScrollFocusNode.requestFocus(),
+                      onArrowUp: _focusChatWindow,
                     ),
                   ),
                 ),
@@ -1253,8 +1272,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     key: _actionBarKey,
                     buttons: _currentActionButtons,
                     onSend: _handleSend,
-                    onArrowUp: () => _chatScrollFocusNode.requestFocus(),
-                    onArrowDown: () => _promptBarFocusNode.requestFocus(),
+                    onArrowUp: _focusChatWindow,
+                    onArrowDown: _focusPromptBar,
                   ),
                 ),
 
@@ -1271,7 +1290,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     if (showActionBar) {
                       _actionBarKey.currentState?.focusFirstButton();
                     } else if (showPromptBar) {
-                      _promptBarFocusNode.requestFocus();
+                      _focusPromptBar();
                     }
                   },
                   messages: _messages,
