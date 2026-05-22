@@ -40,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    WindowFocusService.setFocusable(true);
+    unawaited(WindowFocusService.grabNavigationKeys());
     _startSetup();
   }
 
