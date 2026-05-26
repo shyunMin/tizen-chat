@@ -1,6 +1,6 @@
-// ignore_for_file: avoid_print
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:grpc/grpc.dart';
 import 'package:protobuf/well_known_types/google/protobuf/struct.pb.dart'
@@ -421,7 +421,7 @@ class CarbonGrpcService {
     final endpoint = _resolveSocketPath();
 
     try {
-      print('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
+      debugPrint('DEBUG: [CarbonGrpc] Trying to connect to: $endpoint');
 
       _channel = ClientChannel(
         InternetAddress(endpoint, type: InternetAddressType.unix),
@@ -448,7 +448,7 @@ class CarbonGrpcService {
           .createSession(createReq)
           .timeout(const Duration(seconds: 5));
       _sessionId = session.sessionId;
-      print('DEBUG: [CarbonGrpc] Session created: $_sessionId');
+      debugPrint('DEBUG: [CarbonGrpc] Session created: $_sessionId');
 
       final subscribeReady = Completer<void>();
       _subscribeStream = _eventClient!.subscribe(
@@ -460,13 +460,13 @@ class CarbonGrpcService {
           _handleEvent(evt);
         },
         onError: (Object e) {
-          print('DEBUG: [CarbonGrpc] Subscribe error: $e');
+          debugPrint('DEBUG: [CarbonGrpc] Subscribe error: $e');
           _isReady = false;
           if (!subscribeReady.isCompleted) subscribeReady.completeError(e);
           _broadcastError(e.toString(), fatal: true);
         },
         onDone: () {
-          print('DEBUG: [CarbonGrpc] Subscribe stream closed');
+          debugPrint('DEBUG: [CarbonGrpc] Subscribe stream closed');
           _isReady = false;
           if (!subscribeReady.isCompleted) {
             subscribeReady.completeError('stream closed');
@@ -489,10 +489,10 @@ class CarbonGrpcService {
 
       _isReady = true;
       _isConnecting = false;
-      print('DEBUG: [CarbonGrpc] Ready');
+      debugPrint('DEBUG: [CarbonGrpc] Ready');
       return;
     } catch (e) {
-      print('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
+      debugPrint('DEBUG: [CarbonGrpc] Connect Error on $endpoint: $e');
       await disconnect();
     }
 
@@ -536,7 +536,7 @@ class CarbonGrpcService {
 
     if (body.hasMessageDelta()) {
       final d = body.messageDelta;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] MessageDelta turn=${d.turnId} '
         'itemId=${d.itemId} len=${d.content.length}',
       );
@@ -547,7 +547,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasToolUseStart()) {
       final t = body.toolUseStart;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] ToolUseStart name=${t.toolName} callId=${t.toolCallId} args=${t.argumentsJson.length > 80 ? "${t.argumentsJson.substring(0, 80)}..." : t.argumentsJson}',
       );
       _eventController.add(
@@ -555,7 +555,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasToolResult()) {
       final r = body.toolResult;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] ToolResult callId=${r.toolCallId} err=${r.isError} out=${r.output.length}B',
       );
       _eventController.add(CarbonToolResult(r.toolCallId, r.output, r.isError));
@@ -568,13 +568,13 @@ class CarbonGrpcService {
       // TurnStarted (new logical turn) / ThreadCompleted / SessionEnded
       // / disconnect.
       if (c.turnId == _lastFinalizedTurnId) {
-        print(
+        debugPrint(
           'DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId} (continuation round — swallowed)',
         );
         return;
       }
       _lastFinalizedTurnId = c.turnId;
-      print('DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId}');
+      debugPrint('DEBUG: [CarbonGrpc] TurnCompleted ${c.turnId}');
       _clearCorrelationForTurn(c.turnId);
       if (_currentTurnId == c.turnId) {
         _currentTurnId = null;
@@ -585,13 +585,13 @@ class CarbonGrpcService {
       );
     } else if (body.hasSteerApplied()) {
       final s = body.steerApplied;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] SteerApplied turn=${s.turnId} req=${s.clientRequestId}',
       );
       _eventController.add(CarbonSteerApplied(s.turnId, s.clientRequestId));
     } else if (body.hasSteerFailed()) {
       final s = body.steerFailed;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] SteerFailed turn=${s.turnId} req=${s.clientRequestId} reason=${s.reason}',
       );
       _eventController.add(
@@ -599,7 +599,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasContinuationRequested()) {
       final c = body.continuationRequested;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] ContinuationRequested reason=${c.reason} message=${c.message.length > 80 ? "${c.message.substring(0, 80)}..." : c.message}',
       );
       _eventController.add(
@@ -607,11 +607,11 @@ class CarbonGrpcService {
       );
     } else if (body.hasValidationStarted()) {
       final v = body.validationStarted;
-      print('DEBUG: [CarbonGrpc] ValidationStarted turn=${v.turnId}');
+      debugPrint('DEBUG: [CarbonGrpc] ValidationStarted turn=${v.turnId}');
       _eventController.add(CarbonValidationStarted(v.turnId));
     } else if (body.hasValidationCompleted()) {
       final v = body.validationCompleted;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] ValidationCompleted turn=${v.turnId} passed=${v.passed} attempt=${v.attempt} reason=${v.reason}',
       );
       _eventController.add(
@@ -619,7 +619,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasError()) {
       final err = body.error;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Error code=${err.code} fatal=${err.fatal} '
         'turn=${err.turnId} message=${err.message}',
       );
@@ -638,7 +638,7 @@ class CarbonGrpcService {
       _isReady = false;
     } else if (body.hasToolApprovalRequest()) {
       final a = body.toolApprovalRequest;
-      print('DEBUG: [CarbonGrpc] ToolApprovalRequest: ${a.toolName}');
+      debugPrint('DEBUG: [CarbonGrpc] ToolApprovalRequest: ${a.toolName}');
       _eventController.add(
         CarbonToolApprovalRequest(
           a.approvalId,
@@ -651,7 +651,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasTurnStarted()) {
       final t = body.turnStarted;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] TurnStarted ${t.turnId} src=${t.source} '
         'req=${t.clientRequestId}',
       );
@@ -687,7 +687,7 @@ class CarbonGrpcService {
       );
     } else if (body.hasThreadCompleted()) {
       final tc = body.threadCompleted;
-      print('DEBUG: [CarbonGrpc] ThreadCompleted ${tc.threadId}');
+      debugPrint('DEBUG: [CarbonGrpc] ThreadCompleted ${tc.threadId}');
       // Thread done — any future TurnCompleted will be on a different turn.
       _lastFinalizedTurnId = null;
       _clientThinksTurnBusy = false;
@@ -699,7 +699,7 @@ class CarbonGrpcService {
       _currentTurnId = null;
       _eventController.add(CarbonThreadComplete(tc.threadId));
     } else if (body.hasScheduleChanged()) {
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] ScheduleChanged ${body.scheduleChanged.change}',
       );
     }
@@ -710,15 +710,15 @@ class CarbonGrpcService {
   /// pointless RPC and stops a confusing "Cancel did nothing" code path.
   void interruptTurn() {
     if (!_isReady) {
-      print('DEBUG: [CarbonGrpc] interruptTurn: not ready, ignored');
+      debugPrint('DEBUG: [CarbonGrpc] interruptTurn: not ready, ignored');
       return;
     }
     if (_currentTurnId == null) {
-      print('DEBUG: [CarbonGrpc] interruptTurn: no turn in flight, ignored');
+      debugPrint('DEBUG: [CarbonGrpc] interruptTurn: no turn in flight, ignored');
       return;
     }
     final turnId = _currentTurnId!;
-    print('DEBUG: [CarbonGrpc] InterruptTurn $turnId');
+    debugPrint('DEBUG: [CarbonGrpc] InterruptTurn $turnId');
     _ingressClient!
         .interruptTurn(
           ingress_v2.InterruptTurnRequest(
@@ -728,7 +728,7 @@ class CarbonGrpcService {
           ),
         )
         .catchError((Object e) {
-          print('DEBUG: [CarbonGrpc] InterruptTurn RPC error: $e');
+          debugPrint('DEBUG: [CarbonGrpc] InterruptTurn RPC error: $e');
           return ingress_v2.InterruptTurnResponse();
         });
     // Local cancellation: end the await-for loop in sendMessage immediately
@@ -748,7 +748,7 @@ class CarbonGrpcService {
     ingress_v2.ApprovalDecision decision,
   ) {
     if (!_isReady) return;
-    print('DEBUG: [CarbonGrpc] ApproveTool $approvalId -> $decision');
+    debugPrint('DEBUG: [CarbonGrpc] ApproveTool $approvalId -> $decision');
     _ingressClient!
         .approveTool(
           ingress_v2.ApproveToolRequest(
@@ -757,7 +757,7 @@ class CarbonGrpcService {
           ),
         )
         .catchError((Object e) {
-          print('DEBUG: [CarbonGrpc] ApproveTool RPC error: $e');
+          debugPrint('DEBUG: [CarbonGrpc] ApproveTool RPC error: $e');
           return ingress_v2.ApproveToolResponse();
         });
   }
@@ -797,11 +797,17 @@ class CarbonGrpcService {
       if (i > 0) await Future.delayed(retryInterval);
       await connect(sessionName: savedSessionName);
       if (_isReady) return;
-      print(
+      debugPrint(
         'DEBUG: [CarbonGrpc] Reconnect attempt ${i + 1}/$maxRetries failed',
       );
     }
-    print('DEBUG: [CarbonGrpc] Reconnect failed after $maxRetries attempts');
+    debugPrint('DEBUG: [CarbonGrpc] Reconnect failed after $maxRetries attempts');
+  }
+
+  void _printChunked(String message, {int chunkSize = 800}) {
+    for (var i = 0; i < message.length; i += chunkSize) {
+      debugPrint(message.substring(i, i + chunkSize > message.length ? message.length : i + chunkSize));
+    }
   }
 
   String _newClientRequestId() {
@@ -852,7 +858,7 @@ class CarbonGrpcService {
         ? '\n[Reference Time] If the user\'s request requires screen or TV data analysis, use ${referenceTime.toIso8601String()} as the reference time. Otherwise, ignore this.\n'
         : '';
     final fullText = '$_kSystemInstruction$refTimePart\n$text';
-    print('[CarbonGrpc] sendPrompt content:\n$fullText');
+    _printChunked('[CarbonGrpc] sendPrompt content:\n$fullText');
     final req = ingress_v2.SubmitRequest(
       sessionId: _sessionId,
       content: ingress_v2.IngressContent(text: fullText),
@@ -870,14 +876,14 @@ class CarbonGrpcService {
       _handleSubmitResponse(resp);
       return clientRequestId;
     } catch (e) {
-      print('DEBUG: [CarbonGrpc] Submit RPC error: $e');
+      debugPrint('DEBUG: [CarbonGrpc] Submit RPC error: $e');
       _eventController.add(CarbonError('SUBMIT_FAILED', e.toString(), false));
       return null;
     }
   }
 
   void _handleSubmitResponse(ingress_v2.SubmitResponse resp) {
-    print(
+    debugPrint(
       'DEBUG: [CarbonGrpc] SubmitResponse disposition=${resp.disposition} '
       'turn=${resp.turnId} req=${resp.clientRequestId}',
     );

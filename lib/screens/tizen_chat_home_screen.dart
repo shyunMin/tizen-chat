@@ -19,10 +19,16 @@ import '../services/onboarding_grpc_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
 import '../utils/elapsed_timer.dart';
+import '../utils/request_perf_logger.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
   final bool enableHttpMessageBus;
-  const TizenChatHomeScreen({super.key, this.enableHttpMessageBus = true});
+  final bool enablePerfLog;
+  const TizenChatHomeScreen({
+    super.key,
+    this.enableHttpMessageBus = true,
+    this.enablePerfLog = false,
+  });
 
   @override
   State<TizenChatHomeScreen> createState() => _TizenChatHomeScreenState();
@@ -59,6 +65,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final Completer<bool> _initCompleter = Completer<bool>();
   bool _hasPendingAppControl = false;
   DateTime? _speechStartTimestamp;
+  late final RequestPerfLogger _perfLogger;
+  String? _logUserMessage;
+  DateTime? _logRequestSentTime;
 
   // ── 진행 중인 응답 추적 ───────────────────────────────────────
   // Steer-based UX: turn 한 번에 agent reply 버블도 한 개로 유지한다.
@@ -118,6 +127,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _perfLogger = RequestPerfLogger(enabled: widget.enablePerfLog);
+    unawaited(_perfLogger.init());
     if (kIsTizen) {
       AppControl.onAppControl.listen(_onAppControlReceived);
     }
@@ -381,6 +392,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
     final turnBusy = _grpcService.isTurnBusy;
     _requestStartTime = DateTime.now();
+    // 첫 제출(에이전트 idle)일 때만 perf 로그 기준값 캡처
+    if (!_isAgentBusy) {
+      _logUserMessage = text;
+      _logRequestSentTime = _requestStartTime;
+    }
     setState(() {
       _isAgentBusy = true;
       _isPromptBarVisible = false;
@@ -613,6 +629,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // so the spinner stays on through round-boundary gaps (e.g.
         // steer-recovery turn spinning up after the first turn ends).
         if (_isAgentBusy) {
+          final completeTime = DateTime.now();
+          unawaited(_perfLogger.record(
+            userMessage: _logUserMessage ?? '',
+            speechStartTime: _speechStartTimestamp,
+            requestSentTime: _logRequestSentTime,
+            requestCompleteTime: completeTime,
+          ));
+          _logUserMessage = null;
+          _logRequestSentTime = null;
           _appendElapsedToLastMessage();
           _speechStartTimestamp = null;
           setState(() {
