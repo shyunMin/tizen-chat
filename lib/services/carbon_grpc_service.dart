@@ -849,7 +849,7 @@ class CarbonGrpcService {
     }
     final clientRequestId = _newClientRequestId();
     final refTimePart = referenceTime != null
-        ? '\n[Reference Time] Use ${referenceTime.toIso8601String()} as the reference time when analyzing screen or TV data.\n'
+        ? '\n[Reference Time] If the user\'s request requires screen or TV data analysis, use ${referenceTime.toIso8601String()} as the reference time. Otherwise, ignore this.\n'
         : '';
     final fullText = '$_kSystemInstruction$refTimePart\n$text';
     print('[CarbonGrpc] sendPrompt content:\n$fullText');
