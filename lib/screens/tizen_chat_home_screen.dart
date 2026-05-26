@@ -96,7 +96,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // error / SessionEnded. Without this the spinner blinks off whenever
   // the active reply bubble seals while another turn is about to spin
   // up, giving the impression that the agent stopped.
-  bool _threadInFlight = false;
+  bool _isAgentBusy = false;
 
   // ── Pending submission slot ───────────────────────────────────
   // While the daemon is processing a turn, a new submission lands here
@@ -240,7 +240,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           if (mounted) {
             setState(() {
               _isVoiceKeyPressed = false;
-              if (!_threadInFlight) _isPromptBarVisible = true;
+              if (!_isAgentBusy) _isPromptBarVisible = true;
             });
           }
         }
@@ -382,7 +382,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     final turnBusy = _grpcService.isTurnBusy;
     _requestStartTime = DateTime.now();
     setState(() {
-      _threadInFlight = true;
+      _isAgentBusy = true;
       _isPromptBarVisible = false;
     });
     _focusChatWindow();
@@ -437,7 +437,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _grpcService.interruptTurn();
     _speechStartTimestamp = null;
     setState(() {
-      _threadInFlight = false;
+      _isAgentBusy = false;
       _isPromptBarVisible = true;
       _activeReplyIndex = null;
       _currentSegmentText = '';
@@ -612,11 +612,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // clear; per-round TurnComplete intentionally does NOT clear it
         // so the spinner stays on through round-boundary gaps (e.g.
         // steer-recovery turn spinning up after the first turn ends).
-        if (_threadInFlight) {
+        if (_isAgentBusy) {
           _appendElapsedToLastMessage();
           _speechStartTimestamp = null;
           setState(() {
-            _threadInFlight = false;
+            _isAgentBusy = false;
             _isPromptBarVisible = true;
           });
           _scrollToBottom();
@@ -692,9 +692,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_pending != null) {
           _resolvePending('Error: $code');
         }
-        if (_threadInFlight && (fatal || _activeReplyIndex == null)) {
+        if (_isAgentBusy && (fatal || _activeReplyIndex == null)) {
           _speechStartTimestamp = null;
-          setState(() => _threadInFlight = false);
+          setState(() => _isAgentBusy = false);
         }
         _handleAgentError(code, message, fatal);
         break;
@@ -703,10 +703,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_pending != null) {
           _resolvePending('SessionEnded');
         }
-        if (_threadInFlight) {
+        if (_isAgentBusy) {
           _speechStartTimestamp = null;
           setState(() {
-            _threadInFlight = false;
+            _isAgentBusy = false;
             _isPromptBarVisible = true;
           });
         }
@@ -1166,10 +1166,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     // 표시 여부 플래그
     final bool showPromptBar = _isVisible && _isPromptBarVisible;
     final bool chatWindowOnScreen =
-        _isVisible && (_hasChatStarted || _threadInFlight);
+        _isVisible && (_hasChatStarted || _isAgentBusy);
     // ActionBar: 요청 중(threadInFlight)일 때만 숨김. voice key pressed는 영향 없음.
     final bool showActionBar =
-        _isVisible && _hasChatStarted && !_threadInFlight && hasButtons;
+        _isVisible && _hasChatStarted && !_isAgentBusy && hasButtons;
 
     // ActionButtonBar: PromptBar 위 고정 위치
     const double actionBarTargetBottom = TizenStyles.chatWindowBottomBase;
@@ -1215,7 +1215,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 if (mounted) {
                   setState(() {
                     _isVoiceKeyPressed = false;
-                    if (!_threadInFlight) _isPromptBarVisible = true;
+                    if (!_isAgentBusy) _isPromptBarVisible = true;
                   });
                 }
               });
@@ -1227,7 +1227,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               event.logicalKey == LogicalKeyboardKey.goBack ||
               event.logicalKey == LogicalKeyboardKey.browserBack) {
             if (event is KeyDownEvent) {
-              if (_threadInFlight) {
+              if (_isAgentBusy) {
                 _handleInterrupt();
               } else {
                 SystemNavigator.pop();
@@ -1254,7 +1254,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     child: PromptBar(
                       isVisible: _isVisible,
                       isConnecting: !_isGrpcReady,
-                      isWaiting: _threadInFlight,
+                      isWaiting: _isAgentBusy,
                       hasChatStarted: _hasChatStarted,
                       isFocused: _promptBarFocused,
                       outerFocusNode: _promptBarFocusNode,
@@ -1299,7 +1299,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   },
                   messages: _messages,
                   isConnecting: !_isGrpcReady,
-                  isThreadInFlight: _threadInFlight,
+                  isThreadInFlight: _isAgentBusy,
                   typingLabel: _typingLabel,
                   requestStartTime: _requestStartTime,
                 ),
