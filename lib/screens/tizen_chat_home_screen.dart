@@ -58,6 +58,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   StreamSubscription<CarbonEvent>? _eventSubscription;
   final Completer<bool> _initCompleter = Completer<bool>();
   bool _hasPendingAppControl = false;
+  DateTime? _speechStartTimestamp;
 
   // ── 진행 중인 응답 추적 ───────────────────────────────────────
   // Steer-based UX: turn 한 번에 agent reply 버블도 한 개로 유지한다.
@@ -95,7 +96,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // error / SessionEnded. Without this the spinner blinks off whenever
   // the active reply bubble seals while another turn is about to spin
   // up, giving the impression that the agent stopped.
-  bool _threadInFlight = false;
+  bool _isAgentBusy = false;
 
   // ── Pending submission slot ───────────────────────────────────
   // While the daemon is processing a turn, a new submission lands here
@@ -152,115 +153,99 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
     try {
       final extraData = appControl.extraData;
-      String? messageText;
 
-      // 1. 직접적인 'message' 키 확인
-      if (extraData.containsKey('message')) {
-        final msg = extraData['message'];
-        if (msg is List && msg.isNotEmpty) {
-          messageText = msg.first.toString();
+      // eventType으로 이벤트 구분
+      final eventTypeRaw = extraData['eventType'];
+      final eventType = eventTypeRaw is List && eventTypeRaw.isNotEmpty
+          ? eventTypeRaw.first.toString()
+          : eventTypeRaw?.toString();
+      debugPrint('[AppControl] eventType=$eventType');
+
+      // timestamp 파싱
+      DateTime? tsDateTime;
+      if (extraData.containsKey('timestamp')) {
+        final ts = extraData['timestamp'];
+        final tsStr = ts is List && ts.isNotEmpty
+            ? ts.first.toString()
+            : ts.toString();
+        final tsMs = int.tryParse(tsStr);
+        tsDateTime = tsMs != null
+            ? DateTime.fromMillisecondsSinceEpoch(tsMs)
+            : null;
+        debugPrint(
+          '[AppControl] timestamp=$tsStr / ${tsDateTime?.toIso8601String()}',
+        );
+      }
+
+      if (eventType == 'SPEECH_START') {
+        // Turn 내 최초 SPEECH_START만 기준 시간으로 저장
+        if (_speechStartTimestamp == null) {
+          _speechStartTimestamp = tsDateTime;
+          debugPrint(
+            '[AppControl] SPEECH_START — turn reference time set: $_speechStartTimestamp',
+          );
         } else {
-          messageText = msg.toString();
+          debugPrint(
+            '[AppControl] SPEECH_START — reference time kept: $_speechStartTimestamp',
+          );
         }
-        debugPrint('[AppControl] Found message in direct key: $messageText');
-      }
-
-      // 2. JSON 형태나 기타 키 순회 확인 (위에서 못 찾은 경우)
-      if (messageText == null || messageText.isEmpty) {
-        for (var entry in extraData.entries) {
-          final keyStr = entry.key;
-          final valStr = entry.value is List && entry.value.isNotEmpty
-              ? entry.value.first.toString()
-              : entry.value.toString();
-
-          // Value가 JSON인 경우
-          try {
-            final decodedVal = jsonDecode(valStr);
-            if (decodedVal is Map && decodedVal.containsKey('message')) {
-              messageText = decodedVal['message'];
-              debugPrint(
-                '[AppControl] Found message in decoded value: $messageText',
-              );
-              break;
-            }
-          } catch (_) {}
-
-          // Key가 JSON인 경우
-          try {
-            final decodedKey = jsonDecode(keyStr);
-            if (decodedKey is Map && decodedKey.containsKey('message')) {
-              messageText = decodedKey['message'];
-              debugPrint(
-                '[AppControl] Found message in decoded key: $messageText',
-              );
-              break;
-            }
-          } catch (_) {}
-        }
-      }
-
-      final isFromVoiceApp = appControl.callerAppId == 'org.tizen.voice-app';
-
-      // 음성 이벤트 감지: messageText 자체가 키워드이거나 extraData key/value에 존재
-      bool hasVoiceEvent(String name) {
-        if (messageText == name) return true;
-        if (!isFromVoiceApp) return false;
-        return extraData.entries.any((e) {
-          final val = e.value is List && (e.value as List).isNotEmpty
-              ? (e.value as List).first.toString()
-              : e.value.toString();
-          return e.key == name || val == name;
-        });
-      }
-
-      final isSpeechStart = hasVoiceEvent('SPEECH_START');
-      final isNoSpeech = hasVoiceEvent('NO_SPEECH');
-      debugPrint('[AppControl] isSpeechStart=$isSpeechStart isNoSpeech=$isNoSpeech');
-
-      if (isSpeechStart || isNoSpeech) {
-        // 음성 이벤트 처리 — 요청으로 전달하지 않음
         if (mounted) {
-          if (isSpeechStart) {
-            setState(() {
-              _isVisible = true;
-              _isVoiceKeyPressed = true;
-              _isPromptBarVisible = false;
-            });
-          } else if (isNoSpeech) {
-            // 음성 인식 실패 → voice key 상태 해제, 타이머 로직과 동일하게 복원
-            _voiceKeyReleaseTimer?.cancel();
-            setState(() {
-              _isVoiceKeyPressed = false;
-              if (!_threadInFlight) _isPromptBarVisible = true;
-            });
+          setState(() {
+            _isVisible = true;
+            _isVoiceKeyPressed = true;
+            _isPromptBarVisible = false;
+          });
+        }
+      } else if (eventType == 'SPEECH_END') {
+        // message 추출
+        String? messageText;
+        if (extraData.containsKey('message')) {
+          final msg = extraData['message'];
+          final raw = msg is List && msg.isNotEmpty
+              ? msg.first.toString()
+              : msg.toString();
+          if (raw.isNotEmpty) messageText = raw;
+        }
+        debugPrint(
+          '[AppControl] SPEECH_END — message=${messageText ?? '(empty)'}, referenceTime=$_speechStartTimestamp',
+        );
+
+        if (messageText != null) {
+          // 실제 메시지 → 요청 전달 (기준 시간 포함, 초기화는 ThreadComplete에서)
+          final referenceTime = _speechStartTimestamp;
+          if (mounted) setState(() => _isVoiceKeyPressed = false);
+          if (!initOk) {
+            debugPrint('[AppControl] Onboarding incomplete — showing error');
+            if (mounted) {
+              setState(() {
+                _isVisible = true;
+                _hasChatStarted = true;
+                _messages.add(
+                  ChatMessage(
+                    text:
+                        'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
+                    type: MessageType.received,
+                  ),
+                );
+              });
+              _scrollToBottom();
+            }
+          } else {
+            debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
+            if (mounted) _handleSend(messageText, referenceTime: referenceTime);
           }
-        }
-      } else if (messageText != null && messageText.isNotEmpty) {
-        // 실제 메시지 → 요청 전달
-        if (isFromVoiceApp && mounted) {
-          setState(() => _isVoiceKeyPressed = false);
-        }
-        if (!initOk) {
-          debugPrint('[AppControl] Onboarding incomplete — showing error');
+        } else {
+          // 메시지 없음 → 음성 인식 실패 (NO_SPEECH 대체), 기준 시간은 유지
+          _voiceKeyReleaseTimer?.cancel();
           if (mounted) {
             setState(() {
-              _isVisible = true;
-              _hasChatStarted = true;
-              _messages.add(
-                ChatMessage(
-                  text: 'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
-                  type: MessageType.received,
-                ),
-              );
+              _isVoiceKeyPressed = false;
+              if (!_isAgentBusy) _isPromptBarVisible = true;
             });
-            _scrollToBottom();
           }
-        } else {
-          debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
-          if (mounted) _handleSend(messageText);
         }
       } else {
-        debugPrint('[AppControl] No actionable content in extraData.');
+        debugPrint('[AppControl] Unknown or missing eventType, ignoring.');
       }
     } catch (e) {
       debugPrint('[AppControl] Error processing extraData: $e');
@@ -379,7 +364,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
   }
 
-  Future<void> _handleSend(String text, {bool steer = true}) async {
+  Future<void> _handleSend(
+    String text, {
+    bool steer = true,
+    DateTime? referenceTime,
+  }) async {
     debugPrint(
       '[Chat] _handleSend called: text="${text.length > 40 ? "${text.substring(0, 40)}..." : text}" steer=$steer',
     );
@@ -393,7 +382,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     final turnBusy = _grpcService.isTurnBusy;
     _requestStartTime = DateTime.now();
     setState(() {
-      _threadInFlight = true;
+      _isAgentBusy = true;
       _isPromptBarVisible = false;
     });
     _focusChatWindow();
@@ -409,7 +398,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _pendingValidationPassed = false;
       });
       _materializeUserBubble();
-      unawaited(_grpcService.sendPrompt(text, steer: steer));
+      unawaited(
+        _grpcService.sendPrompt(
+          text,
+          steer: steer,
+          referenceTime: referenceTime,
+        ),
+      );
       return;
     }
 
@@ -417,7 +412,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     // visible until SteerApplied confirms the steer took effect — that's
     // when _applySteerSplit wipes the display and the post-steer output
     // starts a clean new bubble.
-    final reqId = await _grpcService.sendPrompt(text, steer: steer);
+    final reqId = await _grpcService.sendPrompt(
+      text,
+      steer: steer,
+      referenceTime: referenceTime,
+    );
     if (reqId == null) {
       return;
     }
@@ -436,19 +435,22 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void _handleInterrupt() {
     _interruptRequested = true;
     _grpcService.interruptTurn();
+    _speechStartTimestamp = null;
     setState(() {
-      _threadInFlight = false;
+      _isAgentBusy = false;
       _isPromptBarVisible = true;
       _activeReplyIndex = null;
       _currentSegmentText = '';
       _activeToolName = null;
       _requestStartTime = null;
       _messages.clear();
-      _messages.add(ChatMessage(
-        text: '요청이 중단되었습니다.',
-        type: MessageType.received,
-        isWaiting: false,
-      ));
+      _messages.add(
+        ChatMessage(
+          text: '요청이 중단되었습니다.',
+          type: MessageType.received,
+          isWaiting: false,
+        ),
+      );
     });
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
@@ -610,10 +612,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // clear; per-round TurnComplete intentionally does NOT clear it
         // so the spinner stays on through round-boundary gaps (e.g.
         // steer-recovery turn spinning up after the first turn ends).
-        if (_threadInFlight) {
+        if (_isAgentBusy) {
           _appendElapsedToLastMessage();
+          _speechStartTimestamp = null;
           setState(() {
-            _threadInFlight = false;
+            _isAgentBusy = false;
             _isPromptBarVisible = true;
           });
           _scrollToBottom();
@@ -689,8 +692,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_pending != null) {
           _resolvePending('Error: $code');
         }
-        if (_threadInFlight && (fatal || _activeReplyIndex == null)) {
-          setState(() => _threadInFlight = false);
+        if (_isAgentBusy && (fatal || _activeReplyIndex == null)) {
+          _speechStartTimestamp = null;
+          setState(() => _isAgentBusy = false);
         }
         _handleAgentError(code, message, fatal);
         break;
@@ -699,9 +703,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (_pending != null) {
           _resolvePending('SessionEnded');
         }
-        if (_threadInFlight) {
+        if (_isAgentBusy) {
+          _speechStartTimestamp = null;
           setState(() {
-            _threadInFlight = false;
+            _isAgentBusy = false;
             _isPromptBarVisible = true;
           });
         }
@@ -1155,17 +1160,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    debugPrint(
-      '[Chat] build() called. _hasChatStarted: $_hasChatStarted, _isVisible: $_isVisible, messages: ${_messages.length}',
-    );
     final screenHeight = MediaQuery.of(context).size.height;
     final bool hasButtons = _currentActionButtons.isNotEmpty;
 
     // 표시 여부 플래그
     final bool showPromptBar = _isVisible && _isPromptBarVisible;
-    final bool chatWindowOnScreen = _isVisible && (_hasChatStarted || _threadInFlight);
+    final bool chatWindowOnScreen =
+        _isVisible && (_hasChatStarted || _isAgentBusy);
     // ActionBar: 요청 중(threadInFlight)일 때만 숨김. voice key pressed는 영향 없음.
-    final bool showActionBar = _isVisible && _hasChatStarted && !_threadInFlight && hasButtons;
+    final bool showActionBar =
+        _isVisible && _hasChatStarted && !_isAgentBusy && hasButtons;
 
     // ActionButtonBar: PromptBar 위 고정 위치
     const double actionBarTargetBottom = TizenStyles.chatWindowBottomBase;
@@ -1211,7 +1215,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 if (mounted) {
                   setState(() {
                     _isVoiceKeyPressed = false;
-                    if (!_threadInFlight) _isPromptBarVisible = true;
+                    if (!_isAgentBusy) _isPromptBarVisible = true;
                   });
                 }
               });
@@ -1223,7 +1227,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               event.logicalKey == LogicalKeyboardKey.goBack ||
               event.logicalKey == LogicalKeyboardKey.browserBack) {
             if (event is KeyDownEvent) {
-              if (_threadInFlight) {
+              if (_isAgentBusy) {
                 _handleInterrupt();
               } else {
                 SystemNavigator.pop();
@@ -1250,7 +1254,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     child: PromptBar(
                       isVisible: _isVisible,
                       isConnecting: !_isGrpcReady,
-                      isWaiting: _threadInFlight,
+                      isWaiting: _isAgentBusy,
                       hasChatStarted: _hasChatStarted,
                       isFocused: _promptBarFocused,
                       outerFocusNode: _promptBarFocusNode,
@@ -1295,7 +1299,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   },
                   messages: _messages,
                   isConnecting: !_isGrpcReady,
-                  isThreadInFlight: _threadInFlight,
+                  isThreadInFlight: _isAgentBusy,
                   typingLabel: _typingLabel,
                   requestStartTime: _requestStartTime,
                 ),

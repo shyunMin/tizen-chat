@@ -833,7 +833,11 @@ class CarbonGrpcService {
   ///
   /// Returns the assigned client_request_id so callers can correlate the
   /// submission against arriving events (TurnStarted / TurnComplete etc.).
-  Future<String?> sendPrompt(String text, {bool steer = true}) async {
+  Future<String?> sendPrompt(
+    String text, {
+    bool steer = true,
+    DateTime? referenceTime,
+  }) async {
     if (!_isReady) {
       await connect();
     }
@@ -844,9 +848,14 @@ class CarbonGrpcService {
       return null;
     }
     final clientRequestId = _newClientRequestId();
+    final refTimePart = referenceTime != null
+        ? '\n[Reference Time] Use ${referenceTime.toIso8601String()} as the reference time when analyzing screen or TV data.\n'
+        : '';
+    final fullText = '$_kSystemInstruction$refTimePart\n$text';
+    print('[CarbonGrpc] sendPrompt content:\n$fullText');
     final req = ingress_v2.SubmitRequest(
       sessionId: _sessionId,
-      content: ingress_v2.IngressContent(text: '$_kSystemInstruction\n$text'),
+      content: ingress_v2.IngressContent(text: fullText),
       intent: ingress_v2.IngressIntent.INGRESS_INTENT_RUN_TURN,
       thread: ingress_v2.ThreadTarget(auto: ingress_v2.AutoTarget()),
       options: ingress_v2.IngressOptions(
