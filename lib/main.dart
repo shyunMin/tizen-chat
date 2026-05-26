@@ -7,18 +7,32 @@ void main() {
     'ENABLE_HTTP_BUS',
     defaultValue: true,
   );
+  const bool enablePerfLog = bool.fromEnvironment(
+    'ENABLE_PERF_LOG',
+    defaultValue: false,
+  );
 
   FlutterError.onError = (FlutterErrorDetails details) {
     debugPrint('FLUTTER ERROR: ${details.exception}');
   };
-  runApp(TizenChatApp(enableHttpMessageBus: enableHttpBus));
+  runApp(
+    TizenChatApp(
+      enableHttpMessageBus: enableHttpBus,
+      enablePerfLog: enablePerfLog,
+    ),
+  );
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class TizenChatApp extends StatelessWidget {
   final bool enableHttpMessageBus;
-  const TizenChatApp({super.key, this.enableHttpMessageBus = true});
+  final bool enablePerfLog;
+  const TizenChatApp({
+    super.key,
+    this.enableHttpMessageBus = true,
+    this.enablePerfLog = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +59,10 @@ class TizenChatApp extends StatelessWidget {
             await SystemNavigator.pop();
           }
         },
-        child: TizenChatHomeScreen(enableHttpMessageBus: enableHttpMessageBus),
+        child: TizenChatHomeScreen(
+          enableHttpMessageBus: enableHttpMessageBus,
+          enablePerfLog: enablePerfLog,
+        ),
       ),
     );
   }
