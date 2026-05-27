@@ -29,4 +29,10 @@ class WindowFocusService {
       } catch (_) {}
     }
   }
+
+  static Future<void> setFocusable(bool focusable) async {
+    try {
+      await _channel.invokeMethod('setFocusable', focusable);
+    } catch (_) {}
+  }
 }

@@ -41,6 +41,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _isVoiceKeyPressed = false;
   bool _isPromptBarVisible = false;
   bool _promptBarFocused = false;
+  double _keyboardShift = 0.0;
   Timer? _voiceKeyReleaseTimer;
 
   // ── 대화창 상태 ──────────────────────────────────────────────
@@ -201,6 +202,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           );
         }
         if (mounted) {
+          unawaited(WindowFocusService.setFocusable(false));
           setState(() {
             _isVisible = true;
             _isVoiceKeyPressed = true;
@@ -470,6 +472,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
+    _focusPromptBar();
   }
 
   void _materializeUserBubble() {
@@ -481,6 +484,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _isVisible = true;
     });
     unawaited(WindowFocusService.ungrabNavigationKeys());
+    _focusChatWindow();
   }
 
   /// SteerApplied: A's pre-steer output is discarded and the display is
@@ -630,12 +634,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // steer-recovery turn spinning up after the first turn ends).
         if (_isAgentBusy) {
           final completeTime = DateTime.now();
-          unawaited(_perfLogger.record(
-            userMessage: _logUserMessage ?? '',
-            speechStartTime: _speechStartTimestamp,
-            requestSentTime: _logRequestSentTime,
-            requestCompleteTime: completeTime,
-          ));
+          unawaited(
+            _perfLogger.record(
+              userMessage: _logUserMessage ?? '',
+              speechStartTime: _speechStartTimestamp,
+              requestSentTime: _logRequestSentTime,
+              requestCompleteTime: completeTime,
+            ),
+          );
           _logUserMessage = null;
           _logRequestSentTime = null;
           _appendElapsedToLastMessage();
@@ -1088,6 +1094,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _focusChatWindow() {
+    if (!_hasChatStarted) return;
     setState(() => _promptBarFocused = false);
     _chatScrollFocusNode.requestFocus();
   }
@@ -1230,6 +1237,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
               event.logicalKey.keyId == 137438953472) {
             if (event is KeyDownEvent && !_isVoiceKeyPressed) {
               _voiceKeyReleaseTimer?.cancel();
+              unawaited(WindowFocusService.setFocusable(false));
               setState(() {
                 _isVoiceKeyPressed = true;
                 _isPromptBarVisible = false;
@@ -1263,73 +1271,89 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           }
           return KeyEventResult.ignored;
         },
-        child: SizedBox.expand(
-          child: Stack(
-            children: [
-              // ── PromptBar ─────────────────────────────────────
-              Positioned(
-                bottom: TizenStyles.promptBarBottom,
-                left: TizenStyles.promptBarLeft,
-                child: IgnorePointer(
-                  ignoring: !showPromptBar,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    opacity: showPromptBar ? 1.0 : 0.0,
-                    child: PromptBar(
-                      isVisible: _isVisible,
-                      isConnecting: !_isGrpcReady,
-                      isWaiting: _isAgentBusy,
-                      hasChatStarted: _hasChatStarted,
-                      isFocused: _promptBarFocused,
-                      outerFocusNode: _promptBarFocusNode,
-                      onSend: _handleSend,
-                      onCancel: _handleInterrupt,
-                      onArrowUp: _focusChatWindow,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(0, _keyboardShift, 0),
+          child: SizedBox.expand(
+            child: Stack(
+              children: [
+                // ── PromptBar ─────────────────────────────────────
+                Positioned(
+                  bottom: TizenStyles.promptBarBottom,
+                  left: TizenStyles.promptBarLeft,
+                  child: IgnorePointer(
+                    ignoring: !showPromptBar,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      opacity: showPromptBar ? 1.0 : 0.0,
+                      child: PromptBar(
+                        isVisible: _isVisible,
+                        isConnecting: !_isGrpcReady,
+                        isWaiting: _isAgentBusy,
+                        hasChatStarted: _hasChatStarted,
+                        isFocused: _promptBarFocused,
+                        outerFocusNode: _promptBarFocusNode,
+                        onSend: _handleSend,
+                        onCancel: _handleInterrupt,
+                        onArrowUp: showActionBar
+                            ? () {
+                                setState(() => _promptBarFocused = false);
+                                _actionBarKey.currentState?.focusFirstButton();
+                              }
+                            : _focusChatWindow,
+                        onKeyboardFocusChanged: (hasFocus) {
+                          unawaited(WindowFocusService.setFocusable(hasFocus));
+                          setState(
+                            () => _keyboardShift = hasFocus ? -260.0 : 0.0,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // ── ActionButtonBar ───────────────────────────────
-              if (showActionBar)
-                Positioned(
-                  bottom: actionBarTargetBottom,
-                  left: 0,
-                  right: 0,
-                  child: ActionButtonBar(
-                    key: _actionBarKey,
-                    buttons: _currentActionButtons,
-                    onSend: _handleSend,
-                    onArrowUp: _focusChatWindow,
-                    onArrowDown: _focusPromptBar,
+                // ── ActionButtonBar ───────────────────────────────
+                if (showActionBar)
+                  Positioned(
+                    bottom: actionBarTargetBottom,
+                    left: 0,
+                    right: 0,
+                    child: ActionButtonBar(
+                      key: _actionBarKey,
+                      buttons: _currentActionButtons,
+                      onSend: _handleSend,
+                      onArrowUp: _focusChatWindow,
+                      onArrowDown: _focusPromptBar,
+                    ),
+                  ),
+
+                // ── ChatWindow ───────────────────────────────────
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
+                  bottom: chatWindowTargetBottom,
+                  left: TizenStyles.promptBarLeft,
+                  child: ChatWindow(
+                    key: _chatWindowKey,
+                    focusNode: _chatScrollFocusNode,
+                    onScrolledToBottomDown: () {
+                      if (showActionBar) {
+                        _actionBarKey.currentState?.focusFirstButton();
+                      } else if (showPromptBar) {
+                        _focusPromptBar();
+                      }
+                    },
+                    messages: _messages,
+                    isConnecting: !_isGrpcReady,
+                    isThreadInFlight: _isAgentBusy,
+                    typingLabel: _typingLabel,
+                    requestStartTime: _requestStartTime,
                   ),
                 ),
-
-              // ── ChatWindow ───────────────────────────────────
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                bottom: chatWindowTargetBottom,
-                left: TizenStyles.promptBarLeft,
-                child: ChatWindow(
-                  key: _chatWindowKey,
-                  focusNode: _chatScrollFocusNode,
-                  onScrolledToBottomDown: () {
-                    if (showActionBar) {
-                      _actionBarKey.currentState?.focusFirstButton();
-                    } else if (showPromptBar) {
-                      _focusPromptBar();
-                    }
-                  },
-                  messages: _messages,
-                  isConnecting: !_isGrpcReady,
-                  isThreadInFlight: _isAgentBusy,
-                  typingLabel: _typingLabel,
-                  requestStartTime: _requestStartTime,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
