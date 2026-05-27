@@ -232,7 +232,8 @@ class _PromptBarState extends State<PromptBar>
       child: AnimatedBuilder(
         animation: _outerFocusNode,
         builder: (context, child) {
-          final isOuterFocused = widget.isFocused || _outerFocusNode.hasPrimaryFocus;
+          final isOuterFocused =
+              widget.isFocused || _outerFocusNode.hasPrimaryFocus;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeOutCubic,
