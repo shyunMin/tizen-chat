@@ -1052,7 +1052,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           );
           _activeReplyIndex = null;
           _currentSegmentText = '';
-        } else if (_messages.isNotEmpty) {
+        } else {
           _messages.add(
             ChatMessage(
               text: isCancelled
