@@ -171,7 +171,12 @@ class CarbonValidationCompleted extends CarbonEvent {
   final bool passed;
   final String reason;
   final int attempt;
-  CarbonValidationCompleted(this.turnId, this.passed, this.reason, this.attempt);
+  CarbonValidationCompleted(
+    this.turnId,
+    this.passed,
+    this.reason,
+    this.attempt,
+  );
 }
 
 /// Phase metadata that travels with TurnStarted. Each plan-driven thread
@@ -192,8 +197,10 @@ class CarbonTurnPhasePrompt extends CarbonTurnPhase {
 class CarbonTurnPhaseStep extends CarbonTurnPhase {
   final String stepId;
   final String stepText;
+
   /// 1-based. May be 0 when daemon didn't fill it (pre-Slice D).
   final int stepIndex;
+
   /// Total step count for this thread's plan.
   final int planStepCount;
   CarbonTurnPhaseStep({
@@ -252,6 +259,7 @@ class CarbonTurnStarted extends CarbonEvent {
   final String source;
   final String clientRequestId;
   final String prompt;
+
   /// Phase metadata from TurnStarted.phase. Plan-driven threads put a
   /// PhaseStep / PhaseValidation / PhaseRecovery here so the UI can
   /// render a header on the resulting bubble.
@@ -714,7 +722,9 @@ class CarbonGrpcService {
       return;
     }
     if (_currentTurnId == null) {
-      debugPrint('DEBUG: [CarbonGrpc] interruptTurn: no turn in flight, ignored');
+      debugPrint(
+        'DEBUG: [CarbonGrpc] interruptTurn: no turn in flight, ignored',
+      );
       return;
     }
     final turnId = _currentTurnId!;
@@ -801,12 +811,19 @@ class CarbonGrpcService {
         'DEBUG: [CarbonGrpc] Reconnect attempt ${i + 1}/$maxRetries failed',
       );
     }
-    debugPrint('DEBUG: [CarbonGrpc] Reconnect failed after $maxRetries attempts');
+    debugPrint(
+      'DEBUG: [CarbonGrpc] Reconnect failed after $maxRetries attempts',
+    );
   }
 
   void _printChunked(String message, {int chunkSize = 800}) {
     for (var i = 0; i < message.length; i += chunkSize) {
-      debugPrint(message.substring(i, i + chunkSize > message.length ? message.length : i + chunkSize));
+      debugPrint(
+        message.substring(
+          i,
+          i + chunkSize > message.length ? message.length : i + chunkSize,
+        ),
+      );
     }
   }
 
@@ -854,10 +871,7 @@ class CarbonGrpcService {
       return null;
     }
     final clientRequestId = _newClientRequestId();
-    final refTimePart = referenceTime != null
-        ? '\n[Reference Time] If the user\'s request requires screen or TV data analysis, use ${referenceTime.toIso8601String()} as the reference time. Otherwise, ignore this.\n'
-        : '';
-    final fullText = '$_kSystemInstruction$refTimePart\n$text';
+    final fullText = '$_kSystemInstruction\n$text';
     _printChunked('[CarbonGrpc] sendPrompt content:\n$fullText');
     final req = ingress_v2.SubmitRequest(
       sessionId: _sessionId,
