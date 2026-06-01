@@ -1,13 +1,14 @@
 # Tizen AI Chat
 
-Tizen OS 환경에서 Carbon AI 에이전트와 대화하는 Flutter 기반 채팅 애플리케이션입니다.
+Tizen OS 환경에서 Agent Runtime(Carbon 또는 Argot)과 대화하는 Flutter 기반 채팅 애플리케이션입니다.
 
 ## 주요 기능
 
-- **gRPC 기반 실시간 스트리밍**: Carbon 에이전트와 Unix 소켓을 통해 양방향 스트리밍 통신
-- **온보딩 플로우**: 앱 최초 실행 시 QR 코드 기반 API 키 설정 (`carbon-onboarding-bridge` 연동)
+- **Backend 선택**: `AGENT_RUNTIME=argot|carbon` 빌드 변수로 런타임 backend 교체
+- **gRPC 기반 실시간 스트리밍**: 선택된 runtime과 Unix 소켓을 통해 스트리밍 통신
+- **온보딩 어댑터**: Carbon은 기존 설정 RPC를 사용하고, Argot v1은 설정 RPC 미지원으로 no-op 처리
 - **멀티 입력 채널**: Tizen AppControl 및 HTTP Message Bus(포트 7777)를 통한 외부 메시지 수신
-- **Steer 기반 UX**: 응답 중에도 새 메시지를 전송하면 진행 중인 에이전트 버블에 자연스럽게 이어짐
+- **단일 턴 스트리밍 UX**: `ChatStream` 기반으로 텍스트/도구 이벤트를 실시간 표시
 - **액션 버튼**: 에이전트 응답에 포함된 선택지를 버튼으로 표시하여 리모컨으로 조작 가능
 - **포커스 제어**: 응답 대기 중 윈도우 포커스를 낮추고 완료 후 복원
 
@@ -17,7 +18,8 @@ Tizen OS 환경에서 Carbon AI 에이전트와 대화하는 Flutter 기반 채�
 
 ### 실행 (Tizen 디바이스)
 ```bash
-flutter-tizen run
+flutter-tizen run --dart-define=AGENT_RUNTIME=argot
+flutter-tizen run --dart-define=AGENT_RUNTIME=carbon
 ```
 
 ### 빌드
@@ -25,6 +27,8 @@ flutter-tizen run
 flutter-tizen build tpk          # Tizen 패키지
 flutter build linux               # 로컬 테스트용 Linux 빌드
 ```
+
+`AGENT_RUNTIME` 기본값은 `argot`입니다. Carbon을 쓰려면 `--dart-define=AGENT_RUNTIME=carbon`을 붙입니다.
 
 ### 분석
 ```bash
@@ -55,25 +59,22 @@ curl -X POST http://localhost:7777/message \
 앱 시작 시 다음 순서로 초기화가 진행됩니다.
 
 ```
-1. _checkOnboarding()     — onboarding bridge 연결 및 설정 완료 여부 확인
+1. _checkOnboarding()     — 선택된 backend의 온보딩 상태 확인
 2. _todayKey()            — 세션 이름(YYYY-MM-DD) 동기 계산
 3. _isVisible = true      — PromptBar 표시 (gRPC 연결 전, 비활성 상태)
-4. grpcService.connect()  — carbon.sock 연결 및 핸드셰이크 (최대 3초)
+4. grpcService.connect()  — 선택된 backend socket 연결
 5. _isGrpcReady = true    — PromptBar 활성화
 6. _initCompleter.complete — AppControl 대기 중인 핸들러 해제
 ```
 
 AppControl이 있는 경우(`_hasPendingAppControl = true`), 3번 표시와 5번 활성화는 AppControl 처리 코드에서 담당합니다.
 
-### 온보딩 (`lib/services/onboarding_grpc_service.dart`, `lib/screens/onboarding_screen.dart`)
+### 온보딩 (`lib/services/agent_onboarding_service.dart`, `lib/screens/onboarding_screen.dart`)
 
-`carbon-onboarding-bridge`가 실행 중일 때 API 키 미설정 상태이면 QR 코드 설정 화면을 표시합니다.
+`AgentOnboardingService`가 backend별 설정 흐름을 감쌉니다.
 
-- **소켓**: `/run/user/5001/carbon/onboarding.sock` (Unix 도메인)
-- `GetConfig` RPC로 `ready` 상태 확인 → `false`이면 `OnboardingScreen` push
-- `OnboardingScreen`에서 `StartSetup` → QR URL 표시 → `WatchSetup`으로 이벤트 대기
-- `COMPLETED` 이벤트 수신 시 `StopSetup` 후 pop → `GetConfig` 재확인 루프
-- bridge 미실행 또는 연결 실패 시 온보딩 건너뜀
+- Carbon backend는 기존 `OnboardingGrpcService`와 QR 설정 UI를 사용합니다.
+- Argot v1 backend는 현재 `Chat` / `ChatStream`만 제공하므로 설정 읽기/쓰기를 no-op으로 처리하고 `ready=true`를 반환합니다. 실제 설정은 디바이스에서 `argot onboard`로 수행합니다.
 
 ### 입력 채널
 
@@ -121,47 +122,45 @@ AppControl은 `_initCompleter` 완료를 기다린 후 처리되므로 온보딩
 - `isWaiting` 상태에서는 전송 아이콘이 정지(Stop) 아이콘으로 전환
 - 포커스 시 shimmer 테두리 애니메이션 표시
 
-### gRPC 통신 (`lib/services/carbon_grpc_service.dart`)
+### gRPC 통신 (`lib/services/agent_runtime_service.dart`)
 
-- **싱글턴** (`CarbonGrpcService.instance`) — 단일 양방향 스트림
-- **소켓**: `/run/user/5001/carbon/carbon.sock` (Unix 도메인)
-- **세션 설정**: `product: "claw"`, `session: YYYY-MM-DD`
+- **싱글턴** (`AgentGrpcService.instance`) — 선택된 backend adapter
+- **Argot 소켓**: `ARGOT_SOCKET_PATH`, `$XDG_RUNTIME_DIR/argot.sock`, 또는 `/tmp/argot-$USER.sock`
+- **Carbon 소켓**: `CARBON_SOCKET_PATH`, `$XDG_RUNTIME_DIR/carbon/carbon.sock`, 또는 `/run/user/{uid}/carbon/carbon.sock`
 - `StreamController.broadcast()`로 이벤트 팬아웃
-- `sendPrompt()`: `steer: true`로 항상 전송, 미연결 시 내부에서 `connect()` 호출
+- `sendPrompt()`: backend별 submit/chat RPC 호출, 미연결 시 내부에서 `connect()` 호출
 
 **sealed class 이벤트:**
 
 | 이벤트 | 설명 |
 |--------|------|
-| `CarbonTextDelta` | 스트리밍 텍스트 청크 |
-| `CarbonToolUseStart` / `CarbonToolResult` | 도구 호출 라이프사이클 |
-| `CarbonTurnComplete` | 턴 종료 (응답 파싱 트리거) |
-| `CarbonError` | 에러 (fatal 시 reconnect) |
-| `CarbonSessionEnded` | 세션 종료 (reconnect) |
-| `CarbonToolApprovalRequest` | 도구 실행 승인 요청 (자동 승인) |
+| `AgentTextDelta` | 스트리밍 텍스트 청크 |
+| `AgentToolUseStart` / `AgentToolResult` | 도구 호출 라이프사이클 |
+| `AgentTurnComplete` | 턴 종료 (응답 파싱 트리거) |
+| `AgentError` | 에러 (fatal 시 reconnect) |
+| `AgentSessionEnded` | 세션 종료 (reconnect) |
+| `AgentToolApprovalRequest` | 도구 승인 요청. Argot v1에서는 no-op adapter가 로그만 남김 |
 
-### Steer 기반 메시지 흐름
+### Backend별 차이
 
-Carbon은 `steer: true`로 항상 전송 → 데몬이 진행 중인 턴에 inject하거나 새 턴을 시작.  
-클라이언트는 round 경계를 구분할 수 없으므로 에이전트 응답 버블을 **하나로 유지**하며 모든 delta를 누적합니다.
+- Carbon은 기존 `Submit`/`Subscribe` 기반 lifecycle, steer/queue, approval, interrupt 경로를 사용합니다.
+- Argot v1은 `ChatStream` 기반이며 thread/turn started, steer/queue, approval, remote interrupt RPC가 없습니다. 지원되지 않는 기능은 interface를 유지하고 로그/no-op으로 처리합니다.
 
 ```
 _handleSend(text)
-  ├─ _activeReplyIndex != null (진행 중)
-  │   → 사용자 버블을 에이전트 버블 위에 insert, _activeReplyIndex += 1
-  └─ _activeReplyIndex == null
-      → 사용자 버블을 리스트 끝에 append
+  ├─ idle → backend sendPrompt()
+  └─ busy → Carbon은 steer/queue, Argot은 로그 후 무시
 
 _handleAgentEvent (broadcast 구독)
-  ├─ CarbonTextDelta      → _appendDelta()
-  ├─ CarbonToolUseStart   → _markToolUse()
-  ├─ CarbonTurnComplete   → _finalizeActiveReply() → AgentResponseParser.parse()
-  └─ CarbonError / CarbonSessionEnded → 에러 처리 / reconnect
+  ├─ AgentTextDelta      → _appendDelta()
+  ├─ AgentToolUseStart   → _recordToolStart()
+  ├─ AgentTurnComplete   → _finalizeActiveReply() → AgentResponseParser.parse()
+  └─ AgentError / AgentSessionEnded → 에러 처리 / reconnect
 ```
 
 ### 응답 파싱 (`lib/services/agent_response_parser.dart`)
 
-`CarbonTurnComplete` 수신 후 `AgentResponseParser.parse()`가 실행됩니다.
+`AgentTurnComplete` 수신 후 `AgentResponseParser.parse()`가 실행됩니다.
 
 - ` ```json ` 펜스 블록에서 구조화 데이터 추출
 - `display_type`: `"text"` | `"ui"` | `"device_control"` | `"hidden"` | `"fallback"`
@@ -191,8 +190,12 @@ lib/
 │   └── tizen_chat_home_screen.dart       # 메인 화면
 ├── services/
 │   ├── agent_response_parser.dart        # 에이전트 응답 파싱
-│   ├── carbon_grpc_service.dart          # Carbon gRPC 통신 싱글턴
-│   ├── onboarding_grpc_service.dart      # Onboarding bridge gRPC 클라이언트
+│   ├── agent_runtime_service.dart        # Carbon/Argot backend facade
+│   ├── agent_onboarding_service.dart     # Carbon/Argot 온보딩 facade
+│   ├── argot_grpc_service.dart           # Argot gRPC adapter
+│   ├── argot_onboarding_service.dart     # Argot 설정 no-op adapter
+│   ├── carbon_grpc_service.dart          # Carbon gRPC adapter
+│   ├── onboarding_grpc_service.dart      # Carbon 설정 adapter
 │   └── window_focus_service.dart         # 윈도우 포커스 제어
 ├── theme/
 │   └── tizen_styles.dart                 # 색상, 폰트 상수
@@ -204,7 +207,8 @@ lib/
 │   ├── sent_message.dart                 # 발신 메시지 버블
 │   └── typing_indicator.dart             # 타이핑 인디케이터
 └── generated/
-    └── carbon/v1/                        # protoc 생성 파일 (수동 편집 금지)
+    ├── argot/v1/                        # Argot protoc 생성 파일
+    └── carbon/v*/                       # Carbon protoc 생성 파일
 ```
 
 ---

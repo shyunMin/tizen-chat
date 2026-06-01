@@ -5,12 +5,9 @@ import '../theme/tizen_styles.dart';
 
 /// Renders a single agent message bubble.
 ///
-/// Slice C/E daemon emits one TurnStarted per plan phase (Prompt /
-/// Step{step_index/plan_step_count} / Validation / Recovery). Each of
-/// those turns becomes its own ReceivedMessage bubble. The header
-/// strip at the top of the bubble shows [phaseTitle]; intermediate
-/// phases are dimmed slightly so the eye latches onto the final-
-/// answer bubble (which renders without a header).
+/// Argot v1 streams delta/tool/done events without thread-start or
+/// turn-start lifecycle items. [phaseTitle] is optional compatibility metadata
+/// from an adapter; when absent this renders as a normal answer bubble.
 ///
 /// Tools used during the turn appear as a compact list under the
 /// narration text: one row per ToolUseStart/Result pair with status
@@ -27,6 +24,7 @@ class ReceivedMessage extends StatelessWidget {
   final String? phaseTitle;
   final List<TurnToolEntry> tools;
   final bool validationPassed;
+
   /// Current tool indicator (e.g. "web_fetch"). Rendered in its own
   /// region above the text body. Cleared at TurnComplete so the sealed
   /// bubble shows only [text]. Null = no indicator row.
@@ -146,14 +144,17 @@ class ReceivedMessage extends StatelessWidget {
                     ),
                     codeblockDecoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius:
-                          BorderRadius.circular(TizenStyles.codeBorderRadius),
+                      borderRadius: BorderRadius.circular(
+                        TizenStyles.codeBorderRadius,
+                      ),
                     ),
                     h1: TizenStyles.headerText,
-                    h2: TizenStyles.headerText
-                        .copyWith(fontSize: TizenStyles.headerFontSize),
-                    h3: TizenStyles.headerText
-                        .copyWith(fontSize: TizenStyles.subheaderFontSize),
+                    h2: TizenStyles.headerText.copyWith(
+                      fontSize: TizenStyles.headerFontSize,
+                    ),
+                    h3: TizenStyles.headerText.copyWith(
+                      fontSize: TizenStyles.subheaderFontSize,
+                    ),
                   ),
                 ),
             ],
@@ -198,4 +199,3 @@ class _PhaseHeader extends StatelessWidget {
     );
   }
 }
-

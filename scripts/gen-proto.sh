@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# Generate Dart gRPC stubs for chat-ui from carbon v2 .proto definitions.
+# Generate Dart gRPC stubs for chat-ui from Argot .proto definitions.
+# Carbon stubs are kept in-tree for the selectable Carbon backend; this script
+# only refreshes the Argot side.
 #
 # Usage:
-#   scripts/gen-proto.sh <carbon-repo-path>
+#   scripts/gen-proto.sh <argot-repo-path>
 #
 # Example:
-#   scripts/gen-proto.sh ../carbon
-#   scripts/gen-proto.sh /home/wonki/dev/tizenaios-workspace/carbon
+#   scripts/gen-proto.sh ../argo-tizen
 #
 # Prereqs:
 #   - protoc on PATH (apt install protobuf-compiler)
@@ -17,37 +18,25 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <carbon-repo-path>" >&2
+  echo "usage: $0 <argot-repo-path>" >&2
   exit 2
 fi
 
-CARBON_REPO="$1"
+ARGOT_REPO="$1"
 
-if [[ ! -d "$CARBON_REPO" ]]; then
-  echo "error: carbon path not found: $CARBON_REPO" >&2
+if [[ ! -d "$ARGOT_REPO" ]]; then
+  echo "error: argot path not found: $ARGOT_REPO" >&2
   exit 1
 fi
 
-# Carbon has shifted the proto crate path historically; check both.
-# Older layout:  crates/core/proto/proto/carbon/v2
-# Newer layout: crates/carbon-proto/proto/carbon/v2
-for candidate in \
-  "$CARBON_REPO/crates/carbon-proto/proto" \
-  "$CARBON_REPO/crates/core/proto/proto"; do
-  if [[ -d "$candidate/carbon/v2" ]]; then
-    PROTO_ROOT="$candidate"
-    V2_DIR="$PROTO_ROOT/carbon/v2"
-    break
-  fi
-done
+PROTO_ROOT="$ARGOT_REPO/crates/argot-proto/proto"
+V1_DIR="$PROTO_ROOT/argot/v1"
 
-if [[ -z "${V2_DIR:-}" ]]; then
-  echo "error: expected v2 proto dir not found under $CARBON_REPO" >&2
-  echo "       tried crates/carbon-proto/proto and crates/core/proto/proto" >&2
+if [[ ! -d "$V1_DIR" ]]; then
+  echo "error: expected argot v1 proto dir not found: $V1_DIR" >&2
   exit 1
 fi
 
-# Preflight: required tools.
 if ! command -v protoc >/dev/null 2>&1; then
   echo "error: protoc not on PATH. install protobuf-compiler." >&2
   exit 1
@@ -59,26 +48,16 @@ if ! command -v protoc-gen-dart >/dev/null 2>&1; then
   exit 1
 fi
 
-# chat-ui repo root = parent of this script's dir.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHAT_UI_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="$CHAT_UI_ROOT/lib/generated"
 
-# Enumerate v2 protos explicitly (mirrors carbon/scripts/gen-stubs.sh
-# convention — no glob, so new services don't slip in silently).
-V2_PROTOS=(
-  "$V2_DIR/common.proto"
-  "$V2_DIR/session_service.proto"
-  "$V2_DIR/ingress_service.proto"
-  "$V2_DIR/event_service.proto"
-  "$V2_DIR/schedule_service.proto"
-  "$V2_DIR/skill_service.proto"
-  "$V2_DIR/thread_service.proto"
-  "$V2_DIR/control_service.proto"
-  "$V2_DIR/settings_service.proto"
+V1_PROTOS=(
+  "$V1_DIR/types.proto"
+  "$V1_DIR/service.proto"
 )
 
-for p in "${V2_PROTOS[@]}"; do
+for p in "${V1_PROTOS[@]}"; do
   if [[ ! -f "$p" ]]; then
     echo "error: missing proto: $p" >&2
     exit 1
@@ -86,9 +65,9 @@ for p in "${V2_PROTOS[@]}"; do
 done
 
 echo "=== chat-ui dart codegen ==="
-echo "carbon repo : $CARBON_REPO"
-echo "proto root  : $PROTO_ROOT"
-echo "output      : $OUT_DIR"
+echo "argot repo : $ARGOT_REPO"
+echo "proto root : $PROTO_ROOT"
+echo "output     : $OUT_DIR"
 echo
 
 mkdir -p "$OUT_DIR"
@@ -96,7 +75,7 @@ mkdir -p "$OUT_DIR"
 protoc \
   -I"$PROTO_ROOT" \
   --dart_out=grpc:"$OUT_DIR" \
-  "${V2_PROTOS[@]}"
+  "${V1_PROTOS[@]}"
 
 echo
-echo "Done. Generated dart stubs in $OUT_DIR/carbon/v2/"
+echo "Done. Generated dart stubs in $OUT_DIR/argot/v1/"
