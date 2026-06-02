@@ -1,6 +1,6 @@
 Name:       org.tizen.chat-ui
 Summary:    org.tizen.chat-ui
-Version:    1.0.7
+Version:    1.0.8
 Release:    1
 Group:      N/A
 License:    Apache-2.0

@@ -561,7 +561,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           _finalizeActiveReply();
         }
         _currentPhase = null;
-        _completeAgentRequest('TurnComplete');
         break;
 
       case AgentSteerApplied(:final clientRequestId):
@@ -602,12 +601,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
       case AgentThreadComplete():
         if (_pending != null) {
-          _resolvePending('compat ThreadComplete');
+          _resolvePending('ThreadComplete');
         }
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
         }
-        _completeAgentRequest('compat ThreadComplete');
+        _completeAgentRequest('ThreadComplete');
         break;
 
       case AgentContinuationRequested(:final reason, :final message):
