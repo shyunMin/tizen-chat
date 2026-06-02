@@ -1,14 +1,16 @@
 enum MessageType { sent, received }
 
-/// One tool call inside a turn bubble. Populated by CarbonToolUseStart and
-/// completed by CarbonToolResult (matched on [toolCallId]).
+/// One tool call inside a turn bubble. Populated by AgentToolUseStart and
+/// completed by AgentToolResult (matched on [toolCallId]).
 class TurnToolEntry {
   final String toolCallId;
   final String toolName;
+
   /// Compact one-line summary of arguments (already truncated by the
   /// caller — typical limit ~120 chars).
   final String argumentsPreview;
-  /// Set once CarbonToolResult arrives. Null = still running.
+
+  /// Set once AgentToolResult arrives. Null = still running.
   String? outputPreview;
   bool? isError;
 
@@ -66,6 +68,6 @@ class ChatMessage {
     List<TurnToolEntry>? tools,
     this.validationPassed = false,
     this.currentToolIndicator,
-  })  : timestamp = timestamp ?? DateTime.now(),
-        tools = tools ?? [];
+  }) : timestamp = timestamp ?? DateTime.now(),
+       tools = tools ?? [];
 }

@@ -6,8 +6,7 @@ import 'dart:convert';
 import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
 import '../widgets/prompt_bar.dart';
-import '../services/carbon_grpc_service.dart';
-import '../generated/carbon/v2/ingress_service.pbenum.dart';
+import '../services/agent_runtime_service.dart';
 import '../platform/platform_flags.dart' as platform_flags;
 import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
 import '../models/chat_message.dart';
@@ -15,7 +14,7 @@ import '../services/agent_response_parser.dart';
 import 'dart:async';
 import '../features/http_message_overlay/http_message_bus.dart';
 import '../services/window_focus_service.dart';
-import '../services/onboarding_grpc_service.dart';
+import '../services/agent_onboarding_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
 import '../utils/elapsed_timer.dart';
@@ -60,9 +59,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _chatScrollFocusNode = FocusNode();
   final FocusNode _promptBarFocusNode = FocusNode();
-  final CarbonGrpcService _grpcService = CarbonGrpcService.instance;
+  final AgentGrpcService _grpcService = AgentGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
-  StreamSubscription<CarbonEvent>? _eventSubscription;
+  StreamSubscription<AgentEvent>? _eventSubscription;
   final Completer<bool> _initCompleter = Completer<bool>();
   bool _hasPendingAppControl = false;
   DateTime? _speechStartTimestamp;
@@ -87,11 +86,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// "currently running" hint.
   String? _activeToolName;
 
-  /// Phase metadata of the in-flight turn (captured on CarbonTurnStarted,
-  /// cleared on CarbonTurnComplete). The bubble that materializes for
-  /// this turn — lazily, on the first delta / tool — gets this phase as
-  /// its header title.
-  CarbonTurnPhase? _currentPhase;
+  /// Optional phase metadata for the in-flight turn. Carbon emits this on
+  /// TurnStarted; Argot v1 does not, so normal Argot traffic works with null.
+  /// When a backend provides a phase, the bubble that materializes lazily on
+  /// the first delta/tool gets it as a header title.
+  AgentTurnPhase? _currentPhase;
 
   /// Stash a successful ValidationCompleted result that arrived before
   /// the validation-phase bubble materialized (the assistant's final-
@@ -100,12 +99,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _pendingValidationPassed = false;
 
   // Thread-level "agent is doing something" flag for the spinner UI.
-  // Goes true on the first Submit of a thread, stays true through
-  // round-boundary gaps (between TurnComplete and the next TurnStarted —
-  // e.g. steer-recovery), and only clears on ThreadCompleted / fatal
-  // error / SessionEnded. Without this the spinner blinks off whenever
-  // the active reply bubble seals while another turn is about to spin
-  // up, giving the impression that the agent stopped.
+  // Goes true when a request is submitted and clears when the selected backend
+  // emits AgentTurnComplete, AgentThreadComplete, or a fatal error.
   bool _isAgentBusy = false;
 
   // ── Pending submission slot ───────────────────────────────────
@@ -113,13 +108,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // instead of immediately becoming a user bubble. The slot holds at
   // most one entry (UI constraint — see /plan-eng-review discussion).
   // It releases when:
-  //   - steer mode:  the next CarbonTurnComplete arrives (means the
-  //                  daemon drained its steer queue at the next round
-  //                  boundary and ran another LLM call). Safety net:
-  //                  CarbonThreadComplete unconditionally clears too.
-  //   - queue mode:  CarbonTurnStarted with the matching client_request_id
-  //                  arrives (the queued submission has been popped and
-  //                  started as a new turn).
+  //   - Carbon supports steer/queue lifecycle signals.
+  //   - Argot v1 does not; its adapter logs and ignores mid-turn submissions.
   // On release the user bubble materializes at the bottom of the chat
   // and the input is unlocked.
   _PendingSubmission? _pending;
@@ -224,7 +214,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         );
 
         if (messageText != null) {
-          // 실제 메시지 → 요청 전달 (기준 시간 포함, 초기화는 ThreadComplete에서)
+          // 실제 메시지 → 요청 전달 (기준 시간 포함, 완료 시 초기화)
           final referenceTime = _speechStartTimestamp;
           if (mounted) setState(() => _isVoiceKeyPressed = false);
           if (!initOk) {
@@ -325,7 +315,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// - QR 화면에서 설정 완료: true
   /// - QR 화면에서 취소/종료: false
   Future<bool> _checkOnboarding() async {
-    final onboardingService = OnboardingGrpcService();
+    final onboardingService = AgentOnboardingService();
     // Single server instance shared across all QR screen iterations so the
     // browser always reaches the same server even when the screen is recreated.
     final httpServer = SetupHttpServer();
@@ -426,10 +416,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return;
     }
 
-    // Busy daemon (steer): don't clear yet. A's ongoing output stays
-    // visible until SteerApplied confirms the steer took effect — that's
-    // when _applySteerSplit wipes the display and the post-steer output
-    // starts a clean new bubble.
+    // Busy path depends on the backend. Carbon may steer/queue; Argot v1 logs
+    // and returns null because the RPC surface has no mid-turn submit.
     final reqId = await _grpcService.sendPrompt(
       text,
       steer: steer,
@@ -511,19 +499,44 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() => _pending = null);
   }
 
-  void _handleAgentEvent(CarbonEvent event) {
+  void _completeAgentRequest(String reason) {
+    if (!_isAgentBusy) return;
+    debugPrint('[Chat] completing agent request: $reason');
+    final completeTime = DateTime.now();
+    unawaited(
+      _perfLogger.record(
+        userMessage: _logUserMessage ?? '',
+        speechStartTime: _speechStartTimestamp,
+        requestSentTime: _logRequestSentTime,
+        requestCompleteTime: completeTime,
+      ),
+    );
+    _logUserMessage = null;
+    _logRequestSentTime = null;
+    _appendElapsedToLastMessage();
+    _speechStartTimestamp = null;
+    setState(() {
+      _isAgentBusy = false;
+      _isPromptBarVisible = true;
+    });
+    _scrollToBottom();
+    unawaited(WindowFocusService.grabNavigationKeys());
+    _focusChatWindow();
+  }
+
+  void _handleAgentEvent(AgentEvent event) {
     if (!mounted) return;
 
     switch (event) {
-      case CarbonTextDelta(:final content):
+      case AgentTextDelta(:final content):
         _appendDelta(content);
         break;
 
-      case CarbonMessageFinalized():
+      case AgentMessageFinalized():
         _onMessageFinalized(event);
         break;
 
-      case CarbonToolUseStart(
+      case AgentToolUseStart(
         :final toolName,
         :final toolCallId,
         :final argumentsJson,
@@ -535,7 +548,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _recordToolStart(toolCallId, toolName, argumentsJson);
         break;
 
-      case CarbonToolResult(:final toolCallId, :final output, :final isError):
+      case AgentToolResult(:final toolCallId, :final output, :final isError):
         // Indicator advance is driven by _computeIndicator inside
         // _recordToolResult — once the matching entry's outputPreview
         // is populated, the next pending tool (if any) becomes the
@@ -543,24 +556,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _recordToolResult(toolCallId, output, isError);
         break;
 
-      case CarbonTurnComplete():
-        // Slice C/E daemon model: each plan phase / validation gate is
-        // its own turn, so TurnComplete = bubble seal boundary. (The
-        // earlier "do nothing here" comment applied to the pre-Slice-B
-        // daemon that emitted multiple TurnCompleted per logical turn —
-        // no longer.)
+      case AgentTurnComplete():
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
         }
-        // Phase ends here; next CarbonTurnStarted will set a new one.
         _currentPhase = null;
+        _completeAgentRequest('TurnComplete');
         break;
 
-      case CarbonSteerApplied(:final clientRequestId):
-        // Real signal from the daemon: the steer queue drained at a
-        // round boundary and our prompt is now in the live agent loop.
-        // Release the pending slot iff this confirmation is for our
-        // submission (other clients can steer the same turn).
+      case AgentSteerApplied(:final clientRequestId):
+        // Carbon can emit this; Argot v1 cannot.
         if (_pending != null &&
             _pending!.steer &&
             _pending!.reqId == clientRequestId) {
@@ -568,11 +573,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         break;
 
-      case CarbonSteerFailed(:final clientRequestId, :final reason):
-        // Daemon couldn't land the steer on the originally-targeted
-        // turn (typically late-recovery re-injection). The submission
-        // is preserved on the daemon side — it'll surface in a later
-        // turn — so release the slot and tell the user it slipped.
+      case AgentSteerFailed(:final clientRequestId, :final reason):
+        // Compatibility-only: release the UI slot if an older adapter sends it.
         if (_pending != null &&
             _pending!.steer &&
             _pending!.reqId == clientRequestId) {
@@ -580,101 +582,48 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         break;
 
-      case CarbonSubmitQueued():
-        // No UI action: the pending bubble was already placed
-        // synchronously inside _handleSend. It'll resolve later when
-        // the queued submission pops as a fresh TurnStarted (matched
-        // by client_request_id below).
+      case AgentSubmitQueued():
+        // Carbon can emit this; Argot v1 cannot.
         break;
 
-      case CarbonSubmitSteered():
-        // No UI action: this is the wire receipt of "daemon accepted
-        // into steer queue". The user-visible release happens later on
-        // CarbonSteerApplied (drained at round boundary).
+      case AgentSubmitSteered():
+        // Carbon can emit this; Argot v1 cannot.
         break;
 
-      case CarbonTurnStarted(:final clientRequestId, :final phase):
+      case AgentTurnStarted(:final clientRequestId, :final phase):
         if (_pending != null &&
             !_pending!.steer &&
             _pending!.reqId == clientRequestId) {
-          _resolvePending('TurnStarted (queued popped)');
+          _resolvePending('compat TurnStarted');
         }
         debugPrint('[Chat] TurnStarted phase=${phase.title() ?? "(none)"}');
         _currentPhase = phase;
-        setState(() {
-          _messages.clear();
-          _activeReplyIndex = null;
-          _currentSegmentText = '';
-          _activeToolName = null;
-          _pendingValidationPassed = false;
-        });
-        if (phase.title() != null && phase is! CarbonTurnPhasePrompt) {
-          setState(() {
-            _materializeAgentBubble('', isWaiting: true);
-          });
-        }
         break;
 
-      case CarbonThreadComplete():
-        // Safety net 1: if a pending submission never resolved (steer
-        // dropped on the floor, queue never popped), free the slot.
+      case AgentThreadComplete():
         if (_pending != null) {
-          _resolvePending('ThreadComplete (safety net)');
+          _resolvePending('compat ThreadComplete');
         }
-        // Safety net 2: a trailing un-finalized bubble (single mode +
-        // validation continuation: the dedupe swallows round-2+
-        // TurnCompleted, so a round-2 bubble keeps isWaiting=true
-        // until thread end seals it).
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
         }
-        // Thread done → kill the spinner. This is the ONLY happy-path
-        // clear; per-round TurnComplete intentionally does NOT clear it
-        // so the spinner stays on through round-boundary gaps (e.g.
-        // steer-recovery turn spinning up after the first turn ends).
-        if (_isAgentBusy) {
-          final completeTime = DateTime.now();
-          unawaited(
-            _perfLogger.record(
-              userMessage: _logUserMessage ?? '',
-              speechStartTime: _speechStartTimestamp,
-              requestSentTime: _logRequestSentTime,
-              requestCompleteTime: completeTime,
-            ),
-          );
-          _logUserMessage = null;
-          _logRequestSentTime = null;
-          _appendElapsedToLastMessage();
-          _speechStartTimestamp = null;
-          setState(() {
-            _isAgentBusy = false;
-            _isPromptBarVisible = true;
-          });
-          _scrollToBottom();
-        }
-        // 처리 완료: nav 키 재grab + ChatWindow 포커스 유지 (케이스 3)
-        unawaited(WindowFocusService.grabNavigationKeys());
-        _focusChatWindow();
+        _completeAgentRequest('compat ThreadComplete');
         break;
 
-      case CarbonContinuationRequested(:final reason, :final message):
-        // Slice C/E daemon: each phase is its own turn, so the per-turn
-        // bubble was already sealed by the preceding TurnCompleted.
-        // No segment reset needed here — the next phase's TurnStarted
-        // sets a new _currentPhase and the next delta/tool will
-        // materialize a fresh bubble.
+      case AgentContinuationRequested(:final reason, :final message):
+        // Carbon can emit this; Argot v1 cannot.
         debugPrint(
           '[Chat] ContinuationRequested reason=$reason msg=${message.length > 80 ? "${message.substring(0, 80)}..." : message}',
         );
         break;
 
-      case CarbonValidationStarted():
+      case AgentValidationStarted():
         // Informational — could surface as a sub-indicator inside the
         // active reply bubble (e.g. "검증 중…"). For now we just log;
         // the thread-level spinner stays on regardless.
         break;
 
-      case CarbonValidationCompleted(
+      case AgentValidationCompleted(
         :final passed,
         :final attempt,
         :final reason,
@@ -700,17 +649,14 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         break;
 
-      case CarbonError(:final code, :final message, :final fatal):
+      case AgentError(:final code, :final message, :final fatal):
         // 로컬에서 이미 중단 처리한 경우 서버의 cancelled 이벤트는 무시
         if (_interruptRequested && code == 'cancelled') {
           _interruptRequested = false;
           break;
         }
-        // continuation:* Error codes were the pre-Slice-B path for
-        // continuation notices. Slice B promoted them to typed
-        // ContinuationRequested wire bodies, so this guard is now a
-        // backwards-compat catch-all for daemons that haven't shipped
-        // Slice B yet.
+        // Backwards-compat catch-all for older adapters that encoded
+        // continuation notices as non-fatal errors.
         if (!fatal && code.startsWith('continuation:')) {
           debugPrint('[Chat] continuation notice (legacy Error path): $code');
           if (_activeReplyIndex != null) {
@@ -730,7 +676,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _handleAgentError(code, message, fatal);
         break;
 
-      case CarbonSessionEnded():
+      case AgentSessionEnded():
         if (_pending != null) {
           _resolvePending('SessionEnded');
         }
@@ -745,14 +691,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _grpcService.reconnect();
         break;
 
-      case CarbonToolApprovalRequest(:final approvalId, :final toolName):
+      case AgentToolApprovalRequest(:final approvalId, :final toolName):
         debugPrint(
           '[Chat] ToolApprovalRequest received for $toolName — auto-approving',
         );
-        _grpcService.approveToolCall(
-          approvalId,
-          ApprovalDecision.APPROVAL_DECISION_APPROVE,
-        );
+        _grpcService.approveToolCall(approvalId, AgentApprovalDecision.approve);
         break;
     }
   }
@@ -787,9 +730,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() {
       if (_activeReplyIndex == null) {
         if (_currentSegmentText.isEmpty && _activeToolName == null) return;
-        // TurnStarted 없이 델타가 도달하는 경우(continuation 경로 등)
-        // 이전 봉인된 버블이 남아있을 수 있으므로 먼저 정리한다.
-        _messages.clear();
+        // Argot v1 may send delta/tool events without any lifecycle prelude.
         _materializeAgentBubble('', isWaiting: isWaiting);
       }
       final old = _messages[_activeReplyIndex!];
@@ -818,7 +759,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     if (tools.isEmpty) return null;
     // Prefer the first still-pending tool (so the indicator advances as
     // each Result lands). When every tool has completed, keep showing
-    // the LAST tool of the turn — TurnCompleted is the only event that
+    // the LAST tool of the turn — AgentTurnComplete is the event that
     // clears the indicator (see _finalizeActiveReply).
     final pendingIdx = tools.indexWhere((t) => t.isPending);
     final activeIdx = pendingIdx >= 0 ? pendingIdx : tools.length - 1;
@@ -837,7 +778,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// turn opens with a tool call (no text). Carries the current phase
   /// title onto the bubble so each turn's bubble renders its own header.
   void _materializeAgentBubble(String text, {required bool isWaiting}) {
-    final phaseTitle = (_currentPhase is CarbonTurnPhasePrompt)
+    final phaseTitle = (_currentPhase is AgentTurnPhasePrompt)
         ? null
         : _currentPhase?.title();
     final validationPassed = _pendingValidationPassed;
@@ -883,7 +824,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   /// Complete the matching tool entry on the active bubble. Matches by
   /// [toolCallId] so out-of-order results stay attached to the right call.
-  /// Advances the indicator to the next pending tool (carbon emits all
+  /// Advances the indicator to the next pending tool (some backends emit all
   /// ToolUseStart upfront, then ToolResults sequentially as each
   /// executes, so the "currently running" tool is whichever pending
   /// entry comes first in the list).
@@ -943,23 +884,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _refreshActiveBubble(isWaiting: true);
   }
 
-  void _onMessageFinalized(CarbonMessageFinalized event) {
+  void _onMessageFinalized(AgentMessageFinalized event) {
     if (platform_flags.kBubbleMode != BubbleMode.multi) return;
-    // V2 with phase-aware sealing (option C): Commentary blocks are
-    // intermediate reasoning that interleaves with tool calls. Sealing
-    // on every Commentary makes the tool indicator vanish before the
-    // user can see it (daemon emits ToolUseStart → MessageFinalized
-    // milliseconds apart). Only seal on FinalAnswer — that's the
-    // explicit "this is the user-visible answer block" signal from the
-    // daemon. Commentary blocks keep accumulating into the same active
-    // bubble until FinalAnswer (or TurnComplete) closes it out.
-    // In the per-phase bubble model, MessageFinalized is just a
-    // message-block boundary marker — not the bubble seal moment. The
-    // bubble is owned by TurnStarted (creates) and TurnCompleted
-    // (seals). Dropping phase header here was killing the header for
-    // every Prompt-phase final answer too — exactly the regression the
-    // user spotted. So no-op now; the seal logic lives in
-    // _finalizeActiveReply.
+    // Keep this marker as a no-op; bubble sealing lives at AgentTurnComplete.
     return;
   }
 
@@ -978,7 +905,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     final String sealedDisplayType;
     final String? sealedUiCode;
     final List<String> sealedButtons;
-    if (_currentSegmentText.isNotEmpty) {
+    if (_currentSegmentText.trim().isNotEmpty) {
       final parsedResponse = AgentResponseParser.parse(_currentSegmentText);
       debugPrint(
         '[Chat] parsed.displayType=${parsedResponse.displayType} '
@@ -1117,7 +1044,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   Future<void> _checkConfigStatus() async {
-    final onboardingService = OnboardingGrpcService();
+    final onboardingService = AgentOnboardingService();
     try {
       await onboardingService.connect();
       final config = await onboardingService.getConfig();
@@ -1151,13 +1078,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       if (msg.currentToolIndicator != null) return msg.currentToolIndicator!;
     }
     final phase = _currentPhase;
-    if (phase is CarbonTurnPhaseValidation || phase is CarbonTurnPhaseUnknown) {
+    if (phase is AgentTurnPhaseValidation || phase is AgentTurnPhaseUnknown) {
       return '답변을 검토하는 중입니다.';
     }
-    if (phase is CarbonTurnPhasePrompt) {
+    if (phase is AgentTurnPhasePrompt) {
       return '요청을 분석하는 중입니다.';
     }
-    return '다음 단계를 준비하는 중입니다.';
+    return '응답을 기다리는 중입니다.';
   }
 
   void _appendElapsedToLastMessage() {
@@ -1368,8 +1295,8 @@ class _PendingSubmission {
   final String text;
   final String reqId;
 
-  /// True = daemon was asked to inject mid-turn (steer queue). False =
-  /// daemon was asked to queue behind the current thread.
+  /// True = adapter was asked to inject mid-turn. False = adapter was asked to
+  /// queue behind the current request. Argot v1 supports neither today.
   final bool steer;
   final DateTime submittedAt;
 

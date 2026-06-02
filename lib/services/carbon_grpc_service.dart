@@ -513,6 +513,9 @@ class CarbonGrpcService {
   /// Use $XDG_RUNTIME_DIR when set (Tizen and most linux desktops both set
   /// it), fall back to `/run/user/{uid}/carbon/carbon.sock`.
   String _resolveSocketPath() {
+    final explicit = Platform.environment['CARBON_SOCKET_PATH'];
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+
     final xdg = Platform.environment['XDG_RUNTIME_DIR'];
     if (xdg != null && xdg.isNotEmpty) {
       return p.join(xdg, 'carbon', 'carbon.sock');

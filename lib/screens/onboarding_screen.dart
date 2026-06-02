@@ -2,13 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../services/onboarding_grpc_service.dart';
+import '../services/agent_onboarding_service.dart';
 import '../services/setup_http_server.dart';
 import '../theme/tizen_styles.dart';
 import '../services/window_focus_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  final OnboardingGrpcService service;
+  final AgentOnboardingService service;
   // Shared across QR screen recreations so the browser always connects to the
   // same server even after the screen pops and a new one is pushed.
   final SetupHttpServer httpServer;
@@ -106,7 +106,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   // stopServer: false when the server manages its own shutdown (after save).
   //             true  when the user explicitly closes the screen (Close / timeout).
-  Future<void> _finishSetup({required bool completed, bool stopServer = true}) async {
+  Future<void> _finishSetup({
+    required bool completed,
+    bool stopServer = true,
+  }) async {
     if (_isFinishing) return;
     _isFinishing = true;
     _countdownTimer?.cancel();
@@ -167,7 +170,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             size: TizenStyles.onboardingErrorIconSize,
           ),
           const SizedBox(height: TizenStyles.onboardingErrorIconGap),
-          const Text('Setup service unavailable', style: TizenStyles.headerText),
+          const Text(
+            'Setup service unavailable',
+            style: TizenStyles.headerText,
+          ),
           const SizedBox(height: TizenStyles.onboardingErrorMsgGap),
           Text(_errorMessage!, style: TizenStyles.bodyText),
           const SizedBox(height: TizenStyles.onboardingErrorButtonGap),
@@ -191,7 +197,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Carbon',
+                  widget.service.backendLabel,
                   style: TizenStyles.headerText.copyWith(
                     fontSize: TizenStyles.onboardingTitleFontSize,
                   ),
@@ -231,7 +237,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     '${_formatTime(_secondsLeft)} 후에 종료됩니다',
                     style: TizenStyles.bodyText.copyWith(
-                      color: _secondsLeft <= 60 ? Colors.orange : Colors.white54,
+                      color: _secondsLeft <= 60
+                          ? Colors.orange
+                          : Colors.white54,
                       fontSize: TizenStyles.baseFontSize,
                     ),
                   ),

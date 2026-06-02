@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'onboarding_grpc_service.dart';
+import 'agent_onboarding_service.dart';
 
 class SetupHttpServer {
   static const _defaultPort = 18181;
@@ -20,7 +20,7 @@ class SetupHttpServer {
   String? get url => _url;
 
   Future<String> start(
-    OnboardingGrpcService grpc, {
+    AgentOnboardingService grpc, {
     int preferredPort = _defaultPort,
     required void Function() onCompleted,
     required void Function() onTimeout,
@@ -83,7 +83,10 @@ class SetupHttpServer {
     debugPrint('[SetupHttpServer] stopped');
   }
 
-  Future<void> _handleRequest(HttpRequest req, OnboardingGrpcService grpc) async {
+  Future<void> _handleRequest(
+    HttpRequest req,
+    AgentOnboardingService grpc,
+  ) async {
     final path = req.uri.path;
     final method = req.method;
 
@@ -91,7 +94,12 @@ class SetupHttpServer {
       if (method == 'GET' && path == '/setup') {
         final saved = req.uri.queryParameters['status'] == 'saved';
         final yaml = await grpc.getConfigYaml();
-        _respond(req, 200, 'text/html; charset=utf-8', buildSetupPage(yaml, saved: saved));
+        _respond(
+          req,
+          200,
+          'text/html; charset=utf-8',
+          buildSetupPage(yaml, saved: saved, backendLabel: grpc.backendLabel),
+        );
       } else if (method == 'POST' && path == '/setup') {
         final body = await _readBody(req);
         final fields = _parseForm(body);
@@ -150,7 +158,10 @@ class SetupHttpServer {
   }
 
   Future<String> _readBody(HttpRequest req) async {
-    final bytes = await req.fold<List<int>>([], (acc, chunk) => acc..addAll(chunk));
+    final bytes = await req.fold<List<int>>(
+      [],
+      (acc, chunk) => acc..addAll(chunk),
+    );
     return utf8.decode(bytes);
   }
 
@@ -167,7 +178,9 @@ class SetupHttpServer {
 
   static Future<String?> _detectLanIp() async {
     try {
-      final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+      );
       for (final iface in interfaces) {
         for (final addr in iface.addresses) {
           if (!addr.isLoopback && !addr.address.startsWith('169.254')) {
@@ -188,7 +201,11 @@ String mergeFields(String baseYaml, Map<String, String> fields) {
 
   fields.forEach((key, value) {
     if (key == 'extra_skill_dirs') {
-      final dirs = value.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      final dirs = value
+          .split('\n')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
       text = _replaceSkillDirsInline(text, dirs);
     } else if (_pathExists(text, key)) {
       text = _replaceScalar(text, key, value);
@@ -213,7 +230,11 @@ bool _pathExists(String yaml, String dotPath) {
   final keyStack = <String>[];
   for (final line in yaml.split('\n')) {
     final trimmed = line.trimLeft();
-    if (trimmed.isEmpty || trimmed.startsWith('#') || trimmed.startsWith('- ')) continue;
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('- ')) {
+      continue;
+    }
     final indent = line.length - trimmed.length;
     final depth = indent ~/ 2;
     final colonIdx = trimmed.indexOf(':');
@@ -241,7 +262,9 @@ String _replaceScalar(String yaml, String dotPath, String newValue) {
       continue;
     }
     final trimmed = line.trimLeft();
-    if (trimmed.isEmpty || trimmed.startsWith('#') || trimmed.startsWith('- ')) {
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('- ')) {
       result.add(line);
       continue;
     }
@@ -317,7 +340,11 @@ String _insertNewKeys(String yaml, Map<String, String> fields) {
     final indent = '  ' * (parts.length - 1);
     if (_pathExists(text, parent)) {
       // Insert after the parent's last child
-      text = _insertAfterSection(text, parent, '$indent$leaf: ${_formatScalar(value)}');
+      text = _insertAfterSection(
+        text,
+        parent,
+        '$indent$leaf: ${_formatScalar(value)}',
+      );
     } else {
       text = '${text.trimRight()}\n$dotPath: ${_formatScalar(value)}\n';
     }
@@ -335,7 +362,9 @@ String _insertAfterSection(String yaml, String parentPath, String newLine) {
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
     final trimmed = line.trimLeft();
-    if (trimmed.isEmpty || trimmed.startsWith('#') || trimmed.startsWith('- ')) {
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('- ')) {
       result.add(line);
       continue;
     }
@@ -386,7 +415,11 @@ String getYamlValue(String yaml, String dotPath) {
   final keyStack = <String>[];
   for (final line in yaml.split('\n')) {
     final trimmed = line.trimLeft();
-    if (trimmed.isEmpty || trimmed.startsWith('#') || trimmed.startsWith('- ')) continue;
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('- ')) {
+      continue;
+    }
     final indent = line.length - trimmed.length;
     final depth = indent ~/ 2;
     final colonIdx = trimmed.indexOf(':');
@@ -409,17 +442,31 @@ String getYamlValue(String yaml, String dotPath) {
 
 // ─── HTML pages ──────────────────────────────────────────────────────────────
 
-String buildSetupPage(String yaml, {bool saved = false}) {
+String buildSetupPage(
+  String yaml, {
+  bool saved = false,
+  String backendLabel = 'Agent Runtime',
+}) {
   String v(String path) => getYamlValue(yaml, path);
 
-  final provGemini    = v('defaults.provider') == 'gemini'    ? 'selected' : '';
+  final provGemini = v('defaults.provider') == 'gemini' ? 'selected' : '';
   final provAnthropic = v('defaults.provider') == 'anthropic' ? 'selected' : '';
-  final wsBrave       = v('web_search.backend') == 'brave'      ? 'selected' : '';
-  final wsDuckduckgo  = v('web_search.backend') == 'duckduckgo' ? 'selected' : '';
-  final contYes = v('orchestration.continuation.enabled') == 'true'  ? 'selected' : '';
-  final contNo  = v('orchestration.continuation.enabled') != 'true'  ? 'selected' : '';
-  final narrYes = v('orchestration.narration.enabled') == 'true'     ? 'selected' : '';
-  final narrNo  = v('orchestration.narration.enabled') != 'true'     ? 'selected' : '';
+  final wsBrave = v('web_search.backend') == 'brave' ? 'selected' : '';
+  final wsDuckduckgo = v('web_search.backend') == 'duckduckgo'
+      ? 'selected'
+      : '';
+  final contYes = v('orchestration.continuation.enabled') == 'true'
+      ? 'selected'
+      : '';
+  final contNo = v('orchestration.continuation.enabled') != 'true'
+      ? 'selected'
+      : '';
+  final narrYes = v('orchestration.narration.enabled') == 'true'
+      ? 'selected'
+      : '';
+  final narrNo = v('orchestration.narration.enabled') != 'true'
+      ? 'selected'
+      : '';
 
   final skillDirs = yaml
       .split('\n')
@@ -434,7 +481,7 @@ String buildSetupPage(String yaml, {bool saved = false}) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Carbon Setup</title>
+  <title>$backendLabel Setup</title>
   <style>
     :root {
       --bg0: #071319; --bg1: #10242b; --card: rgba(7,21,28,.84);
@@ -482,8 +529,8 @@ String buildSetupPage(String yaml, {bool saved = false}) {
 </head>
 <body>
   <main><section class="shell"><section class="hero">
-    <h1>Carbon Setup</h1>
-    <p class="lead">Set the Carbon agent defaults on the TV.</p>
+    <h1>$backendLabel Setup</h1>
+    <p class="lead">Set the selected agent runtime defaults on the TV.</p>
     <form method="post" action="/setup">
 
       <details>
@@ -604,7 +651,7 @@ String buildSetupPage(String yaml, {bool saved = false}) {
       </details>
 
       <div class="actions">
-        <button type="submit">Save Config And Restart Carbon</button>
+        <button type="submit">Save Config And Restart Runtime</button>
         ${saved ? '<p class="saved-msg">저장했습니다</p>' : ''}
       </div>
     </form>
@@ -612,4 +659,3 @@ String buildSetupPage(String yaml, {bool saved = false}) {
 </body>
 </html>''';
 }
-
