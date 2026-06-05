@@ -24,6 +24,9 @@ namespace Runner
             IntPtr win,
             [MarshalAs(UnmanagedType.U1)] bool flush);
 
+        [DllImport("libecore_wl2.so.1")]
+        private static extern void ecore_wl2_window_title_set(IntPtr win, string title);
+
         public enum KeyGrabMode
         {
             Topmost = 0,
@@ -60,6 +63,7 @@ namespace Runner
             base.OnCreate();
 
             GeneratedPluginRegistrant.RegisterPlugins(this);
+            SetWindowTitle("chat-ui");
             SetTopLevelWindow();
             RegisterWindowFocusChannel();
             // Channel keys remain grabbed by default even with IsWindowFocusable=false and must be explicitly unset.
@@ -83,6 +87,15 @@ namespace Runner
             {
                 ecore_wl2_window_keygrab_unset(handle, "XF86RaiseChannel", 0, 0);
                 ecore_wl2_window_keygrab_unset(handle, "XF86LowerChannel", 0, 0);
+            }
+        }
+
+        private void SetWindowTitle(string title)
+        {
+            IntPtr handle = FlutterDesktopViewGetNativeHandle(View);
+            if (handle != IntPtr.Zero)
+            {
+                ecore_wl2_window_title_set(handle, title);
             }
         }
 
