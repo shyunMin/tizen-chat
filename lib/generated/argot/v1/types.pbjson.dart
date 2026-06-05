@@ -15,6 +15,41 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
+@$core.Deprecated('Use stopReasonDescriptor instead')
+const StopReason$json = {
+  '1': 'StopReason',
+  '2': [
+    {'1': 'STOP_REASON_UNSPECIFIED', '2': 0},
+    {'1': 'STOP_REASON_ITER_CAP', '2': 1},
+    {'1': 'STOP_REASON_TOKEN_CAP', '2': 2},
+    {'1': 'STOP_REASON_TIME_CAP', '2': 3},
+    {'1': 'STOP_REASON_CANCELLED', '2': 4},
+  ],
+};
+
+/// Descriptor for `StopReason`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List stopReasonDescriptor = $convert.base64Decode(
+    'CgpTdG9wUmVhc29uEhsKF1NUT1BfUkVBU09OX1VOU1BFQ0lGSUVEEAASGAoUU1RPUF9SRUFTT0'
+    '5fSVRFUl9DQVAQARIZChVTVE9QX1JFQVNPTl9UT0tFTl9DQVAQAhIYChRTVE9QX1JFQVNPTl9U'
+    'SU1FX0NBUBADEhkKFVNUT1BfUkVBU09OX0NBTkNFTExFRBAE');
+
+@$core.Deprecated('Use roleDescriptor instead')
+const Role$json = {
+  '1': 'Role',
+  '2': [
+    {'1': 'ROLE_UNSPECIFIED', '2': 0},
+    {'1': 'ROLE_USER', '2': 1},
+    {'1': 'ROLE_ASSISTANT', '2': 2},
+    {'1': 'ROLE_SYSTEM', '2': 3},
+    {'1': 'ROLE_TOOL', '2': 4},
+  ],
+};
+
+/// Descriptor for `Role`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List roleDescriptor = $convert.base64Decode(
+    'CgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABINCglST0xFX1VTRVIQARISCg5ST0xFX0FTU0'
+    'lTVEFOVBACEg8KC1JPTEVfU1lTVEVNEAMSDQoJUk9MRV9UT09MEAQ=');
+
 @$core.Deprecated('Use chatEventDescriptor instead')
 const ChatEvent$json = {
   '1': 'ChatEvent',
@@ -24,7 +59,7 @@ const ChatEvent$json = {
       '3': 1,
       '4': 1,
       '5': 11,
-      '6': '.argot.v1.SessionOpened',
+      '6': '.argot.v1.Opened',
       '9': 0,
       '10': 'opened'
     },
@@ -56,31 +91,31 @@ const ChatEvent$json = {
       '10': 'toolResult'
     },
     {
-      '1': 'done',
+      '1': 'completed',
       '3': 5,
       '4': 1,
       '5': 11,
-      '6': '.argot.v1.TurnDone',
+      '6': '.argot.v1.Completed',
       '9': 0,
-      '10': 'done'
+      '10': 'completed'
     },
     {
-      '1': 'error',
+      '1': 'failed',
       '3': 6,
       '4': 1,
       '5': 11,
-      '6': '.argot.v1.TurnError',
+      '6': '.argot.v1.Failed',
       '9': 0,
-      '10': 'error'
+      '10': 'failed'
     },
     {
-      '1': 'terminated',
+      '1': 'stopped',
       '3': 7,
       '4': 1,
       '5': 11,
-      '6': '.argot.v1.TurnTerminated',
+      '6': '.argot.v1.Stopped',
       '9': 0,
-      '10': 'terminated'
+      '10': 'stopped'
     },
   ],
   '8': [
@@ -90,25 +125,27 @@ const ChatEvent$json = {
 
 /// Descriptor for `ChatEvent`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List chatEventDescriptor = $convert.base64Decode(
-    'CglDaGF0RXZlbnQSMQoGb3BlbmVkGAEgASgLMhcuYXJnb3QudjEuU2Vzc2lvbk9wZW5lZEgAUg'
-    'ZvcGVuZWQSLgoFZGVsdGEYAiABKAsyFi5hcmdvdC52MS5NZXNzYWdlRGVsdGFIAFIFZGVsdGES'
-    'MQoJdG9vbF9jYWxsGAMgASgLMhIuYXJnb3QudjEuVG9vbENhbGxIAFIIdG9vbENhbGwSNwoLdG'
-    '9vbF9yZXN1bHQYBCABKAsyFC5hcmdvdC52MS5Ub29sUmVzdWx0SABSCnRvb2xSZXN1bHQSKAoE'
-    'ZG9uZRgFIAEoCzISLmFyZ290LnYxLlR1cm5Eb25lSABSBGRvbmUSKwoFZXJyb3IYBiABKAsyEy'
-    '5hcmdvdC52MS5UdXJuRXJyb3JIAFIFZXJyb3ISOgoKdGVybWluYXRlZBgHIAEoCzIYLmFyZ290'
-    'LnYxLlR1cm5UZXJtaW5hdGVkSABSCnRlcm1pbmF0ZWRCBwoFZXZlbnQ=');
+    'CglDaGF0RXZlbnQSKgoGb3BlbmVkGAEgASgLMhAuYXJnb3QudjEuT3BlbmVkSABSBm9wZW5lZB'
+    'IuCgVkZWx0YRgCIAEoCzIWLmFyZ290LnYxLk1lc3NhZ2VEZWx0YUgAUgVkZWx0YRIxCgl0b29s'
+    'X2NhbGwYAyABKAsyEi5hcmdvdC52MS5Ub29sQ2FsbEgAUgh0b29sQ2FsbBI3Cgt0b29sX3Jlc3'
+    'VsdBgEIAEoCzIULmFyZ290LnYxLlRvb2xSZXN1bHRIAFIKdG9vbFJlc3VsdBIzCgljb21wbGV0'
+    'ZWQYBSABKAsyEy5hcmdvdC52MS5Db21wbGV0ZWRIAFIJY29tcGxldGVkEioKBmZhaWxlZBgGIA'
+    'EoCzIQLmFyZ290LnYxLkZhaWxlZEgAUgZmYWlsZWQSLQoHc3RvcHBlZBgHIAEoCzIRLmFyZ290'
+    'LnYxLlN0b3BwZWRIAFIHc3RvcHBlZEIHCgVldmVudA==');
 
-@$core.Deprecated('Use sessionOpenedDescriptor instead')
-const SessionOpened$json = {
-  '1': 'SessionOpened',
+@$core.Deprecated('Use openedDescriptor instead')
+const Opened$json = {
+  '1': 'Opened',
   '2': [
-    {'1': 'session_id', '3': 1, '4': 1, '5': 9, '10': 'sessionId'},
+    {'1': 'conversation_id', '3': 1, '4': 1, '5': 9, '10': 'conversationId'},
+    {'1': 'ephemeral', '3': 2, '4': 1, '5': 8, '10': 'ephemeral'},
   ],
 };
 
-/// Descriptor for `SessionOpened`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List sessionOpenedDescriptor = $convert.base64Decode(
-    'Cg1TZXNzaW9uT3BlbmVkEh0KCnNlc3Npb25faWQYASABKAlSCXNlc3Npb25JZA==');
+/// Descriptor for `Opened`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List openedDescriptor = $convert.base64Decode(
+    'CgZPcGVuZWQSJwoPY29udmVyc2F0aW9uX2lkGAEgASgJUg5jb252ZXJzYXRpb25JZBIcCgllcG'
+    'hlbWVyYWwYAiABKAhSCWVwaGVtZXJhbA==');
 
 @$core.Deprecated('Use messageDeltaDescriptor instead')
 const MessageDelta$json = {
@@ -152,9 +189,9 @@ final $typed_data.Uint8List toolResultDescriptor = $convert.base64Decode(
     'CgpUb29sUmVzdWx0EhcKB2NhbGxfaWQYASABKAlSBmNhbGxJZBIfCgtvdXRwdXRfanNvbhgCIA'
     'EoCVIKb3V0cHV0SnNvbhIZCghpc19lcnJvchgDIAEoCFIHaXNFcnJvcg==');
 
-@$core.Deprecated('Use turnDoneDescriptor instead')
-const TurnDone$json = {
-  '1': 'TurnDone',
+@$core.Deprecated('Use completedDescriptor instead')
+const Completed$json = {
+  '1': 'Completed',
   '2': [
     {'1': 'text', '3': 1, '4': 1, '5': 9, '10': 'text'},
     {'1': 'turns', '3': 2, '4': 1, '5': 13, '10': 'turns'},
@@ -162,34 +199,101 @@ const TurnDone$json = {
   ],
 };
 
-/// Descriptor for `TurnDone`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List turnDoneDescriptor = $convert.base64Decode(
-    'CghUdXJuRG9uZRISCgR0ZXh0GAEgASgJUgR0ZXh0EhQKBXR1cm5zGAIgASgNUgV0dXJucxIdCg'
-    'p0b29sX2NhbGxzGAMgASgNUgl0b29sQ2FsbHM=');
+/// Descriptor for `Completed`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List completedDescriptor = $convert.base64Decode(
+    'CglDb21wbGV0ZWQSEgoEdGV4dBgBIAEoCVIEdGV4dBIUCgV0dXJucxgCIAEoDVIFdHVybnMSHQ'
+    'oKdG9vbF9jYWxscxgDIAEoDVIJdG9vbENhbGxz');
 
-@$core.Deprecated('Use turnErrorDescriptor instead')
-const TurnError$json = {
-  '1': 'TurnError',
+@$core.Deprecated('Use failedDescriptor instead')
+const Failed$json = {
+  '1': 'Failed',
   '2': [
     {'1': 'message', '3': 1, '4': 1, '5': 9, '10': 'message'},
   ],
 };
 
-/// Descriptor for `TurnError`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List turnErrorDescriptor = $convert
-    .base64Decode('CglUdXJuRXJyb3ISGAoHbWVzc2FnZRgBIAEoCVIHbWVzc2FnZQ==');
+/// Descriptor for `Failed`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List failedDescriptor =
+    $convert.base64Decode('CgZGYWlsZWQSGAoHbWVzc2FnZRgBIAEoCVIHbWVzc2FnZQ==');
 
-@$core.Deprecated('Use turnTerminatedDescriptor instead')
-const TurnTerminated$json = {
-  '1': 'TurnTerminated',
+@$core.Deprecated('Use stoppedDescriptor instead')
+const Stopped$json = {
+  '1': 'Stopped',
   '2': [
-    {'1': 'reason', '3': 1, '4': 1, '5': 9, '10': 'reason'},
+    {
+      '1': 'reason',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.argot.v1.StopReason',
+      '10': 'reason'
+    },
     {'1': 'turns', '3': 2, '4': 1, '5': 13, '10': 'turns'},
     {'1': 'tool_calls', '3': 3, '4': 1, '5': 13, '10': 'toolCalls'},
   ],
 };
 
-/// Descriptor for `TurnTerminated`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List turnTerminatedDescriptor = $convert.base64Decode(
-    'Cg5UdXJuVGVybWluYXRlZBIWCgZyZWFzb24YASABKAlSBnJlYXNvbhIUCgV0dXJucxgCIAEoDV'
-    'IFdHVybnMSHQoKdG9vbF9jYWxscxgDIAEoDVIJdG9vbENhbGxz');
+/// Descriptor for `Stopped`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List stoppedDescriptor = $convert.base64Decode(
+    'CgdTdG9wcGVkEiwKBnJlYXNvbhgBIAEoDjIULmFyZ290LnYxLlN0b3BSZWFzb25SBnJlYXNvbh'
+    'IUCgV0dXJucxgCIAEoDVIFdHVybnMSHQoKdG9vbF9jYWxscxgDIAEoDVIJdG9vbENhbGxz');
+
+@$core.Deprecated('Use messagePartDescriptor instead')
+const MessagePart$json = {
+  '1': 'MessagePart',
+  '2': [
+    {'1': 'text', '3': 1, '4': 1, '5': 9, '9': 0, '10': 'text'},
+    {
+      '1': 'tool_call',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.argot.v1.ToolCall',
+      '9': 0,
+      '10': 'toolCall'
+    },
+    {
+      '1': 'tool_result',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.argot.v1.ToolResult',
+      '9': 0,
+      '10': 'toolResult'
+    },
+    {'1': 'reasoning', '3': 4, '4': 1, '5': 9, '9': 0, '10': 'reasoning'},
+  ],
+  '8': [
+    {'1': 'part'},
+  ],
+};
+
+/// Descriptor for `MessagePart`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List messagePartDescriptor = $convert.base64Decode(
+    'CgtNZXNzYWdlUGFydBIUCgR0ZXh0GAEgASgJSABSBHRleHQSMQoJdG9vbF9jYWxsGAIgASgLMh'
+    'IuYXJnb3QudjEuVG9vbENhbGxIAFIIdG9vbENhbGwSNwoLdG9vbF9yZXN1bHQYAyABKAsyFC5h'
+    'cmdvdC52MS5Ub29sUmVzdWx0SABSCnRvb2xSZXN1bHQSHgoJcmVhc29uaW5nGAQgASgJSABSCX'
+    'JlYXNvbmluZ0IGCgRwYXJ0');
+
+@$core.Deprecated('Use chatMessageDescriptor instead')
+const ChatMessage$json = {
+  '1': 'ChatMessage',
+  '2': [
+    {'1': 'role', '3': 1, '4': 1, '5': 14, '6': '.argot.v1.Role', '10': 'role'},
+    {
+      '1': 'parts',
+      '3': 2,
+      '4': 3,
+      '5': 11,
+      '6': '.argot.v1.MessagePart',
+      '10': 'parts'
+    },
+    {'1': 'timestamp_ms', '3': 3, '4': 1, '5': 3, '10': 'timestampMs'},
+  ],
+};
+
+/// Descriptor for `ChatMessage`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List chatMessageDescriptor = $convert.base64Decode(
+    'CgtDaGF0TWVzc2FnZRIiCgRyb2xlGAEgASgOMg4uYXJnb3QudjEuUm9sZVIEcm9sZRIrCgVwYX'
+    'J0cxgCIAMoCzIVLmFyZ290LnYxLk1lc3NhZ2VQYXJ0UgVwYXJ0cxIhCgx0aW1lc3RhbXBfbXMY'
+    'AyABKANSC3RpbWVzdGFtcE1z');

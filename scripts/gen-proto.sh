@@ -53,8 +53,11 @@ CHAT_UI_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="$CHAT_UI_ROOT/lib/generated"
 
 V1_PROTOS=(
+  "$V1_DIR/chat.proto"
+  "$V1_DIR/conversation.proto"
+  "$V1_DIR/monitor.proto"
+  "$V1_DIR/notify.proto"
   "$V1_DIR/types.proto"
-  "$V1_DIR/service.proto"
 )
 
 for p in "${V1_PROTOS[@]}"; do
@@ -71,6 +74,11 @@ echo "output     : $OUT_DIR"
 echo
 
 mkdir -p "$OUT_DIR"
+
+# Wipe stale argot/v1 stubs so renamed or removed protos (e.g. the retired
+# service.proto) don't leave orphaned generated files behind. Carbon stubs
+# live under generated/carbon and are untouched.
+rm -f "$OUT_DIR/argot/v1/"*.dart
 
 protoc \
   -I"$PROTO_ROOT" \

@@ -9,3 +9,69 @@
 // ignore_for_file: curly_braces_in_flow_control_structures
 // ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
 // ignore_for_file: non_constant_identifier_names, prefer_relative_imports
+
+import 'dart:core' as $core;
+
+import 'package:protobuf/protobuf.dart' as $pb;
+
+/// Prefixed values — proto3 enum values are package-scoped, so they must be
+/// unique across all enums in argot.v1 (prost strips the prefix → StopReason::IterCap).
+class StopReason extends $pb.ProtobufEnum {
+  static const StopReason STOP_REASON_UNSPECIFIED =
+      StopReason._(0, _omitEnumNames ? '' : 'STOP_REASON_UNSPECIFIED');
+  static const StopReason STOP_REASON_ITER_CAP =
+      StopReason._(1, _omitEnumNames ? '' : 'STOP_REASON_ITER_CAP');
+  static const StopReason STOP_REASON_TOKEN_CAP =
+      StopReason._(2, _omitEnumNames ? '' : 'STOP_REASON_TOKEN_CAP');
+  static const StopReason STOP_REASON_TIME_CAP =
+      StopReason._(3, _omitEnumNames ? '' : 'STOP_REASON_TIME_CAP');
+  static const StopReason STOP_REASON_CANCELLED =
+      StopReason._(4, _omitEnumNames ? '' : 'STOP_REASON_CANCELLED');
+
+  static const $core.List<StopReason> values = <StopReason>[
+    STOP_REASON_UNSPECIFIED,
+    STOP_REASON_ITER_CAP,
+    STOP_REASON_TOKEN_CAP,
+    STOP_REASON_TIME_CAP,
+    STOP_REASON_CANCELLED,
+  ];
+
+  static final $core.List<StopReason?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static StopReason? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const StopReason._(super.value, super.name);
+}
+
+class Role extends $pb.ProtobufEnum {
+  /// Prefixed because proto3 enum values are package-scoped: an unprefixed
+  /// TOOL/USER/... would collide with another enum in argot.v1 (e.g.
+  /// EventCategory.TOOL). prost strips the prefix → Role::User, Role::Tool.
+  static const Role ROLE_UNSPECIFIED =
+      Role._(0, _omitEnumNames ? '' : 'ROLE_UNSPECIFIED');
+  static const Role ROLE_USER = Role._(1, _omitEnumNames ? '' : 'ROLE_USER');
+  static const Role ROLE_ASSISTANT =
+      Role._(2, _omitEnumNames ? '' : 'ROLE_ASSISTANT');
+  static const Role ROLE_SYSTEM =
+      Role._(3, _omitEnumNames ? '' : 'ROLE_SYSTEM');
+  static const Role ROLE_TOOL = Role._(4, _omitEnumNames ? '' : 'ROLE_TOOL');
+
+  static const $core.List<Role> values = <Role>[
+    ROLE_UNSPECIFIED,
+    ROLE_USER,
+    ROLE_ASSISTANT,
+    ROLE_SYSTEM,
+    ROLE_TOOL,
+  ];
+
+  static final $core.List<Role?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 4);
+  static Role? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const Role._(super.value, super.name);
+}
+
+const $core.bool _omitEnumNames =
+    $core.bool.fromEnvironment('protobuf.omit_enum_names');

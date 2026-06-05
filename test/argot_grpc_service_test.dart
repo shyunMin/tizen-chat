@@ -45,7 +45,7 @@ void main() {
           turnId: 'turn-1',
         );
         svc.debugHandleChatEvent(
-          argot_types.ChatEvent(done: argot_types.TurnDone()),
+          argot_types.ChatEvent(completed: argot_types.Completed()),
           turnId: 'turn-1',
         );
 
@@ -67,7 +67,7 @@ void main() {
     },
   );
 
-  test('uses TurnDone.text when no deltas were streamed', () async {
+  test('uses Completed.text when no deltas were streamed', () async {
     final deltas = <ArgotTextDelta>[];
     final sub = svc.events.listen((event) {
       if (event is ArgotTextDelta) deltas.add(event);
@@ -76,7 +76,9 @@ void main() {
     try {
       svc.debugSetCurrentTurnId('turn-2');
       svc.debugHandleChatEvent(
-        argot_types.ChatEvent(done: argot_types.TurnDone(text: 'final answer')),
+        argot_types.ChatEvent(
+          completed: argot_types.Completed(text: 'final answer'),
+        ),
         turnId: 'turn-2',
       );
 
@@ -90,7 +92,7 @@ void main() {
   });
 
   test(
-    'uses TurnDone.text when only whitespace deltas were streamed',
+    'uses Completed.text when only whitespace deltas were streamed',
     () async {
       final deltas = <ArgotTextDelta>[];
       final sub = svc.events.listen((event) {
@@ -105,7 +107,7 @@ void main() {
         );
         svc.debugHandleChatEvent(
           argot_types.ChatEvent(
-            done: argot_types.TurnDone(text: 'final answer'),
+            completed: argot_types.Completed(text: 'final answer'),
           ),
           turnId: 'turn-2b',
         );

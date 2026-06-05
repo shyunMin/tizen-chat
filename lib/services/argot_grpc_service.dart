@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:grpc/grpc.dart';
 import 'package:path/path.dart' as p;
 
-import '../generated/argot/v1/service.pbgrpc.dart' as argot_v1;
+import '../generated/argot/v1/chat.pbgrpc.dart' as argot_v1;
+import '../generated/argot/v1/chat.pb.dart' as argot_chat;
 import '../generated/argot/v1/types.pb.dart' as argot_types;
 
 const String _kSource = 'ai-chat-flutter';
@@ -217,7 +218,7 @@ class ArgotGrpcService {
   ArgotGrpcService._();
 
   ClientChannel? _channel;
-  argot_v1.ArgotServiceClient? _client;
+  argot_v1.ChatServiceClient? _client;
   ResponseStream<argot_types.ChatEvent>? _activeStream;
   StreamSubscription<argot_types.ChatEvent>? _activeStreamSubscription;
 
@@ -271,7 +272,7 @@ class ArgotGrpcService {
           credentials: ChannelCredentials.insecure(),
         ),
       );
-      _client = argot_v1.ArgotServiceClient(_channel!);
+      _client = argot_v1.ChatServiceClient(_channel!);
       _isReady = true;
       debugPrint('DEBUG: [ArgotGrpc] Ready');
     } catch (e) {
@@ -393,10 +394,7 @@ class ArgotGrpcService {
     _activeSawMeaningfulText = false;
     _correlation[clientRequestId] = turnId;
 
-    final req = argot_v1.ChatRequest(
-      sessionId: _sessionId ?? '',
-      parts: [argot_v1.MessagePart(text: text)],
-    );
+    final req = _buildChatRequest(text);
 
     try {
       // argot.v1 does not send TurnStarted/ThreadStarted. Keep this as a
@@ -411,7 +409,7 @@ class ArgotGrpcService {
           ArgotTurnPhasePrompt(),
         ),
       );
-      _activeStream = _client!.chatStream(req);
+      _activeStream = _client!.chat(req);
       _activeStreamSubscription = _activeStream!.listen(
         (evt) => _handleChatEvent(evt, turnId: turnId),
         onError: (Object e) {
@@ -455,10 +453,50 @@ class ArgotGrpcService {
     }
   }
 
+  // Maps chat-ui's stable session handle onto the new required
+  // ChatRequest.target oneof: resume a resolved conversation by id, otherwise
+  // get-or-create against the handle (resumable across restarts, never errors
+  // on a taken id), otherwise let the daemon mint a fresh conversation id.
+  argot_chat.ChatRequest _buildChatRequest(String text) {
+    final parts = [argot_types.MessagePart(text: text)];
+    final resolved = _sessionId;
+    if (resolved != null && resolved.isNotEmpty) {
+      return argot_chat.ChatRequest(conversationId: resolved, parts: parts);
+    }
+    final handle = _sessionName;
+    if (handle != null && handle.isNotEmpty) {
+      return argot_chat.ChatRequest(
+        new_2: argot_chat.NewConversation(conversationId: handle),
+        parts: parts,
+      );
+    }
+    return argot_chat.ChatRequest(
+      new_2: argot_chat.NewConversation(),
+      parts: parts,
+    );
+  }
+
+  // Snake-case label for a non-error early stop, kept stable across the
+  // StopReason enum reshape (was a free-text string on TurnTerminated).
+  static String _stopReasonLabel(argot_types.StopReason reason) {
+    if (reason == argot_types.StopReason.STOP_REASON_ITER_CAP) return 'iter_cap';
+    if (reason == argot_types.StopReason.STOP_REASON_TOKEN_CAP) {
+      return 'token_cap';
+    }
+    if (reason == argot_types.StopReason.STOP_REASON_TIME_CAP) return 'time_cap';
+    if (reason == argot_types.StopReason.STOP_REASON_CANCELLED) {
+      return 'cancelled';
+    }
+    return 'stopped';
+  }
+
   void _handleChatEvent(argot_types.ChatEvent event, {required String turnId}) {
     if (event.hasOpened()) {
-      _sessionId = event.opened.sessionId;
-      debugPrint('DEBUG: [ArgotGrpc] Session opened: $_sessionId');
+      _sessionId = event.opened.conversationId;
+      debugPrint(
+        'DEBUG: [ArgotGrpc] Conversation opened: $_sessionId '
+        '(ephemeral: ${event.opened.ephemeral})',
+      );
       return;
     }
     if (event.hasDelta()) {
@@ -490,35 +528,36 @@ class ArgotGrpcService {
       );
       return;
     }
-    if (event.hasDone()) {
-      final done = event.done;
+    if (event.hasCompleted()) {
+      final completed = event.completed;
       debugPrint(
-        'DEBUG: [ArgotGrpc] TurnDone turns=${done.turns} toolCalls=${done.toolCalls}',
+        'DEBUG: [ArgotGrpc] Completed turns=${completed.turns} toolCalls=${completed.toolCalls}',
       );
-      if (!_activeSawMeaningfulText && done.text.trim().isNotEmpty) {
-        _eventController.add(ArgotTextDelta(done.text));
+      if (!_activeSawMeaningfulText && completed.text.trim().isNotEmpty) {
+        _eventController.add(ArgotTextDelta(completed.text));
       }
       _finishActiveTurn(turnId);
       return;
     }
-    if (event.hasTerminated()) {
-      final terminated = event.terminated;
+    if (event.hasStopped()) {
+      final stopped = event.stopped;
+      final reason = _stopReasonLabel(stopped.reason);
       debugPrint(
-        'DEBUG: [ArgotGrpc] TurnTerminated reason=${terminated.reason} turns=${terminated.turns} toolCalls=${terminated.toolCalls}',
+        'DEBUG: [ArgotGrpc] Stopped reason=$reason turns=${stopped.turns} toolCalls=${stopped.toolCalls}',
       );
       _eventController.add(
         ArgotError(
           'TERMINATED',
-          terminated.reason,
-          terminated.reason == 'cancelled',
+          reason,
+          stopped.reason == argot_types.StopReason.STOP_REASON_CANCELLED,
         ),
       );
       _finishActiveTurn(turnId);
       return;
     }
-    if (event.hasError()) {
-      debugPrint('DEBUG: [ArgotGrpc] TurnError ${event.error.message}');
-      _eventController.add(ArgotError('TURN_ERROR', event.error.message, true));
+    if (event.hasFailed()) {
+      debugPrint('DEBUG: [ArgotGrpc] Failed ${event.failed.message}');
+      _eventController.add(ArgotError('TURN_ERROR', event.failed.message, true));
       _finishActiveTurn(turnId);
     }
   }

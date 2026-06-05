@@ -1,6 +1,6 @@
 // This is a generated file - do not edit.
 //
-// Generated from argot/v1/service.proto.
+// Generated from argot/v1/chat.proto.
 
 // @dart = 3.3
 

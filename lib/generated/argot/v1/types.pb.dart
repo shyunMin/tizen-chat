@@ -12,39 +12,44 @@
 
 import 'dart:core' as $core;
 
+import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
+import 'types.pbenum.dart';
+
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
+
+export 'types.pbenum.dart';
 
 enum ChatEvent_Event {
   opened,
   delta,
   toolCall,
   toolResult,
-  done,
-  error,
-  terminated,
+  completed,
+  failed,
+  stopped,
   notSet
 }
 
 class ChatEvent extends $pb.GeneratedMessage {
   factory ChatEvent({
-    SessionOpened? opened,
+    Opened? opened,
     MessageDelta? delta,
     ToolCall? toolCall,
     ToolResult? toolResult,
-    TurnDone? done,
-    TurnError? error,
-    TurnTerminated? terminated,
+    Completed? completed,
+    Failed? failed,
+    Stopped? stopped,
   }) {
     final result = create();
     if (opened != null) result.opened = opened;
     if (delta != null) result.delta = delta;
     if (toolCall != null) result.toolCall = toolCall;
     if (toolResult != null) result.toolResult = toolResult;
-    if (done != null) result.done = done;
-    if (error != null) result.error = error;
-    if (terminated != null) result.terminated = terminated;
+    if (completed != null) result.completed = completed;
+    if (failed != null) result.failed = failed;
+    if (stopped != null) result.stopped = stopped;
     return result;
   }
 
@@ -62,9 +67,9 @@ class ChatEvent extends $pb.GeneratedMessage {
     2: ChatEvent_Event.delta,
     3: ChatEvent_Event.toolCall,
     4: ChatEvent_Event.toolResult,
-    5: ChatEvent_Event.done,
-    6: ChatEvent_Event.error,
-    7: ChatEvent_Event.terminated,
+    5: ChatEvent_Event.completed,
+    6: ChatEvent_Event.failed,
+    7: ChatEvent_Event.stopped,
     0: ChatEvent_Event.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -72,20 +77,18 @@ class ChatEvent extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
     ..oo(0, [1, 2, 3, 4, 5, 6, 7])
-    ..aOM<SessionOpened>(1, _omitFieldNames ? '' : 'opened',
-        subBuilder: SessionOpened.create)
+    ..aOM<Opened>(1, _omitFieldNames ? '' : 'opened', subBuilder: Opened.create)
     ..aOM<MessageDelta>(2, _omitFieldNames ? '' : 'delta',
         subBuilder: MessageDelta.create)
     ..aOM<ToolCall>(3, _omitFieldNames ? '' : 'toolCall',
         subBuilder: ToolCall.create)
     ..aOM<ToolResult>(4, _omitFieldNames ? '' : 'toolResult',
         subBuilder: ToolResult.create)
-    ..aOM<TurnDone>(5, _omitFieldNames ? '' : 'done',
-        subBuilder: TurnDone.create)
-    ..aOM<TurnError>(6, _omitFieldNames ? '' : 'error',
-        subBuilder: TurnError.create)
-    ..aOM<TurnTerminated>(7, _omitFieldNames ? '' : 'terminated',
-        subBuilder: TurnTerminated.create)
+    ..aOM<Completed>(5, _omitFieldNames ? '' : 'completed',
+        subBuilder: Completed.create)
+    ..aOM<Failed>(6, _omitFieldNames ? '' : 'failed', subBuilder: Failed.create)
+    ..aOM<Stopped>(7, _omitFieldNames ? '' : 'stopped',
+        subBuilder: Stopped.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -124,15 +127,15 @@ class ChatEvent extends $pb.GeneratedMessage {
   void clearEvent() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
-  SessionOpened get opened => $_getN(0);
+  Opened get opened => $_getN(0);
   @$pb.TagNumber(1)
-  set opened(SessionOpened value) => $_setField(1, value);
+  set opened(Opened value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasOpened() => $_has(0);
   @$pb.TagNumber(1)
   void clearOpened() => $_clearField(1);
   @$pb.TagNumber(1)
-  SessionOpened ensureOpened() => $_ensure(0);
+  Opened ensureOpened() => $_ensure(0);
 
   @$pb.TagNumber(2)
   MessageDelta get delta => $_getN(1);
@@ -167,96 +170,112 @@ class ChatEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   ToolResult ensureToolResult() => $_ensure(3);
 
+  /// Terminal success — the turn completed normally.
   @$pb.TagNumber(5)
-  TurnDone get done => $_getN(4);
+  Completed get completed => $_getN(4);
   @$pb.TagNumber(5)
-  set done(TurnDone value) => $_setField(5, value);
+  set completed(Completed value) => $_setField(5, value);
   @$pb.TagNumber(5)
-  $core.bool hasDone() => $_has(4);
+  $core.bool hasCompleted() => $_has(4);
   @$pb.TagNumber(5)
-  void clearDone() => $_clearField(5);
+  void clearCompleted() => $_clearField(5);
   @$pb.TagNumber(5)
-  TurnDone ensureDone() => $_ensure(4);
+  Completed ensureCompleted() => $_ensure(4);
 
+  /// Terminal failure — the model errored or produced nothing usable.
   @$pb.TagNumber(6)
-  TurnError get error => $_getN(5);
+  Failed get failed => $_getN(5);
   @$pb.TagNumber(6)
-  set error(TurnError value) => $_setField(6, value);
+  set failed(Failed value) => $_setField(6, value);
   @$pb.TagNumber(6)
-  $core.bool hasError() => $_has(5);
+  $core.bool hasFailed() => $_has(5);
   @$pb.TagNumber(6)
-  void clearError() => $_clearField(6);
+  void clearFailed() => $_clearField(6);
   @$pb.TagNumber(6)
-  TurnError ensureError() => $_ensure(5);
+  Failed ensureFailed() => $_ensure(5);
 
-  /// Loop hit a non-error termination (IterCap / TokenCap /
-  /// TimeCap / Cancelled). Distinct from TurnError so the cli
-  /// can render "ran out of iterations" differently from
-  /// "model produced nothing".
+  /// Non-error early stop — the agent loop hit a configured limit
+  /// (iter / token / time cap, or cancellation). Distinct from
+  /// Failed so a client can render "ran out of iterations"
+  /// differently from "model errored".
   @$pb.TagNumber(7)
-  TurnTerminated get terminated => $_getN(6);
+  Stopped get stopped => $_getN(6);
   @$pb.TagNumber(7)
-  set terminated(TurnTerminated value) => $_setField(7, value);
+  set stopped(Stopped value) => $_setField(7, value);
   @$pb.TagNumber(7)
-  $core.bool hasTerminated() => $_has(6);
+  $core.bool hasStopped() => $_has(6);
   @$pb.TagNumber(7)
-  void clearTerminated() => $_clearField(7);
+  void clearStopped() => $_clearField(7);
   @$pb.TagNumber(7)
-  TurnTerminated ensureTerminated() => $_ensure(6);
+  Stopped ensureStopped() => $_ensure(6);
 }
 
-class SessionOpened extends $pb.GeneratedMessage {
-  factory SessionOpened({
-    $core.String? sessionId,
+/// First frame on every Chat stream: the resolved conversation id and
+/// whether the turn persists nothing (an ephemeral one-shot). A GUI keys
+/// "offer resume / show in history" off `ephemeral == false`.
+class Opened extends $pb.GeneratedMessage {
+  factory Opened({
+    $core.String? conversationId,
+    $core.bool? ephemeral,
   }) {
     final result = create();
-    if (sessionId != null) result.sessionId = sessionId;
+    if (conversationId != null) result.conversationId = conversationId;
+    if (ephemeral != null) result.ephemeral = ephemeral;
     return result;
   }
 
-  SessionOpened._();
+  Opened._();
 
-  factory SessionOpened.fromBuffer($core.List<$core.int> data,
+  factory Opened.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory SessionOpened.fromJson($core.String json,
+  factory Opened.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SessionOpened',
+      _omitMessageNames ? '' : 'Opened',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'sessionId')
+    ..aOS(1, _omitFieldNames ? '' : 'conversationId')
+    ..aOB(2, _omitFieldNames ? '' : 'ephemeral')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SessionOpened clone() => deepCopy();
+  Opened clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SessionOpened copyWith(void Function(SessionOpened) updates) =>
-      super.copyWith((message) => updates(message as SessionOpened))
-          as SessionOpened;
+  Opened copyWith(void Function(Opened) updates) =>
+      super.copyWith((message) => updates(message as Opened)) as Opened;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static SessionOpened create() => SessionOpened._();
+  static Opened create() => Opened._();
   @$core.override
-  SessionOpened createEmptyInstance() => create();
+  Opened createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SessionOpened getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SessionOpened>(create);
-  static SessionOpened? _defaultInstance;
+  static Opened getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Opened>(create);
+  static Opened? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.String get sessionId => $_getSZ(0);
+  $core.String get conversationId => $_getSZ(0);
   @$pb.TagNumber(1)
-  set sessionId($core.String value) => $_setString(0, value);
+  set conversationId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
-  $core.bool hasSessionId() => $_has(0);
+  $core.bool hasConversationId() => $_has(0);
   @$pb.TagNumber(1)
-  void clearSessionId() => $_clearField(1);
+  void clearConversationId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get ephemeral => $_getBF(1);
+  @$pb.TagNumber(2)
+  set ephemeral($core.bool value) => $_setBool(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasEphemeral() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearEphemeral() => $_clearField(2);
 }
 
 /// Streaming text fragment from the assistant.
@@ -314,8 +333,7 @@ class MessageDelta extends $pb.GeneratedMessage {
   void clearText() => $_clearField(1);
 }
 
-/// Emitted when the model requests a tool. Phase-1 surfaces these for
-/// the CLI to render; tool execution itself happens inside the daemon.
+/// Emitted when the model requests a tool.
 class ToolCall extends $pb.GeneratedMessage {
   factory ToolCall({
     $core.String? id,
@@ -472,12 +490,11 @@ class ToolResult extends $pb.GeneratedMessage {
   void clearIsError() => $_clearField(3);
 }
 
-/// Terminal event for a successful turn. `text` is the aggregated
-/// assistant reply (matches `ChatResponse.text`); counters are
-/// advisory. Clients can ignore `text` if they already reassembled
-/// from `MessageDelta` events.
-class TurnDone extends $pb.GeneratedMessage {
-  factory TurnDone({
+/// Terminal event for a successful turn. `text` is the aggregated assistant
+/// reply; counters are advisory. Clients can ignore `text` if they already
+/// reassembled from `MessageDelta` events.
+class Completed extends $pb.GeneratedMessage {
+  factory Completed({
     $core.String? text,
     $core.int? turns,
     $core.int? toolCalls,
@@ -489,17 +506,17 @@ class TurnDone extends $pb.GeneratedMessage {
     return result;
   }
 
-  TurnDone._();
+  Completed._();
 
-  factory TurnDone.fromBuffer($core.List<$core.int> data,
+  factory Completed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory TurnDone.fromJson($core.String json,
+  factory Completed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'TurnDone',
+      _omitMessageNames ? '' : 'Completed',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'text')
@@ -508,22 +525,22 @@ class TurnDone extends $pb.GeneratedMessage {
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnDone clone() => deepCopy();
+  Completed clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnDone copyWith(void Function(TurnDone) updates) =>
-      super.copyWith((message) => updates(message as TurnDone)) as TurnDone;
+  Completed copyWith(void Function(Completed) updates) =>
+      super.copyWith((message) => updates(message as Completed)) as Completed;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TurnDone create() => TurnDone._();
+  static Completed create() => Completed._();
   @$core.override
-  TurnDone createEmptyInstance() => create();
+  Completed createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static TurnDone getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TurnDone>(create);
-  static TurnDone? _defaultInstance;
+  static Completed getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Completed>(create);
+  static Completed? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get text => $_getSZ(0);
@@ -553,8 +570,9 @@ class TurnDone extends $pb.GeneratedMessage {
   void clearToolCalls() => $_clearField(3);
 }
 
-class TurnError extends $pb.GeneratedMessage {
-  factory TurnError({
+/// Terminal event for a failed turn.
+class Failed extends $pb.GeneratedMessage {
+  factory Failed({
     $core.String? message,
   }) {
     final result = create();
@@ -562,39 +580,39 @@ class TurnError extends $pb.GeneratedMessage {
     return result;
   }
 
-  TurnError._();
+  Failed._();
 
-  factory TurnError.fromBuffer($core.List<$core.int> data,
+  factory Failed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory TurnError.fromJson($core.String json,
+  factory Failed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'TurnError',
+      _omitMessageNames ? '' : 'Failed',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'message')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnError clone() => deepCopy();
+  Failed clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnError copyWith(void Function(TurnError) updates) =>
-      super.copyWith((message) => updates(message as TurnError)) as TurnError;
+  Failed copyWith(void Function(Failed) updates) =>
+      super.copyWith((message) => updates(message as Failed)) as Failed;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TurnError create() => TurnError._();
+  static Failed create() => Failed._();
   @$core.override
-  TurnError createEmptyInstance() => create();
+  Failed createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static TurnError getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TurnError>(create);
-  static TurnError? _defaultInstance;
+  static Failed getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Failed>(create);
+  static Failed? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get message => $_getSZ(0);
@@ -606,13 +624,12 @@ class TurnError extends $pb.GeneratedMessage {
   void clearMessage() => $_clearField(1);
 }
 
-/// Non-error early termination — agent_loop hit a configured limit.
-/// Maps 1:1 to tinicore::agent::TerminationReason {IterCap, TokenCap,
-/// TimeCap, Cancelled}; Completed is normally surfaced as TurnDone
-/// (or TurnError if no content reached the client).
-class TurnTerminated extends $pb.GeneratedMessage {
-  factory TurnTerminated({
-    $core.String? reason,
+/// Terminal event for a non-error early stop — the agent loop hit a
+/// configured limit. Translated from tinicore's TerminationReason at the
+/// transport boundary, so no implementation detail leaks through the value.
+class Stopped extends $pb.GeneratedMessage {
+  factory Stopped({
+    StopReason? reason,
     $core.int? turns,
     $core.int? toolCalls,
   }) {
@@ -623,48 +640,47 @@ class TurnTerminated extends $pb.GeneratedMessage {
     return result;
   }
 
-  TurnTerminated._();
+  Stopped._();
 
-  factory TurnTerminated.fromBuffer($core.List<$core.int> data,
+  factory Stopped.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromBuffer(data, registry);
-  factory TurnTerminated.fromJson($core.String json,
+  factory Stopped.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'TurnTerminated',
+      _omitMessageNames ? '' : 'Stopped',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'reason')
+    ..aE<StopReason>(1, _omitFieldNames ? '' : 'reason',
+        enumValues: StopReason.values)
     ..aI(2, _omitFieldNames ? '' : 'turns', fieldType: $pb.PbFieldType.OU3)
     ..aI(3, _omitFieldNames ? '' : 'toolCalls', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnTerminated clone() => deepCopy();
+  Stopped clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  TurnTerminated copyWith(void Function(TurnTerminated) updates) =>
-      super.copyWith((message) => updates(message as TurnTerminated))
-          as TurnTerminated;
+  Stopped copyWith(void Function(Stopped) updates) =>
+      super.copyWith((message) => updates(message as Stopped)) as Stopped;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static TurnTerminated create() => TurnTerminated._();
+  static Stopped create() => Stopped._();
   @$core.override
-  TurnTerminated createEmptyInstance() => create();
+  Stopped createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static TurnTerminated getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TurnTerminated>(create);
-  static TurnTerminated? _defaultInstance;
+  static Stopped getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Stopped>(create);
+  static Stopped? _defaultInstance;
 
-  /// Snake-case reason: "iter_cap" | "token_cap" | "time_cap" | "cancelled".
   @$pb.TagNumber(1)
-  $core.String get reason => $_getSZ(0);
+  StopReason get reason => $_getN(0);
   @$pb.TagNumber(1)
-  set reason($core.String value) => $_setString(0, value);
+  set reason(StopReason value) => $_setField(1, value);
   @$pb.TagNumber(1)
   $core.bool hasReason() => $_has(0);
   @$pb.TagNumber(1)
@@ -687,6 +703,203 @@ class TurnTerminated extends $pb.GeneratedMessage {
   $core.bool hasToolCalls() => $_has(2);
   @$pb.TagNumber(3)
   void clearToolCalls() => $_clearField(3);
+}
+
+enum MessagePart_Part { text, toolCall, toolResult, reasoning, notSet }
+
+/// A single part of a message body. Relocated here from chat.proto so both
+/// the turn surface (`ChatRequest`) and history replay (`ChatMessage`) share
+/// one definition. Tool arms keep replayed history from being lossier than
+/// the live stream — the daemon persists TOOL-role rows, so `GetHistory`
+/// returns tool-call / tool-result / reasoning parts.
+class MessagePart extends $pb.GeneratedMessage {
+  factory MessagePart({
+    $core.String? text,
+    ToolCall? toolCall,
+    ToolResult? toolResult,
+    $core.String? reasoning,
+  }) {
+    final result = create();
+    if (text != null) result.text = text;
+    if (toolCall != null) result.toolCall = toolCall;
+    if (toolResult != null) result.toolResult = toolResult;
+    if (reasoning != null) result.reasoning = reasoning;
+    return result;
+  }
+
+  MessagePart._();
+
+  factory MessagePart.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MessagePart.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, MessagePart_Part> _MessagePart_PartByTag = {
+    1: MessagePart_Part.text,
+    2: MessagePart_Part.toolCall,
+    3: MessagePart_Part.toolResult,
+    4: MessagePart_Part.reasoning,
+    0: MessagePart_Part.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MessagePart',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
+      createEmptyInstance: create)
+    ..oo(0, [1, 2, 3, 4])
+    ..aOS(1, _omitFieldNames ? '' : 'text')
+    ..aOM<ToolCall>(2, _omitFieldNames ? '' : 'toolCall',
+        subBuilder: ToolCall.create)
+    ..aOM<ToolResult>(3, _omitFieldNames ? '' : 'toolResult',
+        subBuilder: ToolResult.create)
+    ..aOS(4, _omitFieldNames ? '' : 'reasoning')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MessagePart clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MessagePart copyWith(void Function(MessagePart) updates) =>
+      super.copyWith((message) => updates(message as MessagePart))
+          as MessagePart;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MessagePart create() => MessagePart._();
+  @$core.override
+  MessagePart createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MessagePart getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MessagePart>(create);
+  static MessagePart? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  MessagePart_Part whichPart() => _MessagePart_PartByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  void clearPart() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  $core.String get text => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set text($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasText() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearText() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  ToolCall get toolCall => $_getN(1);
+  @$pb.TagNumber(2)
+  set toolCall(ToolCall value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasToolCall() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearToolCall() => $_clearField(2);
+  @$pb.TagNumber(2)
+  ToolCall ensureToolCall() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  ToolResult get toolResult => $_getN(2);
+  @$pb.TagNumber(3)
+  set toolResult(ToolResult value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasToolResult() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearToolResult() => $_clearField(3);
+  @$pb.TagNumber(3)
+  ToolResult ensureToolResult() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  $core.String get reasoning => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set reasoning($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasReasoning() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearReasoning() => $_clearField(4);
+}
+
+/// A persisted message for history replay. Mirrors tinicore's `ChatMessage`:
+/// role + content parts + timestamp.
+class ChatMessage extends $pb.GeneratedMessage {
+  factory ChatMessage({
+    Role? role,
+    $core.Iterable<MessagePart>? parts,
+    $fixnum.Int64? timestampMs,
+  }) {
+    final result = create();
+    if (role != null) result.role = role;
+    if (parts != null) result.parts.addAll(parts);
+    if (timestampMs != null) result.timestampMs = timestampMs;
+    return result;
+  }
+
+  ChatMessage._();
+
+  factory ChatMessage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory ChatMessage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ChatMessage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
+      createEmptyInstance: create)
+    ..aE<Role>(1, _omitFieldNames ? '' : 'role', enumValues: Role.values)
+    ..pPM<MessagePart>(2, _omitFieldNames ? '' : 'parts',
+        subBuilder: MessagePart.create)
+    ..aInt64(3, _omitFieldNames ? '' : 'timestampMs')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ChatMessage clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ChatMessage copyWith(void Function(ChatMessage) updates) =>
+      super.copyWith((message) => updates(message as ChatMessage))
+          as ChatMessage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static ChatMessage create() => ChatMessage._();
+  @$core.override
+  ChatMessage createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static ChatMessage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ChatMessage>(create);
+  static ChatMessage? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  Role get role => $_getN(0);
+  @$pb.TagNumber(1)
+  set role(Role value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRole() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRole() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $pb.PbList<MessagePart> get parts => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get timestampMs => $_getI64(2);
+  @$pb.TagNumber(3)
+  set timestampMs($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTimestampMs() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTimestampMs() => $_clearField(3);
 }
 
 const $core.bool _omitFieldNames =
