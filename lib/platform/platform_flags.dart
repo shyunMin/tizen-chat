@@ -11,22 +11,19 @@
 /// are never reached.
 const bool kIsTizen = bool.fromEnvironment('IS_TIZEN', defaultValue: true);
 
-/// Bubble layout mode for assistant turns. A/B comparison knob.
+/// Response layout mode for agent turns. A/B comparison knob.
 ///
-/// - `single` (default): one bubble per turn. Content morphs as commentary
-///   text and tool indicators arrive; final answer replaces it at
-///   TurnComplete. Commentary blocks are preserved across tool calls
-///   (the fix for the "narration disappears" bug).
-/// - `multi`: a new bubble for each finalized commentary block. Tool
-///   indicators live inside the active bubble; when MessageFinalized
-///   arrives the bubble is sealed and the next TextDelta starts a fresh
-///   one. Produces a chain of bubbles per turn.
+/// - `single` (default): one response per turn. Content morphs as
+///   processing text and tool indicators arrive; final answer replaces
+///   it at TurnComplete.
+/// - `multi`: a new response entry for each finalized commentary block.
+///   Produces a chain of entries per turn.
 ///
-/// Build with `--dart-define=BUBBLE_MODE=multi` to try the V2 layout.
-const String kBubbleModeRaw =
-    String.fromEnvironment('BUBBLE_MODE', defaultValue: 'single');
+/// Build with `--dart-define=LAYOUT_MODE=multi` to try the V2 layout.
+const String kLayoutModeRaw =
+    String.fromEnvironment('LAYOUT_MODE', defaultValue: 'single');
 
-enum BubbleMode { single, multi }
+enum LayoutMode { single, multi }
 
-BubbleMode get kBubbleMode =>
-    kBubbleModeRaw == 'multi' ? BubbleMode.multi : BubbleMode.single;
+LayoutMode get kLayoutMode =>
+    kLayoutModeRaw == 'multi' ? LayoutMode.multi : LayoutMode.single;

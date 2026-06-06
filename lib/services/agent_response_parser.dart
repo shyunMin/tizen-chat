@@ -77,7 +77,7 @@ class AgentResponseParser {
     }
 
     // Pure plan-tracker output (no surrounding prose) — render the last
-    // plan as a checklist so the bubble isn't empty mid-execution.
+    // plan as a checklist so the response isn't empty mid-execution.
     for (final m in fenceRegex.allMatches(rawText).toList().reversed) {
       try {
         final decoded = jsonDecode(m.group(1)!.trim());

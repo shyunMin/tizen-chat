@@ -42,7 +42,7 @@ class SentMessage extends StatelessWidget {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: TizenStyles.backdropBlurSigma, sigmaY: TizenStyles.backdropBlurSigma),
               child: Container(
-                padding: TizenStyles.bubblePadding,
+                padding: TizenStyles.messagePadding,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,

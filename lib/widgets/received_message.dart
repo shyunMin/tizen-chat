@@ -3,7 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 
-/// Renders a single agent message bubble.
+/// Renders the agent's response: optional phase header, tool list, and text.
 class ReceivedMessage extends StatelessWidget {
   final String text;
   final bool isWaiting;
@@ -14,7 +14,7 @@ class ReceivedMessage extends StatelessWidget {
 
   /// Current tool indicator (e.g. "web_fetch"). Rendered in its own
   /// region above the text body. Cleared at TurnComplete so the sealed
-  /// bubble shows only [text]. Null = no indicator row.
+  /// response shows only [text]. Null = no indicator row.
   final String? currentToolIndicator;
 
   const ReceivedMessage({
@@ -28,8 +28,8 @@ class ReceivedMessage extends StatelessWidget {
     this.currentToolIndicator,
   });
 
-  /// Phase-header bubbles are visual progress markers, not the answer.
-  /// Dim them so the final-answer bubble stands out.
+  /// Intermediate processing phases are progress markers, not the final answer.
+  /// Dim them so the final answer stands out.
   bool get _isIntermediatePhase => phaseTitle != null;
 
   @override
@@ -87,24 +87,6 @@ class ReceivedMessage extends StatelessWidget {
     );
   }
 }
-
-// class _ToolIndicator extends StatelessWidget {
-//   final String toolName;
-//   const _ToolIndicator({required this.toolName});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(vertical: 2),
-//       child: Text(
-//         '🔧 $toolName 실행 중...',
-//         style: TizenStyles.bodyText.copyWith(
-//           color: Colors.white,
-//         ),
-//       ),
-//     );
-//   }
-// }
 
 class _PhaseHeader extends StatelessWidget {
   final String title;

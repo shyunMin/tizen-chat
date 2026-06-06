@@ -54,7 +54,7 @@ curl -X POST http://localhost:7777/message \
 | `IS_TIZEN` | `true` | Tizen 전용 API 활성화 여부. Linux/테스트에서는 `false` |
 | `ENABLE_HTTP_BUS` | `true` | 포트 7777 HTTP 메시지 버스 활성화 |
 | `ENABLE_PERF_LOG` | `false` | 요청 성능 로깅 활성화 |
-| `BUBBLE_MODE` | `single` | 응답 버블 레이아웃 (`single` / `multi`) |
+| `LAYOUT_MODE` | `single` | 응답 레이아웃 모드 (`single` / `multi`) |
 
 
 
@@ -106,10 +106,10 @@ Argot 이벤트 타입을 공통 `AgentEvent` sealed class로 매핑. 새 이벤
 
 Argot v1은 `TurnStarted`를 발행하지 않으므로 phase는 항상 null.
 
-### 버블 레이아웃 모드 (`BUBBLE_MODE`)
+### 응답 레이아웃 모드 (`LAYOUT_MODE`)
 
-- **`single`(기본)**: 턴당 버블 하나. Commentary/툴 인디케이터가 누적되고, `TurnComplete` 시점에 최종 답변으로 교체. `_activeReplyIndex`로 동일 버블을 계속 갱신. mid-turn에 새 프롬프트가 오면 user 버블을 삽입하고 `_activeReplyIndex`를 한 칸 증가.
-- **`multi`**: `MessageFinalized`마다 버블 봉인 후 새 버블 생성. 한 턴에 여러 버블 체인.
+- **`single`(기본)**: 턴당 응답 항목 하나. 처리 중 텍스트/툴 인디케이터가 누적되고, `TurnComplete` 시점에 최종 답변으로 교체. `_activeReplyIndex`로 동일 항목을 계속 갱신.
+- **`multi`**: `MessageFinalized`마다 항목을 봉인하고 새 항목 생성. 한 턴에 여러 항목 체인.
 
 ### ChatMessage / TurnToolEntry 구조
 

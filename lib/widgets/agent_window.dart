@@ -9,7 +9,7 @@ import 'rainbow_border_painter.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
 
-class ChatWindow extends StatefulWidget {
+class AgentWindow extends StatefulWidget {
   final List<ChatMessage> messages;
   final bool isThreadInFlight;
   final bool isConnecting;
@@ -18,7 +18,7 @@ class ChatWindow extends StatefulWidget {
   final FocusNode? focusNode;
   final VoidCallback? onScrolledToBottomDown;
 
-  const ChatWindow({
+  const AgentWindow({
     super.key,
     required this.messages,
     required this.isThreadInFlight,
@@ -30,10 +30,10 @@ class ChatWindow extends StatefulWidget {
   });
 
   @override
-  State<ChatWindow> createState() => ChatWindowState();
+  State<AgentWindow> createState() => AgentWindowState();
 }
 
-class ChatWindowState extends State<ChatWindow>
+class AgentWindowState extends State<AgentWindow>
     with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   FocusNode? _internalFocusNode;
@@ -139,7 +139,7 @@ class ChatWindowState extends State<ChatWindow>
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: screenWidth / 2,
-            maxHeight: screenHeight - TizenStyles.chatWindowHeightReserved,
+            maxHeight: screenHeight - TizenStyles.agentWindowHeightReserved,
           ),
           child: Stack(
               children: [

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:convert';
-import '../widgets/chat_panel.dart';
-import '../widgets/chat_window.dart';
+import '../widgets/agent_panel.dart';
+import '../widgets/agent_window.dart';
 import '../widgets/action_button_bar.dart';
 import '../services/agent_runtime_service.dart';
 import '../platform/platform_flags.dart' as platform_flags;
-import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
+import '../platform/platform_flags.dart' show kIsTizen, LayoutMode;
 import '../models/chat_message.dart';
 import '../services/agent_response_parser.dart';
 import 'dart:async';
@@ -16,6 +16,7 @@ import '../services/window_focus_service.dart';
 import '../services/agent_onboarding_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
+import '../theme/tizen_styles.dart';
 import '../utils/elapsed_timer.dart';
 import '../utils/request_perf_logger.dart';
 
@@ -36,10 +37,19 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
+
+  // ── Speech 패널 애니메이션 ───────────────────────────────────
+  // SPEECH_START: fade + slide(조건부) 동시 실행
+  // SPEECH_END  : Phase1=빠른 fade in(120ms) → Phase2=slide 복귀(250ms)
+  late final AnimationController _speechFadeController;
+  late final AnimationController _speechSlideController;
+  bool _speechHideWithSlide = false;
+  static const double _speechSlideDistance =
+      TizenStyles.actionBarHeight + TizenStyles.promptBarLeft;
   final List<ChatMessage> _messages = [];
   DateTime? _requestStartTime;
-  final GlobalKey<ChatWindowState> _chatWindowKey =
-      GlobalKey<ChatWindowState>();
+  final GlobalKey<AgentWindowState> _agentWindowKey =
+      GlobalKey<AgentWindowState>();
   final GlobalKey<ActionButtonBarState> _actionBarKey =
       GlobalKey<ActionButtonBarState>();
 
@@ -60,32 +70,25 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   DateTime? _logRequestSentTime;
 
   // ── 진행 중인 응답 추적 ───────────────────────────────────────
-  // Steer-based UX: turn 한 번에 agent reply 버블도 한 개로 유지한다.
-  // 사용자가 mid-turn 에 새 프롬프트를 보내면 _handleSend 가 새 user
-  // 버블을 _activeReplyIndex 위치에 insert 하고 _activeReplyIndex 를
-  // 한 칸 증가시켜 같은 agent 버블을 계속 가리키게 한다. 결과적으로
-  // 들어오는 모든 delta(직전 round 의 trailing 포함)가 한 버블에
-  // 누적된다. null = 진행 중인 응답 없음.
+  // turn 한 번에 응답 항목도 한 개로 유지한다. 들어오는 모든 delta가
+  // 하나의 항목에 누적된다. null = 진행 중인 응답 없음.
   int? _activeReplyIndex;
   String _currentSegmentText = '';
 
-  /// Inline "🔧 toolName 실행 중..." overlay shown inside the active
-  /// reply bubble's text. Cleared on tool result. The persistent tool
-  /// history per turn lives on ChatMessage.tools (rendered as a list
-  /// inside the bubble) — this field only drives the in-bubble
-  /// "currently running" hint.
+  /// Inline "🔧 toolName 실행 중..." overlay shown in the active response.
+  /// Cleared on tool result. The persistent tool history per turn lives on
+  /// ChatMessage.tools — this field only drives the "currently running" hint.
   String? _activeToolName;
 
   /// Optional phase metadata for the in-flight turn. Argot v1 does not emit
   /// TurnStarted, so this is null for normal Argot traffic. When a phase is
-  /// provided, the bubble that materializes on the first delta/tool gets it
+  /// provided, the response entry created on the first delta/tool gets it
   /// as a header title.
   AgentTurnPhase? _currentPhase;
 
   /// Stash a successful ValidationCompleted result that arrived before
-  /// the validation-phase bubble materialized (the assistant's final-
-  /// answer delta usually lands a few ms after). Applied to the next
-  /// bubble created within the same turn.
+  /// the response entry materialized (the final-answer delta usually lands
+  /// a few ms after). Applied to the next entry created within this turn.
   bool _pendingValidationPassed = false;
 
   // Thread-level "agent is doing something" flag for the spinner UI.
@@ -102,17 +105,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   // ── Pending submission slot ───────────────────────────────────
   // While the daemon is processing a turn, a new submission lands here
-  // instead of immediately becoming a user bubble. The slot holds at
-  // most one entry (UI constraint). Argot v1 does not support mid-turn
-  // submissions; its adapter logs and ignores them.
-  // On release the user bubble materializes at the bottom of the chat
-  // and the input is unlocked.
+  // instead of being shown immediately. The slot holds at most one entry
+  // (UI constraint). Argot v1 does not support mid-turn submissions;
+  // its adapter logs and ignores them. On release the input is unlocked.
   _PendingSubmission? _pending;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _speechFadeController = AnimationController(vsync: this, value: 1.0);
+    _speechSlideController = AnimationController(vsync: this);
     _perfLogger = RequestPerfLogger(enabled: widget.enablePerfLog);
     unawaited(_perfLogger.init());
     if (kIsTizen) {
@@ -183,8 +186,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         if (mounted) {
           unawaited(WindowFocusService.setFocusable(false));
+          _hidePanelForSpeech();
         }
       } else if (eventType == 'SPEECH_END') {
+        if (mounted) _showPanelAfterSpeech();
         // message 추출
         String? messageText;
         if (extraData.containsKey('message')) {
@@ -349,7 +354,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _logRequestSentTime = _requestStartTime;
     }
     setState(() => _isAgentBusy = true);
-    _focusChatWindow();
+    _focusAgentWindow();
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
@@ -364,7 +369,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _currentPhase = null;
         _pendingValidationPassed = false;
       });
-      _materializeUserBubble();
+      _beginChatView();
       unawaited(
         _grpcService.sendPrompt(
           text,
@@ -416,10 +421,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
-    _focusChatWindow();
+    _focusAgentWindow();
   }
 
-  void _materializeUserBubble() {
+  void _beginChatView() {
     setState(() {
       if (!_hasChatStarted) {
         _hasChatStarted = true;
@@ -427,11 +432,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
     });
     unawaited(WindowFocusService.ungrabNavigationKeys());
-    _focusChatWindow();
+    _focusAgentWindow();
   }
 
   /// SteerApplied: A's pre-steer output is discarded and the display is
-  /// cleared. The next delta will open a fresh bubble for B's result.
+  /// cleared. The next delta will open a fresh response entry for B's result.
   void _applySteerSplit() {
     final p = _pending;
     if (p == null) return;
@@ -473,7 +478,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     setState(() => _isAgentBusy = false);
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
-    _focusChatWindow();
+    _focusAgentWindow();
   }
 
   void _handleAgentEvent(AgentEvent event) {
@@ -493,7 +498,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         :final toolCallId,
         :final argumentsJson,
       ):
-        // Indicator is derived from bubble.tools (computed via
+        // Indicator is derived from entry.tools (computed via
         // _computeIndicator), so _recordToolStart alone handles both
         // adding the entry and refreshing the indicator.
         _activeToolName = toolName; // kept for legacy refresh-gate logic
@@ -568,8 +573,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentValidationStarted():
-        // Informational — could surface as a sub-indicator inside the
-        // active reply bubble (e.g. "검증 중…"). For now we just log;
+        // Informational — could surface as a sub-indicator in the active
+        // response (e.g. "검증 중…"). For now we just log;
         // the thread-level spinner stays on regardless.
         break;
 
@@ -578,12 +583,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         :final attempt,
         :final reason,
       ):
-        // Mark the validation phase's bubble with a ✓ check when the
-        // validator accepts the turn. The bubble may not yet exist (the
-        // validation turn often only materializes after the assistant
-        // emits the final-answer delta), so we also stash the latest
-        // result on _pendingValidationPassed for the next bubble that
-        // lands inside this same turn.
+        // Mark the validation phase's response with a ✓ check when the
+        // validator accepts the turn. The response entry may not yet exist
+        // (the final-answer delta usually lands a few ms after), so stash
+        // on _pendingValidationPassed for the next entry in this turn.
         debugPrint(
           '[Chat] ValidationCompleted passed=$passed attempt=$attempt '
           'reason=${reason.length > 80 ? "${reason.substring(0, 80)}..." : reason}',
@@ -648,37 +651,34 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   // ─────────────────────────────────────────────────────────────
-  // Bubble layout — V1 (single morphing) vs V2 (multi, finalize-driven).
-  // See platform_flags.dart kBubbleMode for the build switch.
+  // Response layout — V1 (single morphing) vs V2 (multi, finalize-driven).
+  // See platform_flags.dart kLayoutMode for the build switch.
   //
   // Shared state:
   //   _currentSegmentText — accumulated text of the *current* block
-  //   _activeReplyIndex   — index of the bubble currently being mutated
+  //   _activeReplyIndex   — index of the response entry being mutated
   //   _activeToolName     — current tool indicator (null = none)
   //
-  // V1: a single bubble per turn. _currentSegmentText accumulates EVERY
-  //     TextDelta in the turn; MessageFinalized is ignored for bubble
-  //     boundaries. Commentary stays visible through tool calls.
+  // V1: a single response per turn. _currentSegmentText accumulates EVERY
+  //     TextDelta in the turn; MessageFinalized is ignored for boundaries.
+  //     Processing text stays visible through tool calls.
   //
-  // V2: a bubble per finalized assistant message. MessageFinalized seals
-  //     the active bubble; the next TextDelta starts a fresh one. Tool
-  //     indicators live inside whichever bubble is active when the tool
-  //     fires.
+  // V2: a response per finalized assistant message. MessageFinalized seals
+  //     the active entry; the next TextDelta starts a fresh one. Tool
+  //     indicators live inside whichever entry is active when the tool fires.
   // ─────────────────────────────────────────────────────────────
 
-  /// Push the screen-level "in-flight turn" state (_currentSegmentText,
-  /// bubble.tools) onto the active bubble. The bubble has TWO regions:
-  /// a tool indicator (computed from the bubble's tools list — picks
-  /// the first not-yet-completed entry so the user can see exactly
-  /// which call is running right now) and a text region (append-only
-  /// as deltas stream). At TurnComplete the indicator is dropped,
-  /// leaving only the text.
-  void _refreshActiveBubble({required bool isWaiting}) {
+  /// Pushes the in-flight turn state (_currentSegmentText, entry.tools)
+  /// onto the active response entry. The entry has TWO regions: a tool
+  /// indicator (computed from the tools list — picks the first pending
+  /// entry) and a text region (append-only as deltas stream). At
+  /// TurnComplete the indicator is dropped, leaving only the text.
+  void _refreshActiveResponse({required bool isWaiting}) {
     setState(() {
       if (_activeReplyIndex == null) {
         if (_currentSegmentText.isEmpty && _activeToolName == null) return;
         // Argot v1 may send delta/tool events without any lifecycle prelude.
-        _materializeAgentBubble('', isWaiting: isWaiting);
+        _beginAgentResponse('', isWaiting: isWaiting);
       }
       final old = _messages[_activeReplyIndex!];
       _messages[_activeReplyIndex!] = ChatMessage(
@@ -720,11 +720,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     return '${active.toolName}$arg$progress';
   }
 
-  /// Create the bubble for the in-flight turn. Used by [_refreshActiveBubble]
-  /// when the first text delta arrives, and by [_recordToolStart] when the
-  /// turn opens with a tool call (no text). Carries the current phase
-  /// title onto the bubble so each turn's bubble renders its own header.
-  void _materializeAgentBubble(String text, {required bool isWaiting}) {
+  /// Creates the response entry for the in-flight turn. Called by
+  /// [_refreshActiveResponse] on the first text delta, and by
+  /// [_recordToolStart] when the turn opens with a tool call (no text).
+  void _beginAgentResponse(String text, {required bool isWaiting}) {
     final phaseTitle = (_currentPhase is AgentTurnPhasePrompt)
         ? null
         : _currentPhase?.title();
@@ -741,52 +740,47 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       ),
     );
     debugPrint(
-      '[Chat] new agent bubble appended (idx=$_activeReplyIndex) phase=${phaseTitle ?? "(none)"}',
+      '[Chat] agent response created (idx=$_activeReplyIndex) phase=${phaseTitle ?? "(none)"}',
     );
   }
 
-  /// Append a new tool entry to the active bubble's tool list. Creates
-  /// the bubble lazily if this is the first event of the turn (some
-  /// phases open straight with a tool call before any narration).
+  /// Appends a new tool entry to the active response. Creates the entry
+  /// lazily if the turn opens with a tool call before any text arrives.
   void _recordToolStart(String toolCallId, String toolName, String argsJson) {
     setState(() {
       if (_activeReplyIndex == null) {
-        _materializeAgentBubble('', isWaiting: true);
+        _beginAgentResponse('', isWaiting: true);
       }
-      final bubble = _messages[_activeReplyIndex!];
-      bubble.tools.add(
+      final entry = _messages[_activeReplyIndex!];
+      entry.tools.add(
         TurnToolEntry(
           toolCallId: toolCallId,
           toolName: toolName,
           argumentsPreview: _summarizeArgsJson(argsJson),
         ),
       );
-      bubble.isWaiting = true;
+      entry.isWaiting = true;
       // Recompute the indicator from the up-to-date tools list so the
       // new entry's name + arg shows immediately (or, if a prior tool
       // is still mid-flight per outputPreview==null, keep that one).
-      bubble.currentToolIndicator = _computeIndicator(bubble.tools);
+      entry.currentToolIndicator = _computeIndicator(entry.tools);
     });
   }
 
-  /// Complete the matching tool entry on the active bubble. Matches by
+  /// Completes the matching tool entry on the active response. Matches by
   /// [toolCallId] so out-of-order results stay attached to the right call.
-  /// Advances the indicator to the next pending tool (some backends emit all
-  /// ToolUseStart upfront, then ToolResults sequentially as each
-  /// executes, so the "currently running" tool is whichever pending
-  /// entry comes first in the list).
   void _recordToolResult(String toolCallId, String output, bool isError) {
     if (_activeReplyIndex == null) return;
     setState(() {
-      final bubble = _messages[_activeReplyIndex!];
-      for (final t in bubble.tools) {
+      final entry = _messages[_activeReplyIndex!];
+      for (final t in entry.tools) {
         if (t.toolCallId == toolCallId) {
           t.outputPreview = _summarizeToolOutput(output);
           t.isError = isError;
           break;
         }
       }
-      bubble.currentToolIndicator = _computeIndicator(bubble.tools);
+      entry.currentToolIndicator = _computeIndicator(entry.tools);
     });
   }
 
@@ -828,12 +822,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       '[Chat] _appendDelta(+${content.length} chars) total=${_currentSegmentText.length} '
       'preview="${_currentSegmentText.length > 60 ? "${_currentSegmentText.substring(0, 60)}..." : _currentSegmentText}"',
     );
-    _refreshActiveBubble(isWaiting: true);
+    _refreshActiveResponse(isWaiting: true);
   }
 
   void _onMessageFinalized(AgentMessageFinalized event) {
-    if (platform_flags.kBubbleMode != BubbleMode.multi) return;
-    // Keep this marker as a no-op; bubble sealing lives at AgentTurnComplete.
+    if (platform_flags.kLayoutMode != LayoutMode.multi) return;
+    // Keep this marker as a no-op; response sealing lives at AgentTurnComplete.
     return;
   }
 
@@ -950,7 +944,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
 
     _scrollToBottom();
-    _focusChatWindow();
+    _focusAgentWindow();
 
     if ((fatal && code != 'cancelled') || code == 'NO_SESSION') {
       await _grpcService.reconnect();
@@ -958,10 +952,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _scrollToBottom() {
-    _chatWindowKey.currentState?.scrollToBottom();
+    _agentWindowKey.currentState?.scrollToBottom();
   }
 
-  void _focusChatWindow() {
+  void _focusAgentWindow() {
     if (!_hasChatStarted) return;
     _chatScrollFocusNode.requestFocus();
   }
@@ -998,12 +992,52 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
   }
 
+  // 처리 중: 항상 slide+fade. 완료+액션바 없음: slide+fade. 완료+액션바 있음: fade만.
+  void _hidePanelForSpeech() {
+    final withSlide = _isAgentBusy || _currentActionButtons.isEmpty;
+    setState(() => _speechHideWithSlide = withSlide);
+    _speechFadeController.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+    if (withSlide) {
+      _speechSlideController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _showPanelAfterSpeech() async {
+    // Phase 1: 빠른 fade in
+    await _speechFadeController.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeIn,
+    );
+    // Phase 2: slide 복귀 (슬라이드 숨기기였던 경우만)
+    if (_speechHideWithSlide) {
+      await Future.delayed(const Duration(milliseconds: 80));
+      if (mounted) {
+        await _speechSlideController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _messageBusSubscription?.cancel();
     _eventSubscription?.cancel();
     HttpMessageBus.instance.release();
+    _speechFadeController.dispose();
+    _speechSlideController.dispose();
     _keyboardFocusNode.dispose();
     _chatScrollFocusNode.dispose();
     super.dispose();
@@ -1088,26 +1122,42 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             children: [
               if (_hasChatStarted)
                 Positioned(
-                  bottom: 10.0,
-                  left: 0,
+                  bottom: 30.0,
+                  left: 20.0,
                   right: 0,
-                  child: ChatPanel(
-                    lastSentText: _lastSentText,
-                    chatWindowKey: _chatWindowKey,
-                    focusNode: _chatScrollFocusNode,
-                    onScrolledToBottomDown: () =>
-                        _actionBarKey.currentState?.focusFirstButton(),
-                    messages: _messages,
-                    isConnecting: !_isGrpcReady,
-                    isThreadInFlight: _isAgentBusy,
-                    typingLabel: _typingLabel,
-                    requestStartTime: _requestStartTime,
-                    actionButtons:
-                        showActionBar ? _currentActionButtons : const [],
-                    onSend: _handleSend,
-                    actionBarKey: _actionBarKey,
-                    onArrowUp: _focusChatWindow,
-                    onArrowDown: _focusChatWindow,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([
+                      _speechFadeController,
+                      _speechSlideController,
+                    ]),
+                    builder: (context, child) => Opacity(
+                      opacity: _speechFadeController.value,
+                      child: Transform.translate(
+                        offset: Offset(
+                          0,
+                          -_speechSlideController.value * _speechSlideDistance,
+                        ),
+                        child: child,
+                      ),
+                    ),
+                    child: AgentPanel(
+                      lastSentText: _lastSentText,
+                      agentWindowKey: _agentWindowKey,
+                      focusNode: _chatScrollFocusNode,
+                      onScrolledToBottomDown: () =>
+                          _actionBarKey.currentState?.focusFirstButton(),
+                      messages: _messages,
+                      isConnecting: !_isGrpcReady,
+                      isThreadInFlight: _isAgentBusy,
+                      typingLabel: _typingLabel,
+                      requestStartTime: _requestStartTime,
+                      actionButtons:
+                          showActionBar ? _currentActionButtons : const [],
+                      onSend: _handleSend,
+                      actionBarKey: _actionBarKey,
+                      onArrowUp: _focusAgentWindow,
+                      onArrowDown: _focusAgentWindow,
+                    ),
                   ),
                 ),
             ],

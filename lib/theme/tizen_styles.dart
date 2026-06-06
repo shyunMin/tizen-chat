@@ -39,7 +39,7 @@ class TizenStyles {
   static const double sentMessageLeftSpacing = 40.0;
   static const double receivedMessageRightSpacing = 100.0;
   static const double backdropBlurSigma = 12.0;
-  static const double chatWindowHeightReserved = 280.0;
+  static const double agentWindowHeightReserved = 280.0;
 
   // ── Spacing ───────────────────────────────────────────────────
   static const double avatarGap = 12.0;
@@ -48,7 +48,7 @@ class TizenStyles {
   static const double sessionHeaderGap = 8.0;
 
   // ── EdgeInsets ────────────────────────────────────────────────
-  static const EdgeInsets bubblePadding = EdgeInsets.symmetric(
+  static const EdgeInsets messagePadding = EdgeInsets.symmetric(
     horizontal: 16,
     vertical: 12,
   );

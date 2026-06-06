@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import 'action_button_bar.dart';
-import 'chat_window.dart';
+import 'agent_window.dart';
 
-/// 사용자 요청 라벨 + ChatWindow + ActionBar를 하나로 묶은 화면 단위.
+/// 사용자 요청 라벨 + AgentWindow + ActionBar를 하나로 묶은 화면 단위.
 /// ActionBar는 [actionButtons]가 비어 있으면 숨겨진다.
-class ChatPanel extends StatelessWidget {
+class AgentPanel extends StatelessWidget {
   final String? lastSentText;
-  final GlobalKey<ChatWindowState> chatWindowKey;
+  final GlobalKey<AgentWindowState> agentWindowKey;
   final FocusNode focusNode;
   final VoidCallback? onScrolledToBottomDown;
   final List<ChatMessage> messages;
@@ -26,10 +26,10 @@ class ChatPanel extends StatelessWidget {
   static const double _panelHorizontalMargin = TizenStyles.promptBarLeft;
   static const double _actionBarGap = TizenStyles.promptBarLeft;
 
-  const ChatPanel({
+  const AgentPanel({
     super.key,
     required this.lastSentText,
-    required this.chatWindowKey,
+    required this.agentWindowKey,
     required this.focusNode,
     this.onScrolledToBottomDown,
     required this.messages,
@@ -70,8 +70,8 @@ class ChatPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-              ChatWindow(
-                key: chatWindowKey,
+              AgentWindow(
+                key: agentWindowKey,
                 focusNode: focusNode,
                 onScrolledToBottomDown: onScrolledToBottomDown,
                 messages: messages,
