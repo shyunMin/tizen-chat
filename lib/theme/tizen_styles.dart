@@ -30,7 +30,7 @@ class TizenStyles {
   static const double avatarSpinnerSize = 38.0;
   static const double focusBorderWidth = 1.5;
   static const double sessionHeaderDotSize = 6.0;
-  static const double actionBarHeight = 44.0;
+  static const double actionBarHeight = 54.0;
   static const double promptBarCollapsedWidth = 64.0;
   static const double promptBarInnerHeight = 68.0;
   static const double promptBarContentHeight = 64.0;

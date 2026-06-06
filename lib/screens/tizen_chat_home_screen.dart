@@ -186,7 +186,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         if (mounted) {
           unawaited(WindowFocusService.setFocusable(false));
-          _hidePanelForSpeech();
+          unawaited(_hidePanelForSpeech());
         }
       } else if (eventType == 'SPEECH_END') {
         if (mounted) _showPanelAfterSpeech();
@@ -993,17 +993,30 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   // 처리 중: 항상 slide+fade. 완료+액션바 없음: slide+fade. 완료+액션바 있음: fade만.
-  void _hidePanelForSpeech() {
-    final withSlide = _isAgentBusy || _currentActionButtons.isEmpty;
+  Future<void> _hidePanelForSpeech() async {
+    final actionBarVisible = !_isAgentBusy && _currentActionButtons.isNotEmpty;
+    final withSlide = !actionBarVisible;
     setState(() => _speechHideWithSlide = withSlide);
-    _speechFadeController.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-    );
+
     if (withSlide) {
-      _speechSlideController.animateTo(
+      // 1단계: 완전히 보이는 상태에서 slide up
+      await _speechSlideController.animateTo(
         1.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+      // 2단계: 슬라이드 완료 후 빠르게 fade out
+      if (mounted) {
+        await _speechFadeController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+        );
+      }
+    } else {
+      // 위치 변화 없음: fade out만
+      await _speechFadeController.animateTo(
+        0.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
@@ -1011,15 +1024,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   }
 
   void _showPanelAfterSpeech() async {
-    // Phase 1: 빠른 fade in
-    await _speechFadeController.animateTo(
-      1.0,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeIn,
-    );
-    // Phase 2: slide 복귀 (슬라이드 숨기기였던 경우만)
     if (_speechHideWithSlide) {
-      await Future.delayed(const Duration(milliseconds: 80));
+      // 슬라이드 위치에서 복귀: fade in + slide down 동시 실행
+      _speechFadeController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeIn,
+      );
       if (mounted) {
         await _speechSlideController.animateTo(
           0.0,
@@ -1027,6 +1038,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           curve: Curves.easeOut,
         );
       }
+    } else {
+      // 위치 변화 없음: fade in만
+      await _speechFadeController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeIn,
+      );
     }
   }
 
