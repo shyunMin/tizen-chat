@@ -1,9 +1,0 @@
-[Unit]
-Description=Watch carbon config.yaml for changes
-
-[Path]
-PathModified=/opt/usr/home/owner/.carbon/config.yaml
-Unit=carbon-daemon-config-reload.service
-
-[Install]
-WantedBy=multi-user.target

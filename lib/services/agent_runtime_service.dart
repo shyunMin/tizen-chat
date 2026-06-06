@@ -1,40 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
-import '../generated/carbon/v2/ingress_service.pbgrpc.dart' as ingress_v2;
 import 'argot_grpc_service.dart' as argot;
-import 'carbon_grpc_service.dart' as carbon;
-
-enum AgentRuntimeBackend { argot, carbon }
-
-const String kAgentRuntimeRaw = String.fromEnvironment(
-  'AGENT_RUNTIME',
-  defaultValue: 'argot',
-);
-
-AgentRuntimeBackend get selectedAgentRuntimeBackend {
-  switch (kAgentRuntimeRaw.toLowerCase()) {
-    case 'carbon':
-      return AgentRuntimeBackend.carbon;
-    case 'argot':
-      return AgentRuntimeBackend.argot;
-    default:
-      debugPrint(
-        '[AgentRuntime] Unknown AGENT_RUNTIME="$kAgentRuntimeRaw"; using argot',
-      );
-      return AgentRuntimeBackend.argot;
-  }
-}
-
-String agentRuntimeBackendLabel(AgentRuntimeBackend backend) {
-  switch (backend) {
-    case AgentRuntimeBackend.argot:
-      return 'Argot';
-    case AgentRuntimeBackend.carbon:
-      return 'Carbon';
-  }
-}
 
 enum AgentApprovalDecision { approve, deny, alwaysSession }
 
@@ -79,7 +45,9 @@ class AgentToolResult extends AgentEvent {
 class AgentTurnComplete extends AgentEvent {
   final String? usageJson;
   final String turnId;
-  AgentTurnComplete({this.usageJson, this.turnId = ''});
+  final int turns;
+  final int toolCalls;
+  AgentTurnComplete({this.usageJson, this.turnId = '', this.turns = 0, this.toolCalls = 0});
 }
 
 class AgentSteerApplied extends AgentEvent {
@@ -233,10 +201,8 @@ class AgentToolApprovalRequest extends AgentEvent {
 }
 
 abstract class AgentGrpcService {
-  static final AgentGrpcService instance = _createAgentGrpcService();
-
-  AgentRuntimeBackend get backend;
-  String get backendLabel => agentRuntimeBackendLabel(backend);
+  static final AgentGrpcService instance =
+      _ArgotAgentGrpcService(argot.ArgotGrpcService.instance);
 
   bool get isConnected;
   bool get isTurnBusy;
@@ -256,29 +222,10 @@ abstract class AgentGrpcService {
   Stream<AgentEvent> sendMessage(String text);
 }
 
-AgentGrpcService _createAgentGrpcService() {
-  final backend = selectedAgentRuntimeBackend;
-  debugPrint(
-    '[AgentRuntime] selected backend=${agentRuntimeBackendLabel(backend)}',
-  );
-  switch (backend) {
-    case AgentRuntimeBackend.argot:
-      return _ArgotAgentGrpcService(argot.ArgotGrpcService.instance);
-    case AgentRuntimeBackend.carbon:
-      return _CarbonAgentGrpcService(carbon.CarbonGrpcService.instance);
-  }
-}
-
 class _ArgotAgentGrpcService implements AgentGrpcService {
   final argot.ArgotGrpcService _inner;
 
   _ArgotAgentGrpcService(this._inner);
-
-  @override
-  AgentRuntimeBackend get backend => AgentRuntimeBackend.argot;
-
-  @override
-  String get backendLabel => agentRuntimeBackendLabel(backend);
 
   @override
   bool get isConnected => _inner.isConnected;
@@ -321,58 +268,6 @@ class _ArgotAgentGrpcService implements AgentGrpcService {
       _inner.sendMessage(text).map(_mapArgotEvent);
 }
 
-class _CarbonAgentGrpcService implements AgentGrpcService {
-  final carbon.CarbonGrpcService _inner;
-
-  _CarbonAgentGrpcService(this._inner);
-
-  @override
-  AgentRuntimeBackend get backend => AgentRuntimeBackend.carbon;
-
-  @override
-  String get backendLabel => agentRuntimeBackendLabel(backend);
-
-  @override
-  bool get isConnected => _inner.isConnected;
-
-  @override
-  bool get isTurnBusy => _inner.isTurnBusy;
-
-  @override
-  String? get sessionId => _inner.sessionId;
-
-  @override
-  Stream<AgentEvent> get events => _inner.events.map(_mapCarbonEvent);
-
-  @override
-  Future<void> connect({String? sessionName}) =>
-      _inner.connect(sessionName: sessionName);
-
-  @override
-  Future<void> disconnect() => _inner.disconnect();
-
-  @override
-  Future<void> reconnect() => _inner.reconnect();
-
-  @override
-  void interruptTurn() => _inner.interruptTurn();
-
-  @override
-  void approveToolCall(String approvalId, AgentApprovalDecision decision) =>
-      _inner.approveToolCall(approvalId, _mapCarbonDecision(decision));
-
-  @override
-  Future<String?> sendPrompt(
-    String text, {
-    bool steer = true,
-    DateTime? referenceTime,
-  }) => _inner.sendPrompt(text, steer: steer, referenceTime: referenceTime);
-
-  @override
-  Stream<AgentEvent> sendMessage(String text) =>
-      _inner.sendMessage(text).map(_mapCarbonEvent);
-}
-
 AgentEvent _mapArgotEvent(argot.ArgotEvent event) {
   switch (event) {
     case argot.ArgotTextDelta(:final content):
@@ -391,8 +286,8 @@ AgentEvent _mapArgotEvent(argot.ArgotEvent event) {
       :final isError,
     ):
       return AgentToolResult(toolCallId, output, isError);
-    case argot.ArgotTurnComplete(:final usageJson, :final turnId):
-      return AgentTurnComplete(usageJson: usageJson, turnId: turnId);
+    case argot.ArgotTurnComplete(:final usageJson, :final turnId, :final turns, :final toolCalls):
+      return AgentTurnComplete(usageJson: usageJson, turnId: turnId, turns: turns, toolCalls: toolCalls);
     case argot.ArgotSteerApplied(:final turnId, :final clientRequestId):
       return AgentSteerApplied(turnId, clientRequestId);
     case argot.ArgotSteerFailed(
@@ -457,90 +352,6 @@ AgentEvent _mapArgotEvent(argot.ArgotEvent event) {
   }
 }
 
-AgentEvent _mapCarbonEvent(carbon.CarbonEvent event) {
-  switch (event) {
-    case carbon.CarbonTextDelta(:final content):
-      return AgentTextDelta(content);
-    case carbon.CarbonMessageFinalized(:final phase):
-      return AgentMessageFinalized(phase);
-    case carbon.CarbonToolUseStart(
-      :final toolName,
-      :final toolCallId,
-      :final argumentsJson,
-    ):
-      return AgentToolUseStart(toolName, toolCallId, argumentsJson);
-    case carbon.CarbonToolResult(
-      :final toolCallId,
-      :final output,
-      :final isError,
-    ):
-      return AgentToolResult(toolCallId, output, isError);
-    case carbon.CarbonTurnComplete(:final usageJson, :final turnId):
-      return AgentTurnComplete(usageJson: usageJson, turnId: turnId);
-    case carbon.CarbonSteerApplied(:final turnId, :final clientRequestId):
-      return AgentSteerApplied(turnId, clientRequestId);
-    case carbon.CarbonSteerFailed(
-      :final turnId,
-      :final clientRequestId,
-      :final reason,
-    ):
-      return AgentSteerFailed(turnId, clientRequestId, reason);
-    case carbon.CarbonSubmitQueued(:final clientRequestId):
-      return AgentSubmitQueued(clientRequestId);
-    case carbon.CarbonSubmitSteered(:final turnId, :final clientRequestId):
-      return AgentSubmitSteered(turnId, clientRequestId);
-    case carbon.CarbonContinuationRequested(:final reason, :final message):
-      return AgentContinuationRequested(reason, message);
-    case carbon.CarbonValidationStarted(:final turnId):
-      return AgentValidationStarted(turnId);
-    case carbon.CarbonValidationCompleted(
-      :final turnId,
-      :final passed,
-      :final reason,
-      :final attempt,
-    ):
-      return AgentValidationCompleted(turnId, passed, reason, attempt);
-    case carbon.CarbonTurnStarted(
-      :final turnId,
-      :final threadId,
-      :final source,
-      :final clientRequestId,
-      :final prompt,
-      :final phase,
-    ):
-      return AgentTurnStarted(
-        turnId,
-        threadId,
-        source,
-        clientRequestId,
-        prompt,
-        _mapCarbonPhase(phase),
-      );
-    case carbon.CarbonThreadComplete(:final threadId):
-      return AgentThreadComplete(threadId);
-    case carbon.CarbonError(:final code, :final message, :final fatal):
-      return AgentError(code, message, fatal);
-    case carbon.CarbonSessionEnded(:final reason):
-      return AgentSessionEnded(reason);
-    case carbon.CarbonToolApprovalRequest(
-      :final approvalId,
-      :final toolCallId,
-      :final toolName,
-      :final argumentsJson,
-      :final reason,
-      :final timeoutSecs,
-    ):
-      return AgentToolApprovalRequest(
-        approvalId,
-        toolCallId,
-        toolName,
-        argumentsJson,
-        reason,
-        timeoutSecs,
-      );
-  }
-}
-
 AgentTurnPhase _mapArgotPhase(argot.ArgotTurnPhase phase) {
   if (phase is argot.ArgotTurnPhasePrompt) return AgentTurnPhasePrompt();
   if (phase is argot.ArgotTurnPhaseStep) {
@@ -559,24 +370,6 @@ AgentTurnPhase _mapArgotPhase(argot.ArgotTurnPhase phase) {
   return AgentTurnPhaseUnknown();
 }
 
-AgentTurnPhase _mapCarbonPhase(carbon.CarbonTurnPhase phase) {
-  if (phase is carbon.CarbonTurnPhasePrompt) return AgentTurnPhasePrompt();
-  if (phase is carbon.CarbonTurnPhaseStep) {
-    return AgentTurnPhaseStep(
-      stepId: phase.stepId,
-      stepText: phase.stepText,
-      stepIndex: phase.stepIndex,
-      planStepCount: phase.planStepCount,
-    );
-  }
-  if (phase is carbon.CarbonTurnPhaseValidation) {
-    return AgentTurnPhaseValidation(phase.attempt);
-  }
-  if (phase is carbon.CarbonTurnPhaseRecovery) return AgentTurnPhaseRecovery();
-  if (phase is carbon.CarbonTurnPhaseFree) return AgentTurnPhaseFree();
-  return AgentTurnPhaseUnknown();
-}
-
 argot.ArgotApprovalDecision _mapArgotDecision(AgentApprovalDecision decision) {
   switch (decision) {
     case AgentApprovalDecision.approve:
@@ -585,16 +378,5 @@ argot.ArgotApprovalDecision _mapArgotDecision(AgentApprovalDecision decision) {
       return argot.ArgotApprovalDecision.deny;
     case AgentApprovalDecision.alwaysSession:
       return argot.ArgotApprovalDecision.alwaysSession;
-  }
-}
-
-ingress_v2.ApprovalDecision _mapCarbonDecision(AgentApprovalDecision decision) {
-  switch (decision) {
-    case AgentApprovalDecision.approve:
-      return ingress_v2.ApprovalDecision.APPROVAL_DECISION_APPROVE;
-    case AgentApprovalDecision.deny:
-      return ingress_v2.ApprovalDecision.APPROVAL_DECISION_DENY;
-    case AgentApprovalDecision.alwaysSession:
-      return ingress_v2.ApprovalDecision.APPROVAL_DECISION_ALWAYS_SESSION;
   }
 }

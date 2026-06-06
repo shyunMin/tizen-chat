@@ -1,6 +1,0 @@
-[Unit]
-Description=Restart carbon-daemon on config.yaml change
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/systemctl restart carbon-daemon

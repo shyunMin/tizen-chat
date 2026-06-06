@@ -1,7 +1,7 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/tizen_styles.dart';
+import 'rainbow_border_painter.dart';
 
 class ActionButtonBar extends StatefulWidget {
   final List<String> buttons;
@@ -200,7 +200,7 @@ class _ActionButtonState extends State<_ActionButton>
           animation: _rainbowController,
           builder: (context, child) => CustomPaint(
             foregroundPainter: isFocused
-                ? _RainbowBorderPainter(
+                ? RainbowBorderPainter(
                     progress: _rainbowController.value,
                     borderRadius: TizenStyles.actionButtonBorderRadius,
                     strokeWidth: TizenStyles.focusBorderWidth,
@@ -240,47 +240,3 @@ class _ActionButtonState extends State<_ActionButton>
   }
 }
 
-class _RainbowBorderPainter extends CustomPainter {
-  final double progress;
-  final double borderRadius;
-  final double strokeWidth;
-
-  static const _colors = [
-    Color(0xFF22D3EE), // cyan400
-    Color(0xFF38BDF8), // sky300
-    Color(0xFF2563EB), // blue600
-    Color(0xFF6366F1), // indigo
-    Color(0xFF8B5CF6), // violet
-    Color(0xFFA78BFA), // violet300
-    Color(0xFF6366F1), // indigo
-    Color(0xFF2563EB), // blue600
-    Color(0xFF22D3EE), // cyan400
-  ];
-
-  const _RainbowBorderPainter({
-    required this.progress,
-    required this.borderRadius,
-    this.strokeWidth = TizenStyles.focusBorderWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final half = strokeWidth / 2;
-    final rect = Rect.fromLTWH(half, half, size.width - half * 2, size.height - half * 2);
-    final rRect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..shader = SweepGradient(
-        colors: _colors,
-        startAngle: progress * 2 * math.pi,
-        endAngle: progress * 2 * math.pi + 2 * math.pi,
-      ).createShader(rect);
-
-    canvas.drawRRect(rRect, paint);
-  }
-
-  @override
-  bool shouldRepaint(_RainbowBorderPainter old) => old.progress != progress;
-}

@@ -4,14 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-Tizen OS 환경에서 Agent Runtime(Argot 또는 Carbon)과 대화하는 Flutter 기반 채팅 앱. 주 타겟은 Tizen TV이며, Linux 빌드로 로컬 개발을 병행한다.
+Tizen OS 환경에서 Argot Agent Runtime과 대화하는 Flutter 기반 채팅 앱. 주 타겟은 Tizen TV이며, Linux 빌드로 로컬 개발을 병행한다.
 
 ## 커맨드
 
 ### 실행 (Tizen 디바이스)
 ```bash
-flutter-tizen run --dart-define=AGENT_RUNTIME=argot
-flutter-tizen run --dart-define=AGENT_RUNTIME=carbon
+flutter-tizen run
 ```
 
 ### 빌드
@@ -20,28 +19,25 @@ flutter-tizen build tpk          # Tizen 패키지 빌드
 flutter build linux               # 로컬 Linux 빌드 (개발/디버깅용)
 ```
 
-`AGENT_RUNTIME` 기본값은 `argot`. Carbon을 쓰려면 `--dart-define=AGENT_RUNTIME=carbon` 추가.
-
 ### 테스트
 ```bash
-flutter test                              # 전체 테스트
-flutter test test/agent_response_parser_test.dart  # 단일 파일 테스트
+# Linux에서는 반드시 IS_TIZEN=false 필요 (Tizen 플러그인 호출 방지)
+flutter test --dart-define=IS_TIZEN=false
+flutter test test/agent_response_parser_test.dart --dart-define=IS_TIZEN=false
 ```
-
-Linux에서 테스트 실행 시 Tizen 전용 플러그인 호출을 건너뛰도록 `--dart-define=IS_TIZEN=false` 필요.
 
 ### 정적 분석
 ```bash
 flutter analyze
 ```
+`lib/generated/` 하위는 `analysis_options.yaml`에서 제외되어 있어 분석 대상이 아님.
 
 ### Proto 코드 생성 (Argot 쪽만)
 ```bash
 scripts/gen-proto.sh <argot-repo-path>
 # 예: scripts/gen-proto.sh ../argo-tizen
 ```
-- 사전 조건: `protoc` 및 `protoc-gen-dart` (dart pub global activate protoc_plugin)
-- Carbon stubs는 in-tree로 관리되며 이 스크립트로 갱신하지 않음
+- 사전 조건: `protoc` 및 `protoc-gen-dart` (`dart pub global activate protoc_plugin`)
 
 ### 외부 메시지 주입 (HTTP)
 ```bash
@@ -54,29 +50,75 @@ curl -X POST http://localhost:7777/message \
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
-| `AGENT_RUNTIME` | `argot` | 런타임 백엔드 선택 (`argot` / `carbon`) |
+| `IS_TIZEN` | `true` | Tizen 전용 API 활성화 여부. Linux/테스트에서는 `false` |
 | `IS_TIZEN` | `true` | Tizen 전용 API 활성화 여부. Linux/테스트에서는 `false` |
 | `ENABLE_HTTP_BUS` | `true` | 포트 7777 HTTP 메시지 버스 활성화 |
 | `ENABLE_PERF_LOG` | `false` | 요청 성능 로깅 활성화 |
 | `BUBBLE_MODE` | `single` | 응답 버블 레이아웃 (`single` / `multi`) |
 
+
+
 ## 아키텍처
 
-### Backend 이중화 패턴
+### 아키텍처 패턴
 
-`AgentGrpcService` (추상 클래스, `lib/services/agent_runtime_service.dart`)가 backend 간 공통 인터페이스. 빌드 시 `AGENT_RUNTIME` 값에 따라 `_ArgotAgentGrpcService` 또는 `_CarbonAgentGrpcService`가 싱글턴으로 생성됨.
+`AgentGrpcService` (추상 클래스, `lib/services/agent_runtime_service.dart`)가 공통 인터페이스. `_ArgotAgentGrpcService`가 싱글턴으로 생성됨.
 
 ```
-AgentGrpcService.instance
-  ├─ Argot  → _ArgotAgentGrpcService  → ArgotGrpcService (lib/services/argot_grpc_service.dart)
-  └─ Carbon → _CarbonAgentGrpcService → CarbonGrpcService (lib/services/carbon_grpc_service.dart)
+AgentGrpcService.instance → _ArgotAgentGrpcService → ArgotGrpcService (lib/services/argot_grpc_service.dart)
 ```
 
-각 adapter는 backend 고유 이벤트 타입을 공통 `AgentEvent` sealed class로 매핑. 새 이벤트 타입 추가 시 `_mapArgotEvent` / `_mapCarbonEvent` 양쪽 모두 수정 필요.
+Argot 이벤트 타입을 공통 `AgentEvent` sealed class로 매핑. 새 이벤트 타입 추가 시 `_mapArgotEvent` 수정.
 
 ### 이벤트 타입 (sealed class)
 
-`AgentTextDelta`, `AgentToolUseStart`, `AgentToolResult`, `AgentTurnComplete`, `AgentError`, `AgentSessionEnded`, `AgentToolApprovalRequest`, `AgentTurnStarted`, `AgentThreadComplete` 등. 스트림은 `StreamController.broadcast()`로 팬아웃.
+`lib/services/agent_runtime_service.dart`에 정의된 공통 이벤트:
+
+| 이벤트 | 설명 |
+|--------|------|
+| `AgentTextDelta` | 스트리밍 텍스트 조각 |
+| `AgentMessageFinalized` | 어시스턴트 메시지 블록 완료 (`phase`: 1=Commentary, 2=FinalAnswer) |
+| `AgentToolUseStart` | 도구 호출 시작 |
+| `AgentToolResult` | 도구 호출 결과 |
+| `AgentTurnComplete` | 전체 턴 완료 |
+| `AgentTurnStarted` | 턴 시작 (Argot v1 미지원 — phase는 항상 null) |
+| `AgentThreadComplete` | 스레드 완료 |
+| `AgentError` | 에러 (`fatal=true`이면 재연결 필요) |
+| `AgentSessionEnded` | 세션 종료 |
+| `AgentToolApprovalRequest` | 도구 승인 요청 |
+| `AgentSteerApplied/Failed` | mid-turn 스티어 결과 |
+| `AgentSubmitQueued/Steered` | submit 큐/스티어 상태 |
+| `AgentValidationStarted/Completed` | 검증 단계 |
+| `AgentContinuationRequested` | 연속 실행 요청 |
+
+스트림은 `StreamController.broadcast()`로 팬아웃.
+
+### AgentTurnPhase 계층
+
+`AgentTurnStarted`에 포함되어 버블 헤더 타이틀을 결정:
+
+- `AgentTurnPhasePrompt` → "💬 Prompt"
+- `AgentTurnPhaseStep(stepId, stepText, stepIndex, planStepCount)` → "🛠 Step N/M · 텍스트"
+- `AgentTurnPhaseValidation(attempt)` → 타이틀 없음
+- `AgentTurnPhaseRecovery` → "⚠️ Recovery"
+- `AgentTurnPhaseFree` → "💭 Free"
+- `AgentTurnPhaseUnknown` → 타이틀 없음
+
+Argot v1은 `TurnStarted`를 발행하지 않으므로 phase는 항상 null.
+
+### 버블 레이아웃 모드 (`BUBBLE_MODE`)
+
+- **`single`(기본)**: 턴당 버블 하나. Commentary/툴 인디케이터가 누적되고, `TurnComplete` 시점에 최종 답변으로 교체. `_activeReplyIndex`로 동일 버블을 계속 갱신. mid-turn에 새 프롬프트가 오면 user 버블을 삽입하고 `_activeReplyIndex`를 한 칸 증가.
+- **`multi`**: `MessageFinalized`마다 버블 봉인 후 새 버블 생성. 한 턴에 여러 버블 체인.
+
+### ChatMessage / TurnToolEntry 구조
+
+`lib/models/chat_message.dart`의 `ChatMessage`는 버블 UI 상태를 모두 담음:
+
+- `phaseTitle`: 버블 상단 헤더(단계 제목). null = 헤더 없음.
+- `tools: List<TurnToolEntry>`: 턴 중 사용된 도구 목록. 툴 이름 + 인자 미리보기 + 결과 미리보기.
+- `validationPassed`: `AgentValidationCompleted(passed=true)` 수신 시 true → 아바타 옆 ✓ 표시.
+- `currentToolIndicator`: 현재 실행 중인 툴 이름(텍스트 영역 위에 렌더). `ToolResult` 수신 또는 `TurnComplete`에서 null로 초기화.
 
 ### 초기화 순서
 
@@ -98,27 +140,27 @@ AppControl이 대기 중이면 3·5번 단계를 AppControl 처리 코드가 담
 
 ### 온보딩
 
-`AgentOnboardingService`가 backend별 설정 흐름을 감쌈:
-- **Carbon**: `OnboardingGrpcService` + QR 코드 설정 UI (`OnboardingScreen`)
-- **Argot v1**: 설정 RPC 미지원 → no-op으로 `ready=true` 반환. 실제 설정은 디바이스에서 `argot onboard` 명령으로 수행
+`AgentOnboardingService`가 `ArgotOnboardingService`를 감쌈. Argot v1은 설정 RPC 미지원 → no-op으로 `ready=true` 반환. 실제 설정은 디바이스에서 `argot onboard` 명령으로 수행
 
 ### 응답 파싱
 
-`AgentTurnComplete` 수신 후 `AgentResponseParser.parse()` 실행. `` ```json `` 펜스 블록에서 구조화 데이터 추출:
-- `display_type`: `"text"` | `"ui"` | `"device_control"` | `"hidden"` | `"fallback"`
-- `content`: 버블에 표시할 텍스트
-- `action_buttons`: 액션 버튼 라벨 배열
-- JSON 없거나 파싱 실패 시 원문을 `fallback`으로 반환
+`AgentTurnComplete` 수신 후 `AgentResponseParser.parse()` 실행(`lib/services/agent_response_parser.dart`).
+
+`` ```json `` 펜스 블록 처리 로직:
+1. `content` 또는 `display_type` 키가 있으면 **canonical envelope**로 처리 (마지막 것 우선)
+2. `plan` 배열만 있으면 메타데이터로 간주, 체크리스트로 렌더
+3. 나머지 산문(prose) 텍스트가 있으면 `fallback`으로 반환
+4. JSON 없거나 파싱 실패 시 원문을 `fallback`으로 반환
+
+`display_type` 값: `"text"` | `"ui"` | `"device_control"` | `"hidden"` | `"fallback"`
+
+**액션 버튼**: `content` 텍스트 내 `<a>내용</a>` 태그로 지정. `_extractButtons()`가 추출하고 `_removeAnchors()`로 태그를 제거한 텍스트를 버블에 표시.
 
 ### 소켓 경로
 
 - **Argot**: `ARGOT_SOCKET_PATH` 환경변수 → `$XDG_RUNTIME_DIR/argot.sock` → `/tmp/argot-$USER.sock`
-- **Carbon**: `CARBON_SOCKET_PATH` 환경변수 → `$XDG_RUNTIME_DIR/carbon/carbon.sock` → `/run/user/{uid}/carbon/carbon.sock`
 
-### Carbon vs Argot 기능 차이
-
-- Carbon: `Submit`/`Subscribe` lifecycle, steer/queue, approval, remote interrupt, validation 지원
-- Argot v1: `ChatStream` 기반, steer/queue/approval/interrupt 없음. 지원하지 않는 기능은 interface를 유지하고 no-op 또는 로그 처리
+알려진 제한 사항은 `TODOS.md` 참조.
 
 ### 디자인 시스템
 
@@ -128,8 +170,3 @@ AppControl이 대기 중이면 3·5번 단계를 AppControl 처리 코드가 담
 
 `lib/generated/` 하위 파일은 자동 생성이므로 직접 수정하지 않는다:
 - `argot/v1/` — Argot proto에서 생성 (`scripts/gen-proto.sh`로 갱신)
-- `carbon/v1/`, `carbon/v2/` — Carbon proto에서 생성 (in-tree 관리)
-
-## carbon-onboarding-bridge
-
-`carbon-onboarding-bridge/` 는 Rust로 작성된 별도 데몬. Carbon 온보딩용 `ConfigService`와 `SetupService`를 Unix 소켓으로 제공하는 임시 gRPC 브리지 서비스이며, Flutter 앱과는 독립적으로 빌드/패키징된다.

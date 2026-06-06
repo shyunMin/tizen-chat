@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../utils/elapsed_timer.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
+import 'rainbow_border_painter.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
 
@@ -37,8 +38,7 @@ class ChatWindowState extends State<ChatWindow>
   final ScrollController _scrollController = ScrollController();
   FocusNode? _internalFocusNode;
 
-  late final AnimationController _shimmerController;
-  late final Animation<double> _shimmerAlpha;
+  late final AnimationController _rainbowController;
 
   FocusNode get _scrollFocusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
@@ -48,23 +48,11 @@ class ChatWindowState extends State<ChatWindow>
   @override
   void initState() {
     super.initState();
-    _shimmerController = AnimationController(
+    _rainbowController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(seconds: 2),
     );
-    _shimmerAlpha = Tween<double>(begin: 0.15, end: 0.65).animate(
-      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
-    );
-    _scrollFocusNode.addListener(_onFocusChange);
-  }
-
-  void _onFocusChange() {
-    if (_scrollFocusNode.hasFocus) {
-      _shimmerController.repeat(reverse: true);
-    } else {
-      _shimmerController.stop();
-      _shimmerController.reset();
-    }
+    _rainbowController.repeat();
   }
 
   void scrollToBottom() {
@@ -132,8 +120,7 @@ class ChatWindowState extends State<ChatWindow>
 
   @override
   void dispose() {
-    _scrollFocusNode.removeListener(_onFocusChange);
-    _shimmerController.dispose();
+    _rainbowController.dispose();
     _scrollController.dispose();
     _internalFocusNode?.dispose();
     super.dispose();
@@ -154,36 +141,9 @@ class ChatWindowState extends State<ChatWindow>
             maxWidth: screenWidth / 2,
             maxHeight: screenHeight - TizenStyles.chatWindowHeightReserved,
           ),
-          child: AnimatedBuilder(
-              animation: _scrollFocusNode,
-              builder: (context, child) {
-                final isFocused = _scrollFocusNode.hasFocus;
-                return Stack(
-                  children: [
-                    child!,
-                    if (isFocused)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: AnimatedBuilder(
-                            animation: _shimmerController,
-                            builder: (context, _) => DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
-                                border: Border.all(
-                                  color: Colors.white.withValues(
-                                    alpha: _shimmerAlpha.value,
-                                  ),
-                                  width: TizenStyles.focusBorderWidth,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-              child: Container(
+          child: Stack(
+              children: [
+                Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(TizenStyles.windowBorderRadius),
@@ -223,7 +183,6 @@ class ChatWindowState extends State<ChatWindow>
                                   case MessageType.received:
                                     messageWidget = ReceivedMessage(
                                       text: message.text,
-                                      avatarInitial: message.senderInitial,
                                       isWaiting: message.isWaiting,
                                       displayType: message.displayType,
                                       phaseTitle: message.phaseTitle,
@@ -247,6 +206,20 @@ class ChatWindowState extends State<ChatWindow>
                   ],
                 ),
               ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _rainbowController,
+                      builder: (context, _) => CustomPaint(
+                        painter: RainbowBorderPainter(
+                          progress: _rainbowController.value,
+                          borderRadius: TizenStyles.windowBorderRadius,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
         ),
       ),
@@ -293,66 +266,31 @@ class _LoadingItemState extends State<_LoadingItem>
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: TizenStyles.avatarSpinnerSize,
-                height: TizenStyles.avatarSpinnerSize,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    TizenStyles.cyan400.withValues(alpha: 0.8),
-                  ),
-                ),
-              ),
-              CircleAvatar(
-                radius: TizenStyles.avatarRadius,
-                backgroundColor: TizenStyles.slate800,
-                child: const Text(
-                  'T',
-                  style: TextStyle(
-                    fontSize: TizenStyles.avatarInitialFontSize,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: TizenStyles.avatarGap),
-          Flexible(
-            child: AnimatedBuilder(
-              animation: _shimmer,
-              builder: (context2, child2) {
-                final p = _shimmer.value;
-                return ShaderMask(
-                  blendMode: BlendMode.srcIn,
-                  shaderCallback: (Rect bounds) {
-                    final x = -1.5 + 3.5 * p;
-                    return LinearGradient(
-                      begin: Alignment(x - 0.8, 0),
-                      end: Alignment(x + 0.8, 0),
-                      colors: [
-                        Colors.white.withValues(alpha: 0.45),
-                        Colors.white.withValues(alpha: 0.95),
-                        Colors.white.withValues(alpha: 0.45),
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ).createShader(bounds);
-                  },
-                  child: Text(
-                    '${widget.label}\nWorking · ${ElapsedTimer.format(widget.startTime)}',
-                    style: TizenStyles.bodyText.copyWith(color: Colors.white),
-                  ),
-                );
-              },
+      child: AnimatedBuilder(
+        animation: _shimmer,
+        builder: (context2, child2) {
+          final p = _shimmer.value;
+          return ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (Rect bounds) {
+              final x = -1.5 + 3.5 * p;
+              return LinearGradient(
+                begin: Alignment(x - 0.8, 0),
+                end: Alignment(x + 0.8, 0),
+                colors: [
+                  Colors.white.withValues(alpha: 0.45),
+                  Colors.white.withValues(alpha: 0.95),
+                  Colors.white.withValues(alpha: 0.45),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ).createShader(bounds);
+            },
+            child: Text(
+              '${widget.label}\nWorking · ${ElapsedTimer.format(widget.startTime)}',
+              style: TizenStyles.bodyText.copyWith(color: Colors.white),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -388,51 +326,31 @@ class _ConnectingItemState extends State<_ConnectingItem>
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: TizenStyles.avatarRadius,
-            backgroundColor: TizenStyles.slate800,
-            child: const Text(
-              'T',
-              style: TextStyle(
-                fontSize: TizenStyles.avatarInitialFontSize,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+      child: AnimatedBuilder(
+        animation: _shimmer,
+        builder: (context, child) {
+          final p = _shimmer.value;
+          return ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (Rect bounds) {
+              final x = -1.5 + 3.5 * p;
+              return LinearGradient(
+                begin: Alignment(x - 0.8, 0),
+                end: Alignment(x + 0.8, 0),
+                colors: [
+                  Colors.white.withValues(alpha: 0.15),
+                  Colors.white.withValues(alpha: 0.65),
+                  Colors.white.withValues(alpha: 0.15),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ).createShader(bounds);
+            },
+            child: Text(
+              '연결 중이에요...',
+              style: TizenStyles.bodyText.copyWith(color: Colors.white),
             ),
-          ),
-          const SizedBox(width: TizenStyles.avatarGap),
-          Flexible(
-            child: AnimatedBuilder(
-              animation: _shimmer,
-              builder: (context, child) {
-                final p = _shimmer.value;
-                return ShaderMask(
-                  blendMode: BlendMode.srcIn,
-                  shaderCallback: (Rect bounds) {
-                    final x = -1.5 + 3.5 * p;
-                    return LinearGradient(
-                      begin: Alignment(x - 0.8, 0),
-                      end: Alignment(x + 0.8, 0),
-                      colors: [
-                        Colors.white.withValues(alpha: 0.15),
-                        Colors.white.withValues(alpha: 0.65),
-                        Colors.white.withValues(alpha: 0.15),
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ).createShader(bounds);
-                  },
-                  child: Text(
-                    '연결 중이에요...',
-                    style: TizenStyles.bodyText.copyWith(color: Colors.white),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -445,29 +363,11 @@ class _WelcomeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: TizenStyles.avatarRadius,
-            backgroundColor: TizenStyles.slate800,
-            child: const Text(
-              'T',
-              style: TextStyle(
-                fontSize: TizenStyles.avatarInitialFontSize,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: TizenStyles.avatarGap),
-          Text(
-            '무엇을 도와 드릴까요?',
-            style: TizenStyles.bodyText.copyWith(
-              color: Colors.white.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
+      child: Text(
+        '무엇을 도와 드릴까요?',
+        style: TizenStyles.bodyText.copyWith(
+          color: Colors.white.withValues(alpha: 0.6),
+        ),
       ),
     );
   }

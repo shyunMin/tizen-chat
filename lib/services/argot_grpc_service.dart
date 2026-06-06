@@ -54,7 +54,9 @@ class ArgotToolResult extends ArgotEvent {
 class ArgotTurnComplete extends ArgotEvent {
   final String? usageJson;
   final String turnId;
-  ArgotTurnComplete({this.usageJson, this.turnId = ''});
+  final int turns;
+  final int toolCalls;
+  ArgotTurnComplete({this.usageJson, this.turnId = '', this.turns = 0, this.toolCalls = 0});
 }
 
 class ArgotSteerApplied extends ArgotEvent {
@@ -375,7 +377,7 @@ class ArgotGrpcService {
     }
     if (referenceTime != null) {
       debugPrint(
-        'DEBUG: [ArgotGrpc] referenceTime ignored by argot.v1 ChatRequest: $referenceTime',
+        'DEBUG: [ArgotGrpc] referenceTime: $referenceTime → epoch ${referenceTime.millisecondsSinceEpoch}ms',
       );
     }
     if (!steer) {
@@ -386,7 +388,14 @@ class ArgotGrpcService {
 
     final clientRequestId = _newClientRequestId();
     final turnId = clientRequestId;
-    _printChunked('[ArgotGrpc] sendPrompt content:\n$text');
+
+    // referenceTime이 있으면 epoch ms를 프롬프트 첫 줄에 삽입해 에이전트가 시간 맥락을 인식하게 한다.
+    final epochMs = referenceTime?.millisecondsSinceEpoch;
+    final promptText = epochMs != null
+        ? '[reference_time: $epochMs]\n$text'
+        : text;
+
+    _printChunked('[ArgotGrpc] sendPrompt content:\n$promptText');
 
     _currentTurnId = turnId;
     _clientThinksTurnBusy = true;
@@ -394,7 +403,7 @@ class ArgotGrpcService {
     _activeSawMeaningfulText = false;
     _correlation[clientRequestId] = turnId;
 
-    final req = _buildChatRequest(text);
+    final req = _buildChatRequest(promptText);
 
     try {
       // argot.v1 does not send TurnStarted/ThreadStarted. Keep this as a
@@ -409,6 +418,7 @@ class ArgotGrpcService {
           ArgotTurnPhasePrompt(),
         ),
       );
+      debugPrint('DEBUG: [ArgotGrpc] → TurnStarted(turnId=$turnId phase=Prompt) [synthetic]');
       _activeStream = _client!.chat(req);
       _activeStreamSubscription = _activeStream!.listen(
         (evt) => _handleChatEvent(evt, turnId: turnId),
@@ -505,14 +515,15 @@ class ArgotGrpcService {
       if (text.trim().isNotEmpty) {
         _activeSawMeaningfulText = true;
       }
+      debugPrint(
+        'DEBUG: [ArgotGrpc] → TextDelta +${text.length}ch "${text.length > 60 ? "${text.substring(0, 60)}..." : text}"',
+      );
       _eventController.add(ArgotTextDelta(text));
       return;
     }
     if (event.hasToolCall()) {
       final call = event.toolCall;
-      debugPrint(
-        'DEBUG: [ArgotGrpc] ToolCall name=${call.name} callId=${call.id}',
-      );
+      debugPrint('DEBUG: [ArgotGrpc] ToolCall name=${call.name}');
       _eventController.add(
         ArgotToolUseStart(call.name, call.id, call.argumentsJson),
       );
@@ -520,9 +531,7 @@ class ArgotGrpcService {
     }
     if (event.hasToolResult()) {
       final result = event.toolResult;
-      debugPrint(
-        'DEBUG: [ArgotGrpc] ToolResult callId=${result.callId} err=${result.isError}',
-      );
+      debugPrint('DEBUG: [ArgotGrpc] ToolResult callId=${result.callId} err=${result.isError}');
       _eventController.add(
         ArgotToolResult(result.callId, result.outputJson, result.isError),
       );
@@ -534,9 +543,12 @@ class ArgotGrpcService {
         'DEBUG: [ArgotGrpc] Completed turns=${completed.turns} toolCalls=${completed.toolCalls}',
       );
       if (!_activeSawMeaningfulText && completed.text.trim().isNotEmpty) {
+        debugPrint(
+          'DEBUG: [ArgotGrpc] → TextDelta (from completed.text) +${completed.text.length}ch "${completed.text.length > 60 ? "${completed.text.substring(0, 60)}..." : completed.text}"',
+        );
         _eventController.add(ArgotTextDelta(completed.text));
       }
-      _finishActiveTurn(turnId);
+      _finishActiveTurn(turnId, turns: completed.turns, toolCalls: completed.toolCalls);
       return;
     }
     if (event.hasStopped()) {
@@ -545,14 +557,15 @@ class ArgotGrpcService {
       debugPrint(
         'DEBUG: [ArgotGrpc] Stopped reason=$reason turns=${stopped.turns} toolCalls=${stopped.toolCalls}',
       );
+      final isCancelled = stopped.reason == argot_types.StopReason.STOP_REASON_CANCELLED;
       _eventController.add(
         ArgotError(
-          'TERMINATED',
+          isCancelled ? 'cancelled' : 'TERMINATED',
           reason,
-          stopped.reason == argot_types.StopReason.STOP_REASON_CANCELLED,
+          isCancelled,
         ),
       );
-      _finishActiveTurn(turnId);
+      _finishActiveTurn(turnId, turns: stopped.turns, toolCalls: stopped.toolCalls);
       return;
     }
     if (event.hasFailed()) {
@@ -562,20 +575,24 @@ class ArgotGrpcService {
     }
   }
 
-  void _finishActiveTurn(String turnId) {
+  void _finishActiveTurn(String turnId, {int turns = 0, int toolCalls = 0}) {
     if (_activeTurnCompleted) return;
     _activeTurnCompleted = true;
 
+    debugPrint('DEBUG: [ArgotGrpc] → MessageFinalized(phase=finalAnswer)');
     _eventController.add(
       ArgotMessageFinalized(ArgotAssistantMessagePhase.finalAnswer.value),
     );
-    _eventController.add(ArgotTurnComplete(turnId: turnId));
+    debugPrint('DEBUG: [ArgotGrpc] → TurnComplete(turnId=$turnId turns=$turns toolCalls=$toolCalls)');
+    _eventController.add(ArgotTurnComplete(turnId: turnId, turns: turns, toolCalls: toolCalls));
     _clearCorrelationForTurn(turnId);
     if (_currentTurnId == turnId) {
       _currentTurnId = null;
     }
     _clientThinksTurnBusy = false;
-    _eventController.add(ArgotThreadComplete(_sessionId ?? turnId));
+    final threadId = _sessionId ?? turnId;
+    debugPrint('DEBUG: [ArgotGrpc] → ThreadComplete(threadId=$threadId)');
+    _eventController.add(ArgotThreadComplete(threadId));
   }
 
   void _broadcastError(String message, {bool fatal = false}) {

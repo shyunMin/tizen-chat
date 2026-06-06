@@ -52,3 +52,7 @@ app.*.map.json
 
 # macos
 /macos/Flutter/
+
+# docs
+docs/
+*.html

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../theme/tizen_styles.dart';
 import 'package:tizen_app_control/tizen_app_control.dart';
 import 'dart:convert';
+import '../widgets/chat_panel.dart';
 import '../widgets/chat_window.dart';
 import '../widgets/action_button_bar.dart';
-import '../widgets/prompt_bar.dart';
 import '../services/agent_runtime_service.dart';
 import '../platform/platform_flags.dart' as platform_flags;
 import '../platform/platform_flags.dart' show kIsTizen, BubbleMode;
@@ -35,14 +34,6 @@ class TizenChatHomeScreen extends StatefulWidget {
 
 class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  // ── UI 상태 ──────────────────────────────────────────────────
-  bool _isVisible = false;
-  bool _isVoiceKeyPressed = false;
-  bool _isPromptBarVisible = false;
-  bool _promptBarFocused = false;
-  double _keyboardShift = 0.0;
-  Timer? _voiceKeyReleaseTimer;
-
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
   final List<ChatMessage> _messages = [];
@@ -58,7 +49,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ── 서비스 ───────────────────────────────────────────────────
   final FocusNode _keyboardFocusNode = FocusNode();
   final FocusNode _chatScrollFocusNode = FocusNode();
-  final FocusNode _promptBarFocusNode = FocusNode();
   final AgentGrpcService _grpcService = AgentGrpcService.instance;
   StreamSubscription<String>? _messageBusSubscription;
   StreamSubscription<AgentEvent>? _eventSubscription;
@@ -86,10 +76,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// "currently running" hint.
   String? _activeToolName;
 
-  /// Optional phase metadata for the in-flight turn. Carbon emits this on
-  /// TurnStarted; Argot v1 does not, so normal Argot traffic works with null.
-  /// When a backend provides a phase, the bubble that materializes lazily on
-  /// the first delta/tool gets it as a header title.
+  /// Optional phase metadata for the in-flight turn. Argot v1 does not emit
+  /// TurnStarted, so this is null for normal Argot traffic. When a phase is
+  /// provided, the bubble that materializes on the first delta/tool gets it
+  /// as a header title.
   AgentTurnPhase? _currentPhase;
 
   /// Stash a successful ValidationCompleted result that arrived before
@@ -103,13 +93,18 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // emits AgentTurnComplete, AgentThreadComplete, or a fatal error.
   bool _isAgentBusy = false;
 
+  // TurnComplete에서 수신한 통계값. _appendElapsedToLastMessage에서 라벨에 포함.
+  int _lastTurns = 0;
+  int _lastToolCalls = 0;
+
+  // ChatWindow 위에 표시할 마지막 사용자 요청 텍스트
+  String? _lastSentText;
+
   // ── Pending submission slot ───────────────────────────────────
   // While the daemon is processing a turn, a new submission lands here
   // instead of immediately becoming a user bubble. The slot holds at
-  // most one entry (UI constraint — see /plan-eng-review discussion).
-  // It releases when:
-  //   - Carbon supports steer/queue lifecycle signals.
-  //   - Argot v1 does not; its adapter logs and ignores mid-turn submissions.
+  // most one entry (UI constraint). Argot v1 does not support mid-turn
+  // submissions; its adapter logs and ignores them.
   // On release the user bubble materializes at the bottom of the chat
   // and the input is unlocked.
   _PendingSubmission? _pending;
@@ -137,11 +132,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
           unawaited(WindowFocusService.grabNavigationKeys());
-          setState(() {
-            _isVisible = true;
-            _isPromptBarVisible = true;
-          });
-          _focusPromptBar();
         }
       });
     });
@@ -193,11 +183,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         if (mounted) {
           unawaited(WindowFocusService.setFocusable(false));
-          setState(() {
-            _isVisible = true;
-            _isVoiceKeyPressed = true;
-            _isPromptBarVisible = false;
-          });
         }
       } else if (eventType == 'SPEECH_END') {
         // message 추출
@@ -216,12 +201,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         if (messageText != null) {
           // 실제 메시지 → 요청 전달 (기준 시간 포함, 완료 시 초기화)
           final referenceTime = _speechStartTimestamp;
-          if (mounted) setState(() => _isVoiceKeyPressed = false);
           if (!initOk) {
             debugPrint('[AppControl] Onboarding incomplete — showing error');
             if (mounted) {
               setState(() {
-                _isVisible = true;
                 _hasChatStarted = true;
                 _messages.add(
                   ChatMessage(
@@ -237,22 +220,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
             if (mounted) _handleSend(messageText, referenceTime: referenceTime);
           }
-        } else {
-          // 메시지 없음 → 음성 인식 실패 (NO_SPEECH 대체), 기준 시간은 유지
-          _voiceKeyReleaseTimer?.cancel();
-          if (mounted) {
-            setState(() {
-              _isVoiceKeyPressed = false;
-              if (!_isAgentBusy) _isPromptBarVisible = true;
-            });
-          }
         }
+        // 메시지 없음(NO_SPEECH): 기준 시간은 유지, 별도 UI 처리 없음
       } else {
         debugPrint('[AppControl] Unknown or missing eventType, ignoring.');
       }
     } catch (e) {
       debugPrint('[AppControl] Error processing extraData: $e');
-      if (mounted) setState(() => _isVisible = true);
     }
   }
 
@@ -267,32 +241,17 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       debugPrint('[Init] Session name: $sessionName');
 
-      // 3. 화면 표시 (gRPC 연결 전 — 비활성 상태)
-      // AppControl 없는 경우만 PromptBar 노출. AppControl 경로는 _handleSend 후 ChatWindow만 표시.
-      if (mounted) {
-        setState(() {
-          _isVisible = true;
-          _isPromptBarVisible = !_hasPendingAppControl;
-        });
-        if (!_hasPendingAppControl) {
-          unawaited(WindowFocusService.grabNavigationKeys());
-          _focusPromptBar();
-        }
-      }
-
-      // 4. gRPC 연결 (실패 시 daemon 재시작 대기 포함)
+      // 3. gRPC 연결
       await _grpcService.connect(sessionName: sessionName);
       if (!_grpcService.isConnected) {
         await _grpcService.reconnect();
       }
 
-      // 5. 연결 완료 → PromptBar 활성화
+      // 4. 연결 완료
       if (mounted) {
         setState(() => _isGrpcReady = true);
         if (!_hasPendingAppControl) {
-          // 일반 실행: nav 키 grab + PromptBar 포커스 (케이스 1)
           unawaited(WindowFocusService.grabNavigationKeys());
-          _focusPromptBar();
         }
       }
 
@@ -389,15 +348,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _logUserMessage = text;
       _logRequestSentTime = _requestStartTime;
     }
-    setState(() {
-      _isAgentBusy = true;
-      _isPromptBarVisible = false;
-    });
+    setState(() => _isAgentBusy = true);
     _focusChatWindow();
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
+      _lastTurns = 0;
+      _lastToolCalls = 0;
       setState(() {
+        _lastSentText = text;
         _messages.clear();
         _activeReplyIndex = null;
         _currentSegmentText = '';
@@ -416,8 +375,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return;
     }
 
-    // Busy path depends on the backend. Carbon may steer/queue; Argot v1 logs
-    // and returns null because the RPC surface has no mid-turn submit.
+    // Argot v1 does not support mid-turn submit; returns null.
     final reqId = await _grpcService.sendPrompt(
       text,
       steer: steer,
@@ -427,7 +385,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return;
     }
     setState(() {
-      _isVisible = true;
       _pending = _PendingSubmission(
         text: text,
         reqId: reqId,
@@ -444,7 +401,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _speechStartTimestamp = null;
     setState(() {
       _isAgentBusy = false;
-      _isPromptBarVisible = true;
       _activeReplyIndex = null;
       _currentSegmentText = '';
       _activeToolName = null;
@@ -460,7 +416,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     });
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
-    _focusPromptBar();
+    _focusChatWindow();
   }
 
   void _materializeUserBubble() {
@@ -469,7 +425,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _hasChatStarted = true;
         debugPrint('[Chat] First message!');
       }
-      _isVisible = true;
     });
     unawaited(WindowFocusService.ungrabNavigationKeys());
     _focusChatWindow();
@@ -515,10 +470,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _logRequestSentTime = null;
     _appendElapsedToLastMessage();
     _speechStartTimestamp = null;
-    setState(() {
-      _isAgentBusy = false;
-      _isPromptBarVisible = true;
-    });
+    setState(() => _isAgentBusy = false);
     _scrollToBottom();
     unawaited(WindowFocusService.grabNavigationKeys());
     _focusChatWindow();
@@ -556,7 +508,10 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _recordToolResult(toolCallId, output, isError);
         break;
 
-      case AgentTurnComplete():
+      case AgentTurnComplete(:final turns, :final toolCalls):
+        _lastTurns = turns;
+        _lastToolCalls = toolCalls;
+        debugPrint('[Chat] TurnComplete turns=$turns toolCalls=$toolCalls');
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
         }
@@ -564,7 +519,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentSteerApplied(:final clientRequestId):
-        // Carbon can emit this; Argot v1 cannot.
         if (_pending != null &&
             _pending!.steer &&
             _pending!.reqId == clientRequestId) {
@@ -582,11 +536,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentSubmitQueued():
-        // Carbon can emit this; Argot v1 cannot.
         break;
 
       case AgentSubmitSteered():
-        // Carbon can emit this; Argot v1 cannot.
         break;
 
       case AgentTurnStarted(:final clientRequestId, :final phase):
@@ -610,7 +562,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentContinuationRequested(:final reason, :final message):
-        // Carbon can emit this; Argot v1 cannot.
         debugPrint(
           '[Chat] ContinuationRequested reason=$reason msg=${message.length > 80 ? "${message.substring(0, 80)}..." : message}',
         );
@@ -681,10 +632,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         if (_isAgentBusy) {
           _speechStartTimestamp = null;
-          setState(() {
-            _isAgentBusy = false;
-            _isPromptBarVisible = true;
-          });
+          setState(() => _isAgentBusy = false);
         }
         unawaited(WindowFocusService.grabNavigationKeys());
         _grpcService.reconnect();
@@ -962,7 +910,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     unawaited(WindowFocusService.grabNavigationKeys());
 
     setState(() {
-      _isPromptBarVisible = true;
       final displayMessage = '[$code] $message';
 
       if (fatal) {
@@ -1014,14 +961,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _chatWindowKey.currentState?.scrollToBottom();
   }
 
-  void _focusPromptBar() {
-    setState(() => _promptBarFocused = true);
-    _promptBarFocusNode.requestFocus();
-  }
-
   void _focusChatWindow() {
     if (!_hasChatStarted) return;
-    setState(() => _promptBarFocused = false);
     _chatScrollFocusNode.requestFocus();
   }
 
@@ -1062,11 +1003,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _messageBusSubscription?.cancel();
     _eventSubscription?.cancel();
-    _voiceKeyReleaseTimer?.cancel();
     HttpMessageBus.instance.release();
     _keyboardFocusNode.dispose();
     _chatScrollFocusNode.dispose();
-    _promptBarFocusNode.dispose();
     super.dispose();
   }
 
@@ -1089,7 +1028,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void _appendElapsedToLastMessage() {
     final start = _requestStartTime;
     if (start == null) return;
-    final label = 'Worked · ${ElapsedTimer.format(start)}';
+    final statParts = <String>[];
+    if (_lastTurns > 0) statParts.add('$_lastTurns턴');
+    if (_lastToolCalls > 0) statParts.add('도구 $_lastToolCalls회');
+    final stats = statParts.isNotEmpty ? ' · ${statParts.join(' · ')}' : '';
+    final label = 'Worked · ${ElapsedTimer.format(start)}$stats';
 
     for (int i = _messages.length - 1; i >= 0; i--) {
       if (_messages[i].type == MessageType.received) {
@@ -1118,39 +1061,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final bool hasButtons = _currentActionButtons.isNotEmpty;
-
-    // 표시 여부 플래그
-    final bool showPromptBar = _isVisible && _isPromptBarVisible;
-    final bool chatWindowOnScreen =
-        _isVisible && (_hasChatStarted || _isAgentBusy);
-    // ActionBar: 요청 중(threadInFlight)일 때만 숨김. voice key pressed는 영향 없음.
-    final bool showActionBar =
-        _isVisible && _hasChatStarted && !_isAgentBusy && hasButtons;
-
-    // ActionButtonBar: PromptBar 위 고정 위치
-    const double actionBarTargetBottom = TizenStyles.chatWindowBottomBase;
-
-    // ChatWindow 위치:
-    // - chatWindowOnScreen=false: 화면 밖
-    // - voice key 누름 중: 이전 위치 유지 (PromptBar가 있을 때의 위치)
-    // - PromptBar 표시: 98 (버튼 없음) / 158 (버튼 있음)
-    // - PromptBar 숨김 (요청 중 / voice key release 후): bottom=10
-    final double chatWindowTargetBottom;
-    if (!chatWindowOnScreen) {
-      chatWindowTargetBottom = -screenHeight;
-    } else if (_isVoiceKeyPressed) {
-      chatWindowTargetBottom = hasButtons
-          ? TizenStyles.chatWindowBottomWithActions
-          : TizenStyles.chatWindowBottomBase;
-    } else if (showPromptBar) {
-      chatWindowTargetBottom = showActionBar
-          ? TizenStyles.chatWindowBottomWithActions
-          : TizenStyles.chatWindowBottomBase;
-    } else {
-      chatWindowTargetBottom = TizenStyles.promptBarBottom;
-    }
+    final bool showActionBar = !_isAgentBusy && _currentActionButtons.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1158,30 +1069,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         focusNode: _keyboardFocusNode,
         autofocus: true,
         onKeyEvent: (node, event) {
-          if (event.logicalKey.keyLabel == 'XF86BTVoice' ||
-              event.logicalKey.debugName == 'XF86BTVoice' ||
-              event.logicalKey.keyId == 137438953472) {
-            if (event is KeyDownEvent && !_isVoiceKeyPressed) {
-              _voiceKeyReleaseTimer?.cancel();
-              unawaited(WindowFocusService.setFocusable(false));
-              setState(() {
-                _isVoiceKeyPressed = true;
-                _isPromptBarVisible = false;
-              });
-            } else if (event is KeyUpEvent && _isVoiceKeyPressed) {
-              _voiceKeyReleaseTimer?.cancel();
-              _voiceKeyReleaseTimer = Timer(const Duration(seconds: 1), () {
-                if (mounted) {
-                  setState(() {
-                    _isVoiceKeyPressed = false;
-                    if (!_isAgentBusy) _isPromptBarVisible = true;
-                  });
-                }
-              });
-            }
-            return KeyEventResult.ignored;
-          }
-
           if (event.logicalKey == LogicalKeyboardKey.escape ||
               event.logicalKey == LogicalKeyboardKey.goBack ||
               event.logicalKey == LogicalKeyboardKey.browserBack) {
@@ -1192,94 +1079,38 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                 SystemNavigator.pop();
               }
             }
-            // KeyRepeat / KeyUp 도 handled 로 반환해 플랫폼이 앱 종료하지 않도록 차단
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          transform: Matrix4.translationValues(0, _keyboardShift, 0),
-          child: SizedBox.expand(
-            child: Stack(
-              children: [
-                // ── PromptBar ─────────────────────────────────────
+        child: SizedBox.expand(
+          child: Stack(
+            children: [
+              if (_hasChatStarted)
                 Positioned(
-                  bottom: TizenStyles.promptBarBottom,
-                  left: TizenStyles.promptBarLeft,
-                  child: IgnorePointer(
-                    ignoring: !showPromptBar,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      opacity: showPromptBar ? 1.0 : 0.0,
-                      child: PromptBar(
-                        isVisible: _isVisible,
-                        isConnecting: !_isGrpcReady,
-                        isWaiting: _isAgentBusy,
-                        hasChatStarted: _hasChatStarted,
-                        isFocused: _promptBarFocused,
-                        outerFocusNode: _promptBarFocusNode,
-                        onSend: _handleSend,
-                        onCancel: _handleInterrupt,
-                        onArrowUp: showActionBar
-                            ? () {
-                                setState(() => _promptBarFocused = false);
-                                _actionBarKey.currentState?.focusFirstButton();
-                              }
-                            : _focusChatWindow,
-                        onKeyboardFocusChanged: (hasFocus) {
-                          unawaited(WindowFocusService.setFocusable(hasFocus));
-                          setState(
-                            () => _keyboardShift = hasFocus ? -260.0 : 0.0,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── ActionButtonBar ───────────────────────────────
-                if (showActionBar)
-                  Positioned(
-                    bottom: actionBarTargetBottom,
-                    left: 0,
-                    right: 0,
-                    child: ActionButtonBar(
-                      key: _actionBarKey,
-                      buttons: _currentActionButtons,
-                      onSend: _handleSend,
-                      onArrowUp: _focusChatWindow,
-                      onArrowDown: _focusPromptBar,
-                    ),
-                  ),
-
-                // ── ChatWindow ───────────────────────────────────
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOut,
-                  bottom: chatWindowTargetBottom,
-                  left: TizenStyles.promptBarLeft,
-                  child: ChatWindow(
-                    key: _chatWindowKey,
+                  bottom: 10.0,
+                  left: 0,
+                  right: 0,
+                  child: ChatPanel(
+                    lastSentText: _lastSentText,
+                    chatWindowKey: _chatWindowKey,
                     focusNode: _chatScrollFocusNode,
-                    onScrolledToBottomDown: () {
-                      if (showActionBar) {
-                        _actionBarKey.currentState?.focusFirstButton();
-                      } else if (showPromptBar) {
-                        _focusPromptBar();
-                      }
-                    },
+                    onScrolledToBottomDown: () =>
+                        _actionBarKey.currentState?.focusFirstButton(),
                     messages: _messages,
                     isConnecting: !_isGrpcReady,
                     isThreadInFlight: _isAgentBusy,
                     typingLabel: _typingLabel,
                     requestStartTime: _requestStartTime,
+                    actionButtons:
+                        showActionBar ? _currentActionButtons : const [],
+                    onSend: _handleSend,
+                    actionBarKey: _actionBarKey,
+                    onArrowUp: _focusChatWindow,
+                    onArrowDown: _focusChatWindow,
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),

@@ -4,21 +4,8 @@ import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 
 /// Renders a single agent message bubble.
-///
-/// Argot v1 streams delta/tool/done events without thread-start or
-/// turn-start lifecycle items. [phaseTitle] is optional compatibility metadata
-/// from an adapter; when absent this renders as a normal answer bubble.
-///
-/// Tools used during the turn appear as a compact list under the
-/// narration text: one row per ToolUseStart/Result pair with status
-/// icon (▸ running / ✓ done / ✗ error) + tool name + truncated args
-/// → output.
-///
-/// A green ✓ next to the avatar indicates ValidationCompleted
-/// passed=true for this turn.
 class ReceivedMessage extends StatelessWidget {
   final String text;
-  final String avatarInitial;
   final bool isWaiting;
   final String displayType;
   final String? phaseTitle;
@@ -33,7 +20,6 @@ class ReceivedMessage extends StatelessWidget {
   const ReceivedMessage({
     super.key,
     required this.text,
-    required this.avatarInitial,
     this.isWaiting = false,
     this.displayType = 'text',
     this.phaseTitle,
@@ -41,22 +27,6 @@ class ReceivedMessage extends StatelessWidget {
     this.validationPassed = false,
     this.currentToolIndicator,
   });
-
-  Color _getAvatarColor() {
-    switch (displayType) {
-      case 'ui':
-        return Colors.deepPurpleAccent;
-      case 'text':
-        return Colors.blueAccent;
-      case 'device_control':
-        return Colors.orangeAccent;
-      case 'hidden':
-        return Colors.tealAccent;
-      case 'fallback':
-      default:
-        return TizenStyles.slate800;
-    }
-  }
 
   /// Phase-header bubbles are visual progress markers, not the answer.
   /// Dim them so the final-answer bubble stands out.
@@ -76,91 +46,43 @@ class ReceivedMessage extends StatelessWidget {
       color: TizenStyles.bodyText.color?.withValues(alpha: dimAlpha),
     );
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            if (isWaiting)
-              SizedBox(
-                width: TizenStyles.avatarSpinnerSize,
-                height: TizenStyles.avatarSpinnerSize,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    TizenStyles.cyan400.withValues(alpha: 0.8),
-                  ),
+        if (phaseTitle != null) ...[
+          _PhaseHeader(title: phaseTitle!),
+          const SizedBox(height: 4),
+        ],
+        if (hasText)
+          MarkdownBody(
+            data: text,
+            styleSheet: MarkdownStyleSheet(
+              p: bodyStyle,
+              strong: bodyStyle.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              em: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+              listBullet: bodyStyle,
+              code: bodyStyle.copyWith(
+                fontFamily: 'monospace',
+                backgroundColor: Colors.black.withValues(alpha: 0.3),
+              ),
+              codeblockDecoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(
+                  TizenStyles.codeBorderRadius,
                 ),
               ),
-            CircleAvatar(
-              radius: TizenStyles.avatarRadius,
-              backgroundColor: _getAvatarColor(),
-              child: Text(
-                avatarInitial,
-                style: const TextStyle(
-                  fontSize: TizenStyles.avatarInitialFontSize,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+              h1: TizenStyles.headerText,
+              h2: TizenStyles.headerText.copyWith(
+                fontSize: TizenStyles.headerFontSize,
+              ),
+              h3: TizenStyles.headerText.copyWith(
+                fontSize: TizenStyles.subheaderFontSize,
               ),
             ),
-          ],
-        ),
-        const SizedBox(width: TizenStyles.avatarGap),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (phaseTitle != null) ...[
-                _PhaseHeader(title: phaseTitle!),
-                const SizedBox(height: 4),
-              ],
-              // Tool indicator + text are SEPARATE regions inside the
-              // same bubble. Both can be visible at once when an LLM
-              // narration ("I'll fetch X now") is followed by the
-              // actual tool call. Indicator clears when ToolResult
-              // arrives (or another tool replaces it) and is dropped
-              // entirely at TurnComplete.
-              // step phase 하위 도구 호출은 표시하지 않음
-              // if (currentToolIndicator != null) ...[
-              //   _ToolIndicator(toolName: currentToolIndicator!),
-              //   if (hasText) const SizedBox(height: 4),
-              // ],
-              if (hasText)
-                MarkdownBody(
-                  data: text,
-                  styleSheet: MarkdownStyleSheet(
-                    p: bodyStyle,
-                    strong: bodyStyle.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    em: bodyStyle.copyWith(fontStyle: FontStyle.italic),
-                    listBullet: bodyStyle,
-                    code: bodyStyle.copyWith(
-                      fontFamily: 'monospace',
-                      backgroundColor: Colors.black.withValues(alpha: 0.3),
-                    ),
-                    codeblockDecoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(
-                        TizenStyles.codeBorderRadius,
-                      ),
-                    ),
-                    h1: TizenStyles.headerText,
-                    h2: TizenStyles.headerText.copyWith(
-                      fontSize: TizenStyles.headerFontSize,
-                    ),
-                    h3: TizenStyles.headerText.copyWith(
-                      fontSize: TizenStyles.subheaderFontSize,
-                    ),
-                  ),
-                ),
-            ],
           ),
-        ),
-        const SizedBox(width: TizenStyles.receivedMessageRightSpacing),
       ],
     );
   }
