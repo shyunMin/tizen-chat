@@ -22,9 +22,10 @@ class AgentPanel extends StatelessWidget {
   final GlobalKey<ActionButtonBarState> actionBarKey;
   final VoidCallback? onArrowUp;
   final VoidCallback? onArrowDown;
+  final double slideOffset;
 
   static const double _panelHorizontalMargin = TizenStyles.promptBarLeft;
-  static const double _actionBarGap = TizenStyles.promptBarLeft;
+  static const double _verticalGap = 15.0;
 
   const AgentPanel({
     super.key,
@@ -42,6 +43,7 @@ class AgentPanel extends StatelessWidget {
     required this.actionBarKey,
     this.onArrowUp,
     this.onArrowDown,
+    this.slideOffset = 0.0,
   });
 
   @override
@@ -51,15 +53,17 @@ class AgentPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _panelHorizontalMargin),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (lastSentText != null)
+        Transform.translate(
+          offset: Offset(0, slideOffset),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _panelHorizontalMargin),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (lastSentText != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 15),
+                  padding: const EdgeInsets.only(left: 4, bottom: _verticalGap),
                   child: Text(
                     '"$lastSentText"',
                     overflow: TextOverflow.ellipsis,
@@ -89,8 +93,9 @@ class AgentPanel extends StatelessWidget {
             ],
           ),
         ),
+      ),
         if (showActionBar) ...[
-          const SizedBox(height: _actionBarGap),
+          const SizedBox(height: _verticalGap),
           ActionButtonBar(
             key: actionBarKey,
             buttons: actionButtons,

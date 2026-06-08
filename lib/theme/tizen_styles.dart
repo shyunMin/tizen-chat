@@ -32,7 +32,7 @@ class TizenStyles {
   static const double avatarSpinnerSize = 38.0;
   static const double focusBorderWidth = 1.5;
   static const double sessionHeaderDotSize = 6.0;
-  static const double actionBarHeight = 54.0;
+  static const double actionBarHeight = 34.0;
   static const double promptBarCollapsedWidth = 64.0;
   static const double promptBarInnerHeight = 68.0;
   static const double promptBarContentHeight = 64.0;
@@ -57,7 +57,7 @@ class TizenStyles {
   );
   static const EdgeInsets actionButtonPadding = EdgeInsets.symmetric(
     horizontal: 14,
-    vertical: 4,
+    vertical: 6,
   );
   static const EdgeInsets actionBarHorizontalPadding = EdgeInsets.symmetric(
     horizontal: 10,

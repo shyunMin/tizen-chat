@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../widgets/agent_panel.dart';
 import '../widgets/agent_window.dart';
 import '../widgets/action_button_bar.dart';
+import '../widgets/speech_visibility_animator.dart';
 import '../services/agent_runtime_service.dart';
 import '../platform/platform_flags.dart' as platform_flags;
 import '../platform/platform_flags.dart' show kIsTizen, LayoutMode;
@@ -37,13 +38,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ── 대화창 상태 ──────────────────────────────────────────────
   bool _hasChatStarted = false;
 
-  // ── Speech 패널 애니메이션 ───────────────────────────────────
-  // SPEECH_START: fade + slide(조건부) 동시 실행
-  // SPEECH_END  : Phase1=빠른 fade in(120ms) → Phase2=slide 복귀(250ms)
-  late final AnimationController _speechFadeController;
-  late final AnimationController _speechSlideController;
+  bool _isSpeechPanelVisible = true;
   static const double _speechSlideDistance =
-      TizenStyles.actionBarHeight + TizenStyles.promptBarLeft;
+      TizenStyles.actionBarHeight + 15.0; // action bar height + _verticalGap
   final List<ChatMessage> _messages = [];
   DateTime? _requestStartTime;
   final GlobalKey<AgentWindowState> _agentWindowKey =
@@ -114,8 +111,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _speechFadeController = AnimationController(vsync: this, value: 1.0);
-    _speechSlideController = AnimationController(vsync: this);
     _perfLogger = RequestPerfLogger(enabled: widget.enablePerfLog);
     unawaited(_perfLogger.init());
     if (kIsTizen) {
@@ -186,10 +181,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         }
         if (mounted) {
           unawaited(WindowFocusService.setFocusable(false));
-          unawaited(_hidePanelForSpeech());
+          setState(() {
+            _isSpeechPanelVisible = false;
+          });
         }
       } else if (eventType == 'SPEECH_END') {
-        if (mounted) _showPanelAfterSpeech();
+        if (mounted) {
+          setState(() {
+            _isSpeechPanelVisible = true;
+          });
+        }
         // message 추출
         String? messageText;
         if (extraData.containsKey('message')) {
@@ -1029,34 +1030,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
   }
 
-  // 처리 중: 항상 slide+fade. 완료+액션바 없음: slide+fade. 완료+액션바 있음: fade만.
-  Future<void> _hidePanelForSpeech() async {
-    await Future.wait([
-      _speechSlideController.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      ),
-      _speechFadeController.animateTo(
-        0.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      ),
-    ]);
-  }
 
-  void _showPanelAfterSpeech() {
-    _speechFadeController.animateTo(
-      1.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeIn,
-    );
-    _speechSlideController.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeIn,
-    );
-  }
+
+
 
   @override
   void dispose() {
@@ -1064,8 +1040,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _messageBusSubscription?.cancel();
     _eventSubscription?.cancel();
     HttpMessageBus.instance.release();
-    _speechFadeController.dispose();
-    _speechSlideController.dispose();
+
     _keyboardFocusNode.dispose();
     _chatScrollFocusNode.dispose();
     super.dispose();
@@ -1160,38 +1135,30 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   bottom: 30.0,
                   left: 20.0,
                   right: 0,
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([
-                      _speechFadeController,
-                      _speechSlideController,
-                    ]),
-                    builder: (context, child) => Opacity(
-                      opacity: _speechFadeController.value,
-                      child: Transform.translate(
-                        offset: Offset(
-                          0,
-                          -_speechSlideController.value * _speechSlideDistance,
-                        ),
-                        child: child,
+                  child: SpeechVisibilityAnimator(
+                    isVisible: _isSpeechPanelVisible,
+                    slideDistance: _speechSlideDistance,
+                    builder: (context, opacity, slideOffset) => Opacity(
+                      opacity: opacity,
+                      child: AgentPanel(
+                        slideOffset: slideOffset,
+                        lastSentText: _lastSentText,
+                        agentWindowKey: _agentWindowKey,
+                        focusNode: _chatScrollFocusNode,
+                        onScrolledToBottomDown: () =>
+                            _actionBarKey.currentState?.focusFirstButton(),
+                        messages: _messages,
+                        isConnecting: !_isGrpcReady,
+                        isThreadInFlight: _isAgentBusy,
+                        typingLabel: _typingLabel,
+                        requestStartTime: _requestStartTime,
+                        actionButtons:
+                            showActionBar ? _currentActionButtons : const [],
+                        onSend: _handleSend,
+                        actionBarKey: _actionBarKey,
+                        onArrowUp: _focusAgentWindow,
+                        onArrowDown: _focusAgentWindow,
                       ),
-                    ),
-                    child: AgentPanel(
-                      lastSentText: _lastSentText,
-                      agentWindowKey: _agentWindowKey,
-                      focusNode: _chatScrollFocusNode,
-                      onScrolledToBottomDown: () =>
-                          _actionBarKey.currentState?.focusFirstButton(),
-                      messages: _messages,
-                      isConnecting: !_isGrpcReady,
-                      isThreadInFlight: _isAgentBusy,
-                      typingLabel: _typingLabel,
-                      requestStartTime: _requestStartTime,
-                      actionButtons:
-                          showActionBar ? _currentActionButtons : const [],
-                      onSend: _handleSend,
-                      actionBarKey: _actionBarKey,
-                      onArrowUp: _focusAgentWindow,
-                      onArrowDown: _focusAgentWindow,
                     ),
                   ),
                 ),
