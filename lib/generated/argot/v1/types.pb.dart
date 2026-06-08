@@ -29,6 +29,7 @@ enum ChatEvent_Event {
   completed,
   failed,
   stopped,
+  progress,
   notSet
 }
 
@@ -41,6 +42,7 @@ class ChatEvent extends $pb.GeneratedMessage {
     Completed? completed,
     Failed? failed,
     Stopped? stopped,
+    AgentProgress? progress,
   }) {
     final result = create();
     if (opened != null) result.opened = opened;
@@ -50,6 +52,7 @@ class ChatEvent extends $pb.GeneratedMessage {
     if (completed != null) result.completed = completed;
     if (failed != null) result.failed = failed;
     if (stopped != null) result.stopped = stopped;
+    if (progress != null) result.progress = progress;
     return result;
   }
 
@@ -70,13 +73,14 @@ class ChatEvent extends $pb.GeneratedMessage {
     5: ChatEvent_Event.completed,
     6: ChatEvent_Event.failed,
     7: ChatEvent_Event.stopped,
+    8: ChatEvent_Event.progress,
     0: ChatEvent_Event.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ChatEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8])
     ..aOM<Opened>(1, _omitFieldNames ? '' : 'opened', subBuilder: Opened.create)
     ..aOM<MessageDelta>(2, _omitFieldNames ? '' : 'delta',
         subBuilder: MessageDelta.create)
@@ -89,6 +93,8 @@ class ChatEvent extends $pb.GeneratedMessage {
     ..aOM<Failed>(6, _omitFieldNames ? '' : 'failed', subBuilder: Failed.create)
     ..aOM<Stopped>(7, _omitFieldNames ? '' : 'stopped',
         subBuilder: Stopped.create)
+    ..aOM<AgentProgress>(8, _omitFieldNames ? '' : 'progress',
+        subBuilder: AgentProgress.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -116,6 +122,7 @@ class ChatEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
+  @$pb.TagNumber(8)
   ChatEvent_Event whichEvent() => _ChatEvent_EventByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
@@ -124,6 +131,7 @@ class ChatEvent extends $pb.GeneratedMessage {
   @$pb.TagNumber(5)
   @$pb.TagNumber(6)
   @$pb.TagNumber(7)
+  @$pb.TagNumber(8)
   void clearEvent() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -208,6 +216,20 @@ class ChatEvent extends $pb.GeneratedMessage {
   void clearStopped() => $_clearField(7);
   @$pb.TagNumber(7)
   Stopped ensureStopped() => $_ensure(6);
+
+  /// User-safe agent activity on the live turn (thinking, running a
+  /// tool, …). Operational, ephemeral, never persisted. Additive: a
+  /// client that doesn't recognise it ignores it. See AgentProgress.
+  @$pb.TagNumber(8)
+  AgentProgress get progress => $_getN(7);
+  @$pb.TagNumber(8)
+  set progress(AgentProgress value) => $_setField(8, value);
+  @$pb.TagNumber(8)
+  $core.bool hasProgress() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearProgress() => $_clearField(8);
+  @$pb.TagNumber(8)
+  AgentProgress ensureProgress() => $_ensure(7);
 }
 
 /// First frame on every Chat stream: the resolved conversation id and
@@ -703,6 +725,131 @@ class Stopped extends $pb.GeneratedMessage {
   $core.bool hasToolCalls() => $_has(2);
   @$pb.TagNumber(3)
   void clearToolCalls() => $_clearField(3);
+}
+
+/// A user-safe activity signal for the active turn, so a chat UI / CLI can show
+/// "what the agent is doing" (Thinking, Running bash, Searching memory) without
+/// rendering the raw tool_call / tool_result stream. NOT assistant content and
+/// NOT reasoning / chain-of-thought. Live-only: never written to history, so
+/// GetHistory never replays it. Clients may dedupe consecutive identical events.
+class AgentProgress extends $pb.GeneratedMessage {
+  factory AgentProgress({
+    Phase? phase,
+    $core.String? statusId,
+    $core.String? toolName,
+    $core.String? message,
+    ProgressSource? source,
+    $core.Iterable<$core.String>? agentPath,
+  }) {
+    final result = create();
+    if (phase != null) result.phase = phase;
+    if (statusId != null) result.statusId = statusId;
+    if (toolName != null) result.toolName = toolName;
+    if (message != null) result.message = message;
+    if (source != null) result.source = source;
+    if (agentPath != null) result.agentPath.addAll(agentPath);
+    return result;
+  }
+
+  AgentProgress._();
+
+  factory AgentProgress.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory AgentProgress.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AgentProgress',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'argot.v1'),
+      createEmptyInstance: create)
+    ..aE<Phase>(1, _omitFieldNames ? '' : 'phase', enumValues: Phase.values)
+    ..aOS(2, _omitFieldNames ? '' : 'statusId')
+    ..aOS(3, _omitFieldNames ? '' : 'toolName')
+    ..aOS(4, _omitFieldNames ? '' : 'message')
+    ..aE<ProgressSource>(5, _omitFieldNames ? '' : 'source',
+        enumValues: ProgressSource.values)
+    ..pPS(6, _omitFieldNames ? '' : 'agentPath')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AgentProgress clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AgentProgress copyWith(void Function(AgentProgress) updates) =>
+      super.copyWith((message) => updates(message as AgentProgress))
+          as AgentProgress;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static AgentProgress create() => AgentProgress._();
+  @$core.override
+  AgentProgress createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static AgentProgress getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<AgentProgress>(create);
+  static AgentProgress? _defaultInstance;
+
+  /// Coarse lifecycle phase. The daemon emits only the phases tinicore's agent
+  /// loop actually fires (thinking → memory_retrieving → streaming →
+  /// tool_executing → done); `summary` is the optional periodic narration.
+  @$pb.TagNumber(1)
+  Phase get phase => $_getN(0);
+  @$pb.TagNumber(1)
+  set phase(Phase value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPhase() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPhase() => $_clearField(1);
+
+  /// Stable tinicore catalogue id for the phase, e.g. "agent-status-thinking",
+  /// for clients with an i18n label catalogue. Empty for summary-only events.
+  @$pb.TagNumber(2)
+  $core.String get statusId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set statusId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasStatusId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearStatusId() => $_clearField(2);
+
+  /// Tool wire-name for tool_executing (e.g. "bash_run"); empty otherwise.
+  @$pb.TagNumber(3)
+  $core.String get toolName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set toolName($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasToolName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearToolName() => $_clearField(3);
+
+  /// Optional short, user-safe narration (e.g. "Reading turn.rs") from the
+  /// AgentProgress summarizer. Empty for coarse status. Never reasoning.
+  @$pb.TagNumber(4)
+  $core.String get message => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set message($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasMessage() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearMessage() => $_clearField(4);
+
+  /// Whether this came from a coarse status transition or a summarizer tick.
+  @$pb.TagNumber(5)
+  ProgressSource get source => $_getN(4);
+  @$pb.TagNumber(5)
+  set source(ProgressSource value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSource() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSource() => $_clearField(5);
+
+  /// Agent / sub-agent / composite-flow attribution, root→emitter. Empty for
+  /// the root run. Lets a UI attribute progress within a nested sub-agent tree.
+  @$pb.TagNumber(6)
+  $pb.PbList<$core.String> get agentPath => $_getList(5);
 }
 
 enum MessagePart_Part { text, toolCall, toolResult, reasoning, notSet }

@@ -125,8 +125,8 @@ class ChatRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   NewConversation ensureNew_2() => $_ensure(1);
 
-  /// One-shot intent: persists nothing once #77 lands. TODAY this behaves
-  /// like `new` (mints + persists) — true statelessness is deferred (#77).
+  /// One-shot intent: persists nothing once true statelessness lands. TODAY this behaves
+  /// like `new` (mints + persists) — true statelessness is deferred.
   @$pb.TagNumber(3)
   EphemeralConversation get ephemeral => $_getN(2);
   @$pb.TagNumber(3)

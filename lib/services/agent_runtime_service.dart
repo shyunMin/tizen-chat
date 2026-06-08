@@ -42,6 +42,57 @@ class AgentToolResult extends AgentEvent {
   AgentToolResult(this.toolCallId, this.output, this.isError);
 }
 
+/// Live-turn agent activity (thinking, recalling memory, running a tool).
+/// Operational and ephemeral — never persisted. Only the Argot backend emits
+/// this; Carbon has no equivalent wire signal. Clients may dedupe consecutive
+/// identical [displayLabel]s.
+class AgentAgentProgress extends AgentEvent {
+  /// Stable lowercase phase token: `thinking` | `memory_retrieving` |
+  /// `streaming` | `tool_executing` | `done` | `summary` | `unspecified`.
+  final String phase;
+
+  /// Stable tinicore catalogue id (e.g. `agent-status-thinking`); empty if none.
+  final String statusId;
+
+  /// Tool wire-name for `tool_executing` (e.g. `bash_run`); empty otherwise.
+  final String toolName;
+
+  /// Optional user-safe summarizer narration; empty for a coarse status.
+  final String message;
+
+  /// `agent_status` | `agent_progress_summary` | `unspecified`.
+  final String source;
+
+  /// Agent / sub-agent attribution, root→emitter. Empty for the root run.
+  final List<String> agentPath;
+
+  AgentAgentProgress({
+    required this.phase,
+    this.statusId = '',
+    this.toolName = '',
+    this.message = '',
+    this.source = '',
+    this.agentPath = const [],
+  });
+
+  /// User-facing one-line activity label, or null to suppress. Mirrors the
+  /// argot CLI: a summarizer [message] wins; `streaming` / `done` /
+  /// `unspecified` are already conveyed by the streamed text and completion.
+  String? get displayLabel {
+    if (message.isNotEmpty) return message;
+    switch (phase) {
+      case 'thinking':
+        return 'thinking';
+      case 'memory_retrieving':
+        return 'recalling memory';
+      case 'tool_executing':
+        return toolName.isNotEmpty ? 'running $toolName' : 'running tool';
+      default:
+        return null;
+    }
+  }
+}
+
 class AgentTurnComplete extends AgentEvent {
   final String? usageJson;
   final String turnId;
@@ -286,6 +337,22 @@ AgentEvent _mapArgotEvent(argot.ArgotEvent event) {
       :final isError,
     ):
       return AgentToolResult(toolCallId, output, isError);
+    case argot.ArgotAgentProgress(
+      :final phase,
+      :final statusId,
+      :final toolName,
+      :final message,
+      :final source,
+      :final agentPath,
+    ):
+      return AgentAgentProgress(
+        phase: phase,
+        statusId: statusId,
+        toolName: toolName,
+        message: message,
+        source: source,
+        agentPath: agentPath,
+      );
     case argot.ArgotTurnComplete(:final usageJson, :final turnId, :final turns, :final toolCalls):
       return AgentTurnComplete(usageJson: usageJson, turnId: turnId, turns: turns, toolCalls: toolCalls);
     case argot.ArgotSteerApplied(:final turnId, :final clientRequestId):

@@ -44,6 +44,69 @@ class StopReason extends $pb.ProtobufEnum {
   const StopReason._(super.value, super.name);
 }
 
+/// Prefixed values (package-scoped → unique across argot.v1; prost strips the
+/// prefix → Phase::Thinking).
+class Phase extends $pb.ProtobufEnum {
+  static const Phase PHASE_UNSPECIFIED =
+      Phase._(0, _omitEnumNames ? '' : 'PHASE_UNSPECIFIED');
+  static const Phase PHASE_THINKING =
+      Phase._(1, _omitEnumNames ? '' : 'PHASE_THINKING');
+  static const Phase PHASE_MEMORY_RETRIEVING =
+      Phase._(2, _omitEnumNames ? '' : 'PHASE_MEMORY_RETRIEVING');
+  static const Phase PHASE_STREAMING =
+      Phase._(3, _omitEnumNames ? '' : 'PHASE_STREAMING');
+  static const Phase PHASE_TOOL_EXECUTING =
+      Phase._(4, _omitEnumNames ? '' : 'PHASE_TOOL_EXECUTING');
+  static const Phase PHASE_DONE =
+      Phase._(5, _omitEnumNames ? '' : 'PHASE_DONE');
+  static const Phase PHASE_SUMMARY =
+      Phase._(6, _omitEnumNames ? '' : 'PHASE_SUMMARY');
+
+  static const $core.List<Phase> values = <Phase>[
+    PHASE_UNSPECIFIED,
+    PHASE_THINKING,
+    PHASE_MEMORY_RETRIEVING,
+    PHASE_STREAMING,
+    PHASE_TOOL_EXECUTING,
+    PHASE_DONE,
+    PHASE_SUMMARY,
+  ];
+
+  static final $core.List<Phase?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 6);
+  static Phase? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const Phase._(super.value, super.name);
+}
+
+class ProgressSource extends $pb.ProtobufEnum {
+  static const ProgressSource PROGRESS_SOURCE_UNSPECIFIED =
+      ProgressSource._(0, _omitEnumNames ? '' : 'PROGRESS_SOURCE_UNSPECIFIED');
+
+  /// A coarse AgentStatus transition (deterministic, cheap).
+  static const ProgressSource PROGRESS_SOURCE_AGENT_STATUS =
+      ProgressSource._(1, _omitEnumNames ? '' : 'PROGRESS_SOURCE_AGENT_STATUS');
+
+  /// A periodic LLM-backed AgentProgress narration tick.
+  static const ProgressSource PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY =
+      ProgressSource._(
+          2, _omitEnumNames ? '' : 'PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY');
+
+  static const $core.List<ProgressSource> values = <ProgressSource>[
+    PROGRESS_SOURCE_UNSPECIFIED,
+    PROGRESS_SOURCE_AGENT_STATUS,
+    PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY,
+  ];
+
+  static final $core.List<ProgressSource?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static ProgressSource? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const ProgressSource._(super.value, super.name);
+}
+
 class Role extends $pb.ProtobufEnum {
   /// Prefixed because proto3 enum values are package-scoped: an unprefixed
   /// TOOL/USER/... would collide with another enum in argot.v1 (e.g.

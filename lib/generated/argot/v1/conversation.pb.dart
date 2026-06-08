@@ -22,7 +22,7 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 /// v0 pagination is intentionally minimal: a `limit` (newest-first page size)
 /// plus a `has_more` truncation flag, no cursor. A `before_ms`/`next_before_ms`
 /// cursor is deferred — the vendored stores serve only newest-N / OFFSET reads
-/// and the bespoke cursor SQL was dropped (#69). It can be added back
+/// and the bespoke cursor SQL was dropped. It can be added back
 /// additively when deep/older paging is actually needed.
 class ListConversationsRequest extends $pb.GeneratedMessage {
   factory ListConversationsRequest({

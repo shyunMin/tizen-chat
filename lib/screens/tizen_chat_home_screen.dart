@@ -86,6 +86,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// as a header title.
   AgentTurnPhase? _currentPhase;
 
+  /// Live agent-activity label for the in-flight turn (e.g. "생각하는 중이에요…",
+  /// "기억을 살펴보는 중이에요…"), driven by the Argot AgentProgress wire event.
+  /// Ephemeral: surfaces in the typing indicator only while the turn runs, then
+  /// clears at the turn boundary. Null = fall back to the phase-based label.
+  String? _currentProgressLabel;
+
   /// Stash a successful ValidationCompleted result that arrived before
   /// the response entry materialized (the final-answer delta usually lands
   /// a few ms after). Applied to the next entry created within this turn.
@@ -367,6 +373,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _currentSegmentText = '';
         _activeToolName = null;
         _currentPhase = null;
+        _currentProgressLabel = null;
         _pendingValidationPassed = false;
       });
       _beginChatView();
@@ -447,6 +454,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _currentSegmentText = '';
       _activeToolName = null;
       _currentPhase = null;
+      _currentProgressLabel = null;
       _pendingValidationPassed = false;
       _pending = null;
     });
@@ -513,6 +521,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         _recordToolResult(toolCallId, output, isError);
         break;
 
+      case AgentAgentProgress():
+        // Live, ephemeral "what the agent is doing" signal. Surfaced in the
+        // typing indicator (the only live-status affordance while the turn is
+        // in flight); never written to a bubble since it isn't persisted.
+        _applyAgentProgress(event);
+        break;
+
       case AgentTurnComplete(:final turns, :final toolCalls):
         _lastTurns = turns;
         _lastToolCalls = toolCalls;
@@ -521,6 +536,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           _finalizeActiveReply();
         }
         _currentPhase = null;
+        _currentProgressLabel = null;
         break;
 
       case AgentSteerApplied(:final clientRequestId):
@@ -831,6 +847,34 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     return;
   }
 
+  /// Surface live agent activity (thinking, recalling memory, running a tool)
+  /// in the typing indicator. Progress is ephemeral (never persisted), so we
+  /// keep only the latest label and drop it at the turn boundary. Consecutive
+  /// identical labels are deduped to avoid needless rebuilds, mirroring the
+  /// argot CLI.
+  void _applyAgentProgress(AgentAgentProgress progress) {
+    final label = _progressLabel(progress);
+    if (label == null || label == _currentProgressLabel) return;
+    setState(() => _currentProgressLabel = label);
+  }
+
+  /// Localized one-line activity label for a progress event, or null to
+  /// suppress. progress는 raw 이벤트가 표현 못 하는 구간(thinking / memory)만
+  /// 담당한다. tool_executing은 raw ToolCall/ToolResult 스트림이 소유하므로 여기서
+  /// 다루지 않고, streaming / done / unspecified 도 이미 텍스트·완료 프레임으로
+  /// 전달되므로 표시하지 않는다. summarizer narration(message)이 있으면 그게 우선.
+  String? _progressLabel(AgentAgentProgress progress) {
+    if (progress.message.isNotEmpty) return progress.message;
+    switch (progress.phase) {
+      case 'thinking':
+        return '생각하는 중이에요…';
+      case 'memory_retrieving':
+        return '기억을 살펴보는 중이에요…';
+      default:
+        return null;
+    }
+  }
+
   void _finalizeActiveReply() {
     if (_activeReplyIndex == null) return;
     debugPrint(
@@ -883,6 +927,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       );
     });
     _activeToolName = null;
+    _currentProgressLabel = null;
     _activeReplyIndex = null;
     _currentSegmentText = '';
     _scrollToBottom();
@@ -1065,8 +1110,16 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     if (_activeReplyIndex != null && _activeReplyIndex! < _messages.length) {
       final msg = _messages[_activeReplyIndex!];
       if (msg.phaseTitle != null) return msg.phaseTitle!;
-      if (msg.currentToolIndicator != null) return msg.currentToolIndicator!;
+      // 툴 표시는 raw ToolCall/ToolResult 스트림(currentToolIndicator)이 소유하되,
+      // "지금 실행 중(pending)인 툴이 있을 때"만 보여준다. 툴이 끝나면 아래 progress
+      // (생각/기억)로 떨어져, 마지막 툴명이 턴 끝까지 남지 않는다.
+      if (msg.tools.any((t) => t.isPending) &&
+          msg.currentToolIndicator != null) {
+        return msg.currentToolIndicator!;
+      }
     }
+    // progress는 raw 이벤트가 없는 구간(생각 중 / 기억 검색)만 채운다.
+    if (_currentProgressLabel != null) return _currentProgressLabel!;
     final phase = _currentPhase;
     if (phase is AgentTurnPhaseValidation || phase is AgentTurnPhaseUnknown) {
       return '답변을 검토하는 중입니다.';

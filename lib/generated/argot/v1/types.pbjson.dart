@@ -33,6 +33,42 @@ final $typed_data.Uint8List stopReasonDescriptor = $convert.base64Decode(
     '5fSVRFUl9DQVAQARIZChVTVE9QX1JFQVNPTl9UT0tFTl9DQVAQAhIYChRTVE9QX1JFQVNPTl9U'
     'SU1FX0NBUBADEhkKFVNUT1BfUkVBU09OX0NBTkNFTExFRBAE');
 
+@$core.Deprecated('Use phaseDescriptor instead')
+const Phase$json = {
+  '1': 'Phase',
+  '2': [
+    {'1': 'PHASE_UNSPECIFIED', '2': 0},
+    {'1': 'PHASE_THINKING', '2': 1},
+    {'1': 'PHASE_MEMORY_RETRIEVING', '2': 2},
+    {'1': 'PHASE_STREAMING', '2': 3},
+    {'1': 'PHASE_TOOL_EXECUTING', '2': 4},
+    {'1': 'PHASE_DONE', '2': 5},
+    {'1': 'PHASE_SUMMARY', '2': 6},
+  ],
+};
+
+/// Descriptor for `Phase`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List phaseDescriptor = $convert.base64Decode(
+    'CgVQaGFzZRIVChFQSEFTRV9VTlNQRUNJRklFRBAAEhIKDlBIQVNFX1RISU5LSU5HEAESGwoXUE'
+    'hBU0VfTUVNT1JZX1JFVFJJRVZJTkcQAhITCg9QSEFTRV9TVFJFQU1JTkcQAxIYChRQSEFTRV9U'
+    'T09MX0VYRUNVVElORxAEEg4KClBIQVNFX0RPTkUQBRIRCg1QSEFTRV9TVU1NQVJZEAY=');
+
+@$core.Deprecated('Use progressSourceDescriptor instead')
+const ProgressSource$json = {
+  '1': 'ProgressSource',
+  '2': [
+    {'1': 'PROGRESS_SOURCE_UNSPECIFIED', '2': 0},
+    {'1': 'PROGRESS_SOURCE_AGENT_STATUS', '2': 1},
+    {'1': 'PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY', '2': 2},
+  ],
+};
+
+/// Descriptor for `ProgressSource`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List progressSourceDescriptor = $convert.base64Decode(
+    'Cg5Qcm9ncmVzc1NvdXJjZRIfChtQUk9HUkVTU19TT1VSQ0VfVU5TUEVDSUZJRUQQABIgChxQUk'
+    '9HUkVTU19TT1VSQ0VfQUdFTlRfU1RBVFVTEAESKgomUFJPR1JFU1NfU09VUkNFX0FHRU5UX1BS'
+    'T0dSRVNTX1NVTU1BUlkQAg==');
+
 @$core.Deprecated('Use roleDescriptor instead')
 const Role$json = {
   '1': 'Role',
@@ -117,6 +153,15 @@ const ChatEvent$json = {
       '9': 0,
       '10': 'stopped'
     },
+    {
+      '1': 'progress',
+      '3': 8,
+      '4': 1,
+      '5': 11,
+      '6': '.argot.v1.AgentProgress',
+      '9': 0,
+      '10': 'progress'
+    },
   ],
   '8': [
     {'1': 'event'},
@@ -131,7 +176,8 @@ final $typed_data.Uint8List chatEventDescriptor = $convert.base64Decode(
     'VsdBgEIAEoCzIULmFyZ290LnYxLlRvb2xSZXN1bHRIAFIKdG9vbFJlc3VsdBIzCgljb21wbGV0'
     'ZWQYBSABKAsyEy5hcmdvdC52MS5Db21wbGV0ZWRIAFIJY29tcGxldGVkEioKBmZhaWxlZBgGIA'
     'EoCzIQLmFyZ290LnYxLkZhaWxlZEgAUgZmYWlsZWQSLQoHc3RvcHBlZBgHIAEoCzIRLmFyZ290'
-    'LnYxLlN0b3BwZWRIAFIHc3RvcHBlZEIHCgVldmVudA==');
+    'LnYxLlN0b3BwZWRIAFIHc3RvcHBlZBI1Cghwcm9ncmVzcxgIIAEoCzIXLmFyZ290LnYxLkFnZW'
+    '50UHJvZ3Jlc3NIAFIIcHJvZ3Jlc3NCBwoFZXZlbnQ=');
 
 @$core.Deprecated('Use openedDescriptor instead')
 const Opened$json = {
@@ -237,6 +283,40 @@ const Stopped$json = {
 final $typed_data.Uint8List stoppedDescriptor = $convert.base64Decode(
     'CgdTdG9wcGVkEiwKBnJlYXNvbhgBIAEoDjIULmFyZ290LnYxLlN0b3BSZWFzb25SBnJlYXNvbh'
     'IUCgV0dXJucxgCIAEoDVIFdHVybnMSHQoKdG9vbF9jYWxscxgDIAEoDVIJdG9vbENhbGxz');
+
+@$core.Deprecated('Use agentProgressDescriptor instead')
+const AgentProgress$json = {
+  '1': 'AgentProgress',
+  '2': [
+    {
+      '1': 'phase',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.argot.v1.Phase',
+      '10': 'phase'
+    },
+    {'1': 'status_id', '3': 2, '4': 1, '5': 9, '10': 'statusId'},
+    {'1': 'tool_name', '3': 3, '4': 1, '5': 9, '10': 'toolName'},
+    {'1': 'message', '3': 4, '4': 1, '5': 9, '10': 'message'},
+    {
+      '1': 'source',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.argot.v1.ProgressSource',
+      '10': 'source'
+    },
+    {'1': 'agent_path', '3': 6, '4': 3, '5': 9, '10': 'agentPath'},
+  ],
+};
+
+/// Descriptor for `AgentProgress`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List agentProgressDescriptor = $convert.base64Decode(
+    'Cg1BZ2VudFByb2dyZXNzEiUKBXBoYXNlGAEgASgOMg8uYXJnb3QudjEuUGhhc2VSBXBoYXNlEh'
+    'sKCXN0YXR1c19pZBgCIAEoCVIIc3RhdHVzSWQSGwoJdG9vbF9uYW1lGAMgASgJUgh0b29sTmFt'
+    'ZRIYCgdtZXNzYWdlGAQgASgJUgdtZXNzYWdlEjAKBnNvdXJjZRgFIAEoDjIYLmFyZ290LnYxLl'
+    'Byb2dyZXNzU291cmNlUgZzb3VyY2USHQoKYWdlbnRfcGF0aBgGIAMoCVIJYWdlbnRQYXRo');
 
 @$core.Deprecated('Use messagePartDescriptor instead')
 const MessagePart$json = {

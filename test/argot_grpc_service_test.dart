@@ -147,4 +147,109 @@ void main() {
       returnsNormally,
     );
   });
+
+  test('maps agent progress events with stable phase/source labels', () async {
+    final events = <ArgotEvent>[];
+    final sub = svc.events.listen(events.add);
+
+    try {
+      svc.debugSetCurrentTurnId('turn-progress');
+      svc.debugHandleChatEvent(
+        argot_types.ChatEvent(
+          progress: argot_types.AgentProgress(
+            phase: argot_types.Phase.PHASE_TOOL_EXECUTING,
+            statusId: 'agent-status-tool-executing',
+            toolName: 'bash_run',
+            source: argot_types.ProgressSource.PROGRESS_SOURCE_AGENT_STATUS,
+            agentPath: const ['root', 'sub'],
+          ),
+        ),
+        turnId: 'turn-progress',
+      );
+      svc.debugHandleChatEvent(
+        argot_types.ChatEvent(
+          progress: argot_types.AgentProgress(
+            phase: argot_types.Phase.PHASE_THINKING,
+          ),
+        ),
+        turnId: 'turn-progress',
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final progress = events.whereType<ArgotAgentProgress>().toList();
+      expect(progress, hasLength(2));
+      expect(progress.first.phase, 'tool_executing');
+      expect(progress.first.toolName, 'bash_run');
+      expect(progress.first.statusId, 'agent-status-tool-executing');
+      expect(progress.first.source, 'agent_status');
+      expect(progress.first.agentPath, ['root', 'sub']);
+      expect(progress.first.displayLabel, 'running bash_run');
+      expect(progress[1].phase, 'thinking');
+      expect(progress[1].displayLabel, 'thinking');
+      // Progress is live-only: it must not terminate the turn.
+      expect(events.whereType<ArgotTurnComplete>(), isEmpty);
+      expect(svc.debugCurrentTurnId, 'turn-progress');
+    } finally {
+      await sub.cancel();
+    }
+  });
+
+  test('suppresses streaming/done/unspecified progress display labels', () async {
+    final events = <ArgotEvent>[];
+    final sub = svc.events.listen(events.add);
+
+    try {
+      svc.debugSetCurrentTurnId('turn-suppress');
+      for (final phase in [
+        argot_types.Phase.PHASE_STREAMING,
+        argot_types.Phase.PHASE_DONE,
+        argot_types.Phase.PHASE_UNSPECIFIED,
+      ]) {
+        svc.debugHandleChatEvent(
+          argot_types.ChatEvent(
+            progress: argot_types.AgentProgress(phase: phase),
+          ),
+          turnId: 'turn-suppress',
+        );
+      }
+
+      await Future.delayed(Duration.zero);
+
+      final progress = events.whereType<ArgotAgentProgress>().toList();
+      expect(progress, hasLength(3));
+      expect(progress.every((p) => p.displayLabel == null), isTrue);
+    } finally {
+      await sub.cancel();
+    }
+  });
+
+  test('summarizer message wins over the coarse phase label', () async {
+    final events = <ArgotEvent>[];
+    final sub = svc.events.listen(events.add);
+
+    try {
+      svc.debugSetCurrentTurnId('turn-summary');
+      svc.debugHandleChatEvent(
+        argot_types.ChatEvent(
+          progress: argot_types.AgentProgress(
+            phase: argot_types.Phase.PHASE_SUMMARY,
+            message: 'Reading turn.rs',
+            source: argot_types
+                .ProgressSource.PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY,
+          ),
+        ),
+        turnId: 'turn-summary',
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final p = events.whereType<ArgotAgentProgress>().single;
+      expect(p.phase, 'summary');
+      expect(p.source, 'agent_progress_summary');
+      expect(p.displayLabel, 'Reading turn.rs');
+    } finally {
+      await sub.cancel();
+    }
+  });
 }

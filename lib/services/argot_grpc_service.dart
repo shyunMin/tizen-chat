@@ -51,6 +51,63 @@ class ArgotToolResult extends ArgotEvent {
   ArgotToolResult(this.toolCallId, this.output, this.isError);
 }
 
+/// Live-turn agent activity (thinking, recalling memory, running a tool).
+/// Operational and ephemeral — never persisted; GetHistory never replays it, so
+/// this is a live-only affordance. Mirrors argot.v1 AgentProgress. Not
+/// assistant content and not reasoning / chain-of-thought. Clients may dedupe
+/// consecutive identical [displayLabel]s.
+class ArgotAgentProgress extends ArgotEvent {
+  /// Stable lowercase phase token, kept identical to the argot CLI:
+  /// `thinking` | `memory_retrieving` | `streaming` | `tool_executing` |
+  /// `done` | `summary` | `unspecified`.
+  final String phase;
+
+  /// Stable tinicore catalogue id for the phase (e.g. `agent-status-thinking`),
+  /// for clients with an i18n label catalogue. Empty for summary-only events.
+  final String statusId;
+
+  /// Tool wire-name for `tool_executing` (e.g. `bash_run`); empty otherwise.
+  final String toolName;
+
+  /// Optional short, user-safe narration (e.g. "Reading turn.rs") from the
+  /// summarizer. Empty for a coarse status. Never reasoning.
+  final String message;
+
+  /// `agent_status` (coarse transition) | `agent_progress_summary` (LLM tick) |
+  /// `unspecified`.
+  final String source;
+
+  /// Agent / sub-agent attribution, root→emitter. Empty for the root run.
+  final List<String> agentPath;
+
+  ArgotAgentProgress({
+    required this.phase,
+    this.statusId = '',
+    this.toolName = '',
+    this.message = '',
+    this.source = '',
+    this.agentPath = const [],
+  });
+
+  /// User-facing one-line activity label, or null to suppress. Mirrors the
+  /// argot CLI's `progress_line`: a summarizer [message] wins; `streaming` /
+  /// `done` / `unspecified` are already conveyed by the streamed text and the
+  /// Completed frame, so they render nothing.
+  String? get displayLabel {
+    if (message.isNotEmpty) return message;
+    switch (phase) {
+      case 'thinking':
+        return 'thinking';
+      case 'memory_retrieving':
+        return 'recalling memory';
+      case 'tool_executing':
+        return toolName.isNotEmpty ? 'running $toolName' : 'running tool';
+      default:
+        return null;
+    }
+  }
+}
+
 class ArgotTurnComplete extends ArgotEvent {
   final String? usageJson;
   final String turnId;
@@ -500,6 +557,32 @@ class ArgotGrpcService {
     return 'stopped';
   }
 
+  // Stable lowercase phase token, kept identical to the argot CLI's phase_label
+  // so the wire phase survives the proto→DTO hop as a stable contract string.
+  static String _phaseLabel(argot_types.Phase phase) {
+    if (phase == argot_types.Phase.PHASE_THINKING) return 'thinking';
+    if (phase == argot_types.Phase.PHASE_MEMORY_RETRIEVING) {
+      return 'memory_retrieving';
+    }
+    if (phase == argot_types.Phase.PHASE_STREAMING) return 'streaming';
+    if (phase == argot_types.Phase.PHASE_TOOL_EXECUTING) return 'tool_executing';
+    if (phase == argot_types.Phase.PHASE_DONE) return 'done';
+    if (phase == argot_types.Phase.PHASE_SUMMARY) return 'summary';
+    return 'unspecified';
+  }
+
+  // Stable lowercase progress-source token, mirroring the argot CLI.
+  static String _progressSourceLabel(argot_types.ProgressSource source) {
+    if (source == argot_types.ProgressSource.PROGRESS_SOURCE_AGENT_STATUS) {
+      return 'agent_status';
+    }
+    if (source ==
+        argot_types.ProgressSource.PROGRESS_SOURCE_AGENT_PROGRESS_SUMMARY) {
+      return 'agent_progress_summary';
+    }
+    return 'unspecified';
+  }
+
   void _handleChatEvent(argot_types.ChatEvent event, {required String turnId}) {
     if (event.hasOpened()) {
       _sessionId = event.opened.conversationId;
@@ -534,6 +617,26 @@ class ArgotGrpcService {
       debugPrint('DEBUG: [ArgotGrpc] ToolResult callId=${result.callId} err=${result.isError}');
       _eventController.add(
         ArgotToolResult(result.callId, result.outputJson, result.isError),
+      );
+      return;
+    }
+    if (event.hasProgress()) {
+      // Live, ephemeral activity signal — does NOT terminate the turn.
+      final progress = event.progress;
+      final phase = _phaseLabel(progress.phase);
+      debugPrint(
+        'DEBUG: [ArgotGrpc] Progress phase=$phase tool=${progress.toolName} '
+        'msg=${progress.message}',
+      );
+      _eventController.add(
+        ArgotAgentProgress(
+          phase: phase,
+          statusId: progress.statusId,
+          toolName: progress.toolName,
+          message: progress.message,
+          source: _progressSourceLabel(progress.source),
+          agentPath: progress.agentPath.toList(),
+        ),
       );
       return;
     }
