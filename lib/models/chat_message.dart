@@ -54,6 +54,11 @@ class ChatMessage {
   /// region above the [text] region. Null = no indicator shown.
   String? currentToolIndicator;
 
+  /// Seconds elapsed from request start to TurnComplete. Set once on
+  /// finalization; null while the turn is in-flight or for sent messages.
+  /// Rendered as HTML .meta inline text ("N초 걸림").
+  int? elapsedSeconds;
+
   ChatMessage({
     this.displayType = 'text',
     required this.text,
@@ -67,6 +72,7 @@ class ChatMessage {
     List<TurnToolEntry>? tools,
     this.validationPassed = false,
     this.currentToolIndicator,
+    this.elapsedSeconds,
   }) : timestamp = timestamp ?? DateTime.now(),
        tools = tools ?? [];
 }

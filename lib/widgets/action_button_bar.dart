@@ -84,17 +84,19 @@ class ActionButtonBarState extends State<ActionButtonBar> {
         padding: TizenStyles.actionBarHorizontalPadding,
         itemCount: widget.buttons.length,
         separatorBuilder: (_, _) => const SizedBox(width: TizenStyles.actionBarItemSpacing),
-        itemBuilder: (context, index) => _ActionButton(
-          label: widget.buttons[index],
-          focusNode: _focusNodes[index],
-          onSend: widget.onSend,
-          onArrowLeft:
-              index > 0 ? () => _focusNodes[index - 1].requestFocus() : null,
-          onArrowRight: index < _focusNodes.length - 1
-              ? () => _focusNodes[index + 1].requestFocus()
-              : null,
-          onArrowUp: widget.onArrowUp,
-          onArrowDown: widget.onArrowDown,
+        itemBuilder: (context, index) => Center(
+          child: _ActionButton(
+            label: widget.buttons[index],
+            focusNode: _focusNodes[index],
+            onSend: widget.onSend,
+            onArrowLeft:
+                index > 0 ? () => _focusNodes[index - 1].requestFocus() : null,
+            onArrowRight: index < _focusNodes.length - 1
+                ? () => _focusNodes[index + 1].requestFocus()
+                : null,
+            onArrowUp: widget.onArrowUp,
+            onArrowDown: widget.onArrowDown,
+          ),
         ),
       ),
     );
@@ -124,24 +126,16 @@ class _ActionButton extends StatefulWidget {
   State<_ActionButton> createState() => _ActionButtonState();
 }
 
-class _ActionButtonState extends State<_ActionButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rainbowController;
-
+class _ActionButtonState extends State<_ActionButton> {
   @override
   void initState() {
     super.initState();
-    _rainbowController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    );
     widget.focusNode.addListener(_onFocusChange);
   }
 
   void _onFocusChange() {
     setState(() {});
     if (widget.focusNode.hasFocus) {
-      _rainbowController.repeat();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           Scrollable.ensureVisible(
@@ -151,16 +145,12 @@ class _ActionButtonState extends State<_ActionButton>
           );
         }
       });
-    } else {
-      _rainbowController.stop();
-      _rainbowController.reset();
     }
   }
 
   @override
   void dispose() {
     widget.focusNode.removeListener(_onFocusChange);
-    _rainbowController.dispose();
     super.dispose();
   }
 
@@ -196,42 +186,40 @@ class _ActionButtonState extends State<_ActionButton>
       },
       child: GestureDetector(
         onTap: () => widget.onSend(widget.label),
-        child: AnimatedBuilder(
-          animation: _rainbowController,
-          builder: (context, child) => CustomPaint(
-            foregroundPainter: isFocused
-                ? RainbowBorderPainter(
-                    progress: _rainbowController.value,
-                    borderRadius: TizenStyles.actionButtonBorderRadius,
-                    strokeWidth: TizenStyles.focusBorderWidth,
-                  )
+        child: Container(
+          alignment: Alignment.center,
+          padding: TizenStyles.actionButtonPadding,
+          decoration: BoxDecoration(
+            color: isFocused
+                ? const Color(0xFF3A4256).withValues(alpha: 0.93)
+                : const Color(0xFF10131B).withValues(alpha: 0.55),
+            border: isFocused
+                ? null
+                : Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.0),
+            borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      blurRadius: 24, // .15cqw roughly
+                      spreadRadius: -6, // -.4cqw roughly
+                      offset: const Offset(0, 8), // .5cqw roughly
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF8CDCFF).withValues(alpha: 0.85),
+                      blurRadius: 0,
+                      spreadRadius: 2.5, // .14cqw roughly
+                    ),
+                  ]
                 : null,
-            child: child,
           ),
-          child: Container(
-            alignment: Alignment.center,
-            padding: TizenStyles.actionButtonPadding,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
-              boxShadow: isFocused
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.45),
-                        blurRadius: 14,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: TizenStyles.baseFontSize,
-                fontWeight: isFocused ? FontWeight.w600 : FontWeight.w400,
-                letterSpacing: 0.5,
-              ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: isFocused ? Colors.white : Colors.white.withValues(alpha: 0.9),
+              fontSize: TizenStyles.baseFontSize,
+              fontWeight: isFocused ? FontWeight.w600 : FontWeight.w400,
+              letterSpacing: 0.5,
             ),
           ),
         ),

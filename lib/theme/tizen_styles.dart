@@ -21,6 +21,8 @@ class TizenStyles {
 
   // ── Border Radii ─────────────────────────────────────────────
   static const double windowBorderRadius = 18.0;
+  // HTML --r-card: 2.2cqw = 42px @ 1920px — AgentWindow processing border
+  static const double windowCardRadius = 42.0;
   static const double messageTailRadius = 2.0;
   static const double actionButtonBorderRadius = 50.0;
   static const double codeBorderRadius = 4.0;
@@ -43,7 +45,8 @@ class TizenStyles {
 
   // ── Spacing ───────────────────────────────────────────────────
   static const double avatarGap = 12.0;
-  static const double messageSpacing = 10.0;
+  // HTML: stream gap 1cqw = 19.2px → 20
+  static const double messageSpacing = 20.0;
   static const double actionBarItemSpacing = 8.0;
   static const double sessionHeaderGap = 8.0;
 
@@ -54,7 +57,7 @@ class TizenStyles {
   );
   static const EdgeInsets actionButtonPadding = EdgeInsets.symmetric(
     horizontal: 14,
-    vertical: 8,
+    vertical: 4,
   );
   static const EdgeInsets actionBarHorizontalPadding = EdgeInsets.symmetric(
     horizontal: 10,

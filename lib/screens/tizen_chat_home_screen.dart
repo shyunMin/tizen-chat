@@ -17,7 +17,6 @@ import '../services/agent_onboarding_service.dart';
 import '../services/setup_http_server.dart';
 import 'onboarding_screen.dart';
 import '../theme/tizen_styles.dart';
-import '../utils/elapsed_timer.dart';
 import '../utils/request_perf_logger.dart';
 
 class TizenChatHomeScreen extends StatefulWidget {
@@ -43,7 +42,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // SPEECH_END  : Phase1=빠른 fade in(120ms) → Phase2=slide 복귀(250ms)
   late final AnimationController _speechFadeController;
   late final AnimationController _speechSlideController;
-  bool _speechHideWithSlide = false;
   static const double _speechSlideDistance =
       TizenStyles.actionBarHeight + TizenStyles.promptBarLeft;
   final List<ChatMessage> _messages = [];
@@ -101,10 +99,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // Goes true when a request is submitted and clears when the selected backend
   // emits AgentTurnComplete, AgentThreadComplete, or a fatal error.
   bool _isAgentBusy = false;
-
-  // TurnComplete에서 수신한 통계값. _appendElapsedToLastMessage에서 라벨에 포함.
-  int _lastTurns = 0;
-  int _lastToolCalls = 0;
 
   // ChatWindow 위에 표시할 마지막 사용자 요청 텍스트
   String? _lastSentText;
@@ -364,8 +358,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
-      _lastTurns = 0;
-      _lastToolCalls = 0;
       setState(() {
         _lastSentText = text;
         _messages.clear();
@@ -529,8 +521,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentTurnComplete(:final turns, :final toolCalls):
-        _lastTurns = turns;
-        _lastToolCalls = toolCalls;
         debugPrint('[Chat] TurnComplete turns=$turns toolCalls=$toolCalls');
         if (_activeReplyIndex != null) {
           _finalizeActiveReply();
@@ -910,6 +900,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         '[Chat] _finalizeActiveReply: silent turn — phase header only',
       );
     }
+    final int? elapsed = _requestStartTime != null
+        ? DateTime.now().difference(_requestStartTime!).inSeconds
+        : null;
     setState(() {
       _messages[_activeReplyIndex!] = ChatMessage(
         text: sealedText,
@@ -921,9 +914,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         phaseTitle: old.phaseTitle,
         tools: old.tools,
         validationPassed: old.validationPassed,
-        // Drop the tool indicator: turn is done, no tool is running.
-        // The text region (or tool summary above) carries the result.
         currentToolIndicator: null,
+        elapsedSeconds: elapsed,
       );
     });
     _activeToolName = null;
@@ -1039,58 +1031,31 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   // 처리 중: 항상 slide+fade. 완료+액션바 없음: slide+fade. 완료+액션바 있음: fade만.
   Future<void> _hidePanelForSpeech() async {
-    final actionBarVisible = !_isAgentBusy && _currentActionButtons.isNotEmpty;
-    final withSlide = !actionBarVisible;
-    setState(() => _speechHideWithSlide = withSlide);
-
-    if (withSlide) {
-      // 1단계: 완전히 보이는 상태에서 slide up
-      await _speechSlideController.animateTo(
+    await Future.wait([
+      _speechSlideController.animateTo(
         1.0,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
-      );
-      // 2단계: 슬라이드 완료 후 빠르게 fade out
-      if (mounted) {
-        await _speechFadeController.animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-        );
-      }
-    } else {
-      // 위치 변화 없음: fade out만
-      await _speechFadeController.animateTo(
+      ),
+      _speechFadeController.animateTo(
         0.0,
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
-      );
-    }
+      ),
+    ]);
   }
 
-  void _showPanelAfterSpeech() async {
-    if (_speechHideWithSlide) {
-      // 슬라이드 위치에서 복귀: fade in + slide down 동시 실행
-      _speechFadeController.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeIn,
-      );
-      if (mounted) {
-        await _speechSlideController.animateTo(
-          0.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-    } else {
-      // 위치 변화 없음: fade in만
-      await _speechFadeController.animateTo(
-        1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeIn,
-      );
-    }
+  void _showPanelAfterSpeech() {
+    _speechFadeController.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeIn,
+    );
+    _speechSlideController.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeIn,
+    );
   }
 
   @override
@@ -1132,33 +1097,32 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
 
   void _appendElapsedToLastMessage() {
     final start = _requestStartTime;
+    _requestStartTime = null;
     if (start == null) return;
-    final statParts = <String>[];
-    if (_lastTurns > 0) statParts.add('$_lastTurns턴');
-    if (_lastToolCalls > 0) statParts.add('도구 $_lastToolCalls회');
-    final stats = statParts.isNotEmpty ? ' · ${statParts.join(' · ')}' : '';
-    final label = 'Worked · ${ElapsedTimer.format(start)}$stats';
-
+    // _finalizeActiveReply() sets elapsedSeconds at TurnComplete.
+    // This is a fallback for edge cases (e.g. ThreadComplete without TurnComplete).
     for (int i = _messages.length - 1; i >= 0; i--) {
       if (_messages[i].type == MessageType.received) {
         final msg = _messages[i];
-        _messages[i] = ChatMessage(
-          text: '${msg.text}\n\n$label',
-          type: msg.type,
-          senderInitial: msg.senderInitial,
-          isWaiting: msg.isWaiting,
-          displayType: msg.displayType,
-          uiCode: msg.uiCode,
-          actionButtons: msg.actionButtons,
-          phaseTitle: msg.phaseTitle,
-          tools: msg.tools,
-          validationPassed: msg.validationPassed,
-          currentToolIndicator: msg.currentToolIndicator,
-        );
+        if (msg.elapsedSeconds == null) {
+          _messages[i] = ChatMessage(
+            text: msg.text,
+            type: msg.type,
+            senderInitial: msg.senderInitial,
+            isWaiting: msg.isWaiting,
+            displayType: msg.displayType,
+            uiCode: msg.uiCode,
+            actionButtons: msg.actionButtons,
+            phaseTitle: msg.phaseTitle,
+            tools: msg.tools,
+            validationPassed: msg.validationPassed,
+            currentToolIndicator: msg.currentToolIndicator,
+            elapsedSeconds: DateTime.now().difference(start).inSeconds,
+          );
+        }
         break;
       }
     }
-    _requestStartTime = null;
   }
 
   // ────────────────────────────────────────────────────────────

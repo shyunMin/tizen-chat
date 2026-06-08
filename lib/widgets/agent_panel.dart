@@ -59,14 +59,20 @@ class AgentPanel extends StatelessWidget {
             children: [
               if (lastSentText != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  padding: const EdgeInsets.only(left: 4, bottom: 15),
                   child: Text(
                     '"$lastSentText"',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: TizenStyles.bodyText.copyWith(
-                      color: Colors.white,
+                      color: Colors.white.withValues(alpha: 0.92),
                       fontSize: TizenStyles.baseFontSize * 0.9,
+                      fontWeight: FontWeight.w500,
+                      shadows: [
+                        const Shadow(color: Color(0xD9000000), offset: Offset(0, 1), blurRadius: 3),
+                        const Shadow(color: Color(0xB3000000), offset: Offset(0, 2), blurRadius: 10),
+                        const Shadow(color: Color(0x99000000), offset: Offset(0, 0), blurRadius: 2),
+                      ],
                     ),
                   ),
                 ),
