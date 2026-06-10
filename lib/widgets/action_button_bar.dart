@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/tizen_styles.dart';
+import 'chip_background_effects.dart';
 import 'rainbow_border_painter.dart';
+import 'agent_effects.dart';
 
 class ActionButtonBar extends StatefulWidget {
   final List<String> buttons;
@@ -81,6 +83,7 @@ class ActionButtonBarState extends State<ActionButtonBar> {
       child: ListView.separated(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
         padding: TizenStyles.actionBarHorizontalPadding,
         itemCount: widget.buttons.length,
         separatorBuilder: (_, _) => const SizedBox(width: TizenStyles.actionBarItemSpacing),
@@ -186,43 +189,34 @@ class _ActionButtonState extends State<_ActionButton> {
       },
       child: GestureDetector(
         onTap: () => widget.onSend(widget.label),
-        child: Container(
-          alignment: Alignment.center,
-          padding: TizenStyles.actionButtonPadding,
-          decoration: BoxDecoration(
-            color: isFocused
-                ? const Color(0xFF3A4256).withValues(alpha: 0.93)
-                : const Color(0xFF10131B).withValues(alpha: 0.55),
-            border: isFocused
-                ? null
-                : Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.0),
-            borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
-            boxShadow: isFocused
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      blurRadius: 24, // .15cqw roughly
-                      spreadRadius: -6, // -.4cqw roughly
-                      offset: const Offset(0, 8), // .5cqw roughly
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF8CDCFF).withValues(alpha: 0.85),
-                      blurRadius: 0,
-                      spreadRadius: 2.5, // .14cqw roughly
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: isFocused ? Colors.white : Colors.white.withValues(alpha: 0.9),
-              fontSize: TizenStyles.baseFontSize,
-              fontWeight: isFocused ? FontWeight.w600 : FontWeight.w400,
-              letterSpacing: 0.5,
+        child: AgentVisibilityShadow(
+          type: VisibilityShadowType.button,
+          child: ChipBackgroundEffects(
+          isFocused: isFocused,
+          child: Container(
+            alignment: Alignment.center,
+            padding: TizenStyles.actionButtonPadding,
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeInOut,
+              style: TextStyle(
+                color: isFocused ? Colors.white.withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.8),
+                fontSize: TizenStyles.tChip,
+                fontWeight: isFocused ? FontWeight.w600 : FontWeight.w400,
+                letterSpacing: 0.5,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: isFocused ? 0.6 : 0.3),
+                    blurRadius: isFocused ? 4.0 : 2.0,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Text(widget.label),
             ),
           ),
         ),
+      ),
       ),
     );
   }

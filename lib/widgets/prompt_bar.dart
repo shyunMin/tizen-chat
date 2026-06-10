@@ -287,7 +287,7 @@ class _PromptBarState extends State<PromptBar>
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
               left: _isExpanded
-                  ? 25
+                  ? 20
                   : (TizenStyles.promptBarCollapsedWidth / 2 -
                         TizenStyles.promptBarIconSize / 2),
               top: 0,
@@ -348,7 +348,7 @@ class _PromptBarState extends State<PromptBar>
                                 border: InputBorder.none,
                                 isDense: true,
                                 contentPadding: const EdgeInsets.only(
-                                  bottom: 3,
+                                  bottom: 2,
                                 ),
                                 hintText: _charIndex < _fullText.length
                                     ? _displayText
@@ -569,7 +569,7 @@ class _FocusableActionIconState extends State<_FocusableActionIcon>
                       ? [
                           BoxShadow(
                             color: Colors.blueAccent.withValues(alpha: 0.4),
-                            blurRadius: 12,
+                            blurRadius: 10,
                             spreadRadius: 2,
                           ),
                         ]

@@ -89,10 +89,12 @@ class ReceivedMessage extends StatelessWidget {
 
     final showMeta = !isWaiting && elapsedSeconds != null;
     
-    // 마크다운 코드 블록(```) 직후에 태그가 붙으면 파싱이 깨지므로 항상 줄바꿈(\n\n)을 추가하여 안전하게 분리
     final safeText = text.trimRight();
+    final timeStr = '✓\u00A0$elapsedSeconds초';
     final markdownData = showMeta 
-        ? (safeText.isEmpty ? '||$elapsedSeconds초 걸림||' : '$safeText\n\n||$elapsedSeconds초 걸림||') 
+        ? (safeText.isEmpty 
+            ? '||$timeStr||' 
+            : '$safeText\n\n||$timeStr||') 
         : text;
 
     final hasContent = markdownData.trim().isNotEmpty;
@@ -102,7 +104,7 @@ class ReceivedMessage extends StatelessWidget {
       children: [
         if (phaseTitle != null) ...[
           _PhaseHeader(title: phaseTitle!),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
         ],
         if (hasContent)
           MarkdownBody(
@@ -151,6 +153,8 @@ class _PhaseHeader extends StatelessWidget {
       title,
       style: TizenStyles.bodyText.copyWith(
         color: Colors.white,
+        fontSize: TizenStyles.tMeta,
+        fontFamily: 'monospace',
         fontWeight: FontWeight.w600,
       ),
     );

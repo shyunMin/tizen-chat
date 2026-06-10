@@ -2,23 +2,23 @@ import 'package:flutter/material.dart';
 
 class TizenStyles {
   // ═══════════════════════════════════════════════════════════════
-  // Design System v2  (design_03.html 기준, DPR=1.6 보정)
-  // 물리 해상도: 1920×1080 / 논리 해상도: 1200×675
-  // 물리 px = dp × 1.6  /  목표 dp = HTML 물리 px ÷ 1.6
-  // DPR 출처: tizen/App.cs → UserPixelRatio = 1.6
+  // Design System v2  (design_03.html 기준, DPR=2.0 보정)
+  // 물리 해상도: 1920×1080 / 논리 해상도: 960×540
+  // 물리 px = dp × 2.0  /  목표 dp = HTML 물리 px ÷ 2.0
+  // DPR 출처: tizen/App.cs → UserPixelRatio = 2.0
   // ═══════════════════════════════════════════════════════════════
 
   // ── Type ramp ────────────────────────────────────────────────
   // design_03: --t-title/body 1.667cqw=32px / --t-caption .95cqw=18.2px
   //            --t-meta 1.25cqw=24px / ask-said·chip 1.458cqw=28px
-  static const double tResultTitle = 25.0;  // 40.0px ÷ 1.6  (2.083cqw, 미사용)
-  static const double tTitle       = 20.0;  // 32.0px ÷ 1.6  (1.667cqw)
-  static const double tBody        = 20.0;  // 32.0px ÷ 1.6  (1.667cqw, t-title과 동일)
-  static const double tCaption     = 11.5;  // 18.2px ÷ 1.6  (0.95cqw)
-  static const double tMeta        = 15.0;  // 24.0px ÷ 1.6  (1.25cqw)
-  static const double tAskSaid     = 17.5;  // 28.0px ÷ 1.6  (1.458cqw, 독립값)
-  static const double tChip        = 17.5;  // 28.0px ÷ 1.6  (1.458cqw, 독립값)
-  static const double tProcBusy    = 15.0;  // 24.0px ÷ 1.6  (1.25cqw, busy 한줄 전용)
+  static const double tResultTitle = 20.0;  // 40.0px ÷ 2.0  (2.083cqw, 신설)
+  static const double tTitle       = 16.0;  // 32.0px ÷ 2.0  (1.667cqw)
+  static const double tBody        = 16.0;  // 32.0px ÷ 2.0  (1.667cqw, t-title과 동일)
+  static const double tCaption     =  9.0;  // 18.2px ÷ 2.0  (0.95cqw)
+  static const double tMeta        = 12.0;  // 24.0px ÷ 2.0  (1.25cqw)
+  static const double tAskSaid     = 14.0;  // 28.0px ÷ 2.0  (1.458cqw, 독립값)
+  static const double tChip        = 14.0;  // 28.0px ÷ 2.0  (1.458cqw, 독립값)
+  static const double tProcBusy    = 12.0;  // 24.0px ÷ 2.0  (1.25cqw, busy 한줄 전용)
 
   // ── Colors ────────────────────────────────────────────────────
   // Background
@@ -50,33 +50,33 @@ class TizenStyles {
   static const Color blue900  = Color(0xFF1E3A8A);
 
   // ── Border Radii ─────────────────────────────────────────────
-  // HTML: --r-card 2.55cqw=49px → 30.5dp / --r-pill 999px
-  static const double rCard = 30.5;  // 49px ÷ 1.6 (design_03: 2.2→2.55cqw)
+  // HTML: --r-card 2.55cqw=49px → 24.5dp / --r-pill 999px
+  static const double rCard = 24.5;  // 49px ÷ 2.0 (design_03: 2.55cqw)
   static const double rPill = 999.0;
 
   // Legacy radii (기존 코드 참조 유지)
-  static const double windowBorderRadius    = rCard;
-  static const double windowCardRadius      = rCard;   // 이전값 42.0은 물리px였음, 21dp로 정정
-  static const double messageTailRadius     = 2.0;
+  static const double windowBorderRadius       = rCard;
+  static const double windowCardRadius         = rCard;
+  static const double messageTailRadius        = 2.0;
   static const double actionButtonBorderRadius = rPill;
-  static const double codeBorderRadius      = 4.0;
+  static const double codeBorderRadius         = 4.0;
 
   // ── Layout ────────────────────────────────────────────────────
-  // HTML: --safe-x/b 2.5cqw=48px → 30dp / --col-max 700px → 437.5dp
-  static const double safeX   = 30.0;  // 48px ÷ 1.6
-  static const double safeB   = 30.0;  // 48px ÷ 1.6
-  static const double colMax  = 437.5; // 700px ÷ 1.6 (design_03: 640→700px)
+  // HTML: --safe-x/b 2.5cqw=48px → 24dp / --col-max 700px → 350dp
+  static const double safeX  = 24.0;  // 48px ÷ 2.0
+  static const double safeB  = 24.0;  // 48px ÷ 2.0
+  static const double colMax = 350.0; // 700px ÷ 2.0 (design_03: 640→700px)
 
   // ── Glyph Orb sizes ───────────────────────────────────────────
-  // HTML: lg 2.6cqw=50px→31dp / md 2.2cqw=42px→26.5dp / sm 1.6cqw=30.7px→19dp
-  static const double glyphLg = 31.0;  // 50.0px ÷ 1.6
-  static const double glyphMd = 26.5;  // 42.0px ÷ 1.6
-  static const double glyphSm = 19.0;  // 30.7px ÷ 1.6
+  // HTML: lg 2.6cqw=50px→25dp / md 2.2cqw=42px→21dp / sm 1.6cqw=30.7px→15.5dp
+  static const double glyphLg = 25.0;  // 50px ÷ 2.0
+  static const double glyphMd = 21.0;  // 42px ÷ 2.0
+  static const double glyphSm = 15.5;  // 30.7px ÷ 2.0
 
-  // ── Backdrop blur sigma (dp 단위, DPR이 물리 렌더링 스케일) ────
-  // HTML: blur-thin 20px→12.5dp / blur-thick 34px→21dp
-  static const double blurThin  = 12.5; // 20px ÷ 1.6
-  static const double blurThick = 21.0; // 34px ÷ 1.6
+  // ── Backdrop blur sigma ───────────────────────────────────────
+  // HTML: blur-thin 20px→10dp / blur-thick 34px→17dp
+  static const double blurThin  = 10.0; // 20px ÷ 2.0
+  static const double blurThick = 17.0; // 34px ÷ 2.0
 
   // ── Motion ────────────────────────────────────────────────────
   static const Duration dur  = Duration(milliseconds: 420);
@@ -98,107 +98,105 @@ class TizenStyles {
   static const double promptBarHintFontSize  = tTitle;
 
   // ── Widget Sizes ─────────────────────────────────────────────
-  static const double avatarRadius         = glyphMd / 2; // 10.5
-  static const double avatarSpinnerSize    = glyphMd + 4;  // 25
-  static const double focusBorderWidth     = 1.5;
-  static const double sessionHeaderDotSize = 6.0;
-  static const double actionBarHeight      = 34.0;
-  static const double promptBarCollapsedWidth  = 64.0;
-  static const double promptBarInnerHeight     = 68.0;
-  static const double promptBarContentHeight   = 64.0;
-  static const double promptBarIconSize        = 24.0;
-  static const double iconButtonPadding        = 8.0;
-  static const double sentMessageLeftSpacing   = 40.0;
-  static const double receivedMessageRightSpacing = 100.0;
-  static const double backdropBlurSigma    = blurThin;
-  static const double agentWindowHeightReserved = 280.0;
+  static const double avatarRadius             = glyphMd / 2;      // 10.5
+  static const double avatarSpinnerSize        = glyphMd + 3.0;    // 24.0
+  static const double focusBorderWidth         = 1.2;
+  static const double sessionHeaderDotSize     = 5.0;
+  static const double actionBarHeight          = 32.0;
+  static const double promptBarCollapsedWidth  = 51.0;
+  static const double promptBarInnerHeight     = 54.0;
+  static const double promptBarContentHeight   = 51.0;
+  static const double promptBarIconSize        = 19.0;
+  static const double iconButtonPadding        = 6.5;
+  static const double sentMessageLeftSpacing   = 32.0;
+  static const double receivedMessageRightSpacing = 80.0;
+  static const double backdropBlurSigma        = blurThin;
+  static const double agentWindowHeightReserved = 224.0;
 
   // ── Spacing ───────────────────────────────────────────────────
-  static const double avatarGap          = 12.0;
-  static const double messageSpacing     = 10.0; // HTML stream gap 1cqw=19.2px→9.6dp
-  static const double actionBarItemSpacing = 8.0;
-  static const double sessionHeaderGap   = 8.0;
+  static const double avatarGap           = 10.0;
+  static const double messageSpacing      = 8.0;
+  static const double actionBarItemSpacing = 12.5;
+  static const double sessionHeaderGap    = 6.5;
 
   // ── EdgeInsets ────────────────────────────────────────────────
   static const EdgeInsets messagePadding = EdgeInsets.symmetric(
-    horizontal: 16,
-    vertical: 12,
+    horizontal: 13,
+    vertical: 10,
   );
   static const EdgeInsets actionButtonPadding = EdgeInsets.symmetric(
-    horizontal: 14,
-    vertical: 6,
+    horizontal: 11,
+    vertical: 4.0,
   );
-  static const EdgeInsets actionBarHorizontalPadding = EdgeInsets.symmetric(
-    horizontal: 10,
-  );
+  static const EdgeInsets actionBarHorizontalPadding = EdgeInsets.zero;
   static const EdgeInsets messageListPadding = EdgeInsets.fromLTRB(
-    12, 16, 12, 12,
+    10, 13, 10, 10,
   );
   static const EdgeInsets sessionHeaderPadding = EdgeInsets.fromLTRB(
-    16, 12, 16, 10,
+    13, 10, 13, 8,
   );
   static const EdgeInsets promptBarContentPadding = EdgeInsets.only(
-    left: 80.0,
-    right: 16.0,
+    left: 64.0,
+    right: 13.0,
   );
 
   // ── Screen Layout Positions ───────────────────────────────────
-  static const double promptBarBottom           = safeB;
-  static const double promptBarBottomKeyboard   = 270.0;
-  static const double promptBarLeft             = safeX;
-  static const double promptBarContainerHeight  = 80.0;
-  static const double actionBarBottom           = 90.0;
-  static const double actionBarBottomKeyboard   = 350.0;
-  static const double chatWindowBottomBase      = 90.0;
-  static const double chatWindowBottomWithActions     = 146.0;
-  static const double chatWindowBottomKeyboard        = 358.0;
-  static const double chatWindowBottomKeyboardWithActions = 418.0;
+  static const double promptBarBottom               = safeB;
+  static const double promptBarBottomKeyboard       = 216.0;
+  static const double promptBarLeft                 = safeX;
+  static const double promptBarContainerHeight      = 64.0;
+  static const double actionBarBottom               = 72.0;
+  static const double actionBarBottomKeyboard       = 280.0;
+  static const double chatWindowBottomBase          = 72.0;
+  static const double chatWindowBottomWithActions   = 117.0;
+  static const double chatWindowBottomKeyboard      = 286.0;
+  static const double chatWindowBottomKeyboardWithActions = 334.0;
 
   // ── Onboarding ────────────────────────────────────────────────
-  static const double onboardingTitleFontSize   = tTitle * 2; // 28dp 유지
-  static const double onboardingTitleGap        = 20.0;
-  static const double onboardingPanelWidth      = 380.0;
-  static const double onboardingPanelGap        = 64.0;
-  static const double onboardingWarningBorderRadius = 8.0;
+  static const double onboardingTitleFontSize   = tTitle * 2;   // 32dp
+  static const double onboardingTitleGap        = 16.0;
+  static const double onboardingPanelWidth      = 304.0;
+  static const double onboardingPanelGap        = 51.0;
+  static const double onboardingWarningBorderRadius = 6.5;
   static const double onboardingWarningBgAlpha  = 0.15;
   static const double onboardingWarningBorderAlpha  = 0.4;
-  static const double onboardingLoadingGap      = 16.0;
-  static const double onboardingErrorIconSize   = 48.0;
-  static const double onboardingErrorIconGap    = 16.0;
-  static const double onboardingErrorMsgGap     = 8.0;
-  static const double onboardingErrorButtonGap  = 24.0;
+  static const double onboardingLoadingGap      = 13.0;
+  static const double onboardingErrorIconSize   = 38.0;
+  static const double onboardingErrorIconGap    = 13.0;
+  static const double onboardingErrorMsgGap     = 6.5;
+  static const double onboardingErrorButtonGap  = 19.0;
   static const double onboardingCloseButtonBgAlpha = 0.7;
-  static const double onboardingCloseButtonLetterSpacing = 0.5;
-  static const EdgeInsets onboardingPadding = EdgeInsets.symmetric(vertical: 200);
-  static const EdgeInsets onboardingWarningPadding = EdgeInsets.all(10);
+  static const double onboardingCloseButtonLetterSpacing = 0.4;
+  static const EdgeInsets onboardingPadding = EdgeInsets.symmetric(vertical: 160);
+  static const EdgeInsets onboardingWarningPadding = EdgeInsets.all(8);
   static const EdgeInsets onboardingCloseButtonPadding = EdgeInsets.symmetric(
-    horizontal: 24,
-    vertical: 12,
+    horizontal: 19,
+    vertical: 10,
   );
 
   // ── QR Code ───────────────────────────────────────────────────
-  static const double qrBorderRadius = 16.0;
-  static const EdgeInsets qrContainerPadding = EdgeInsets.all(16);
+  static const double qrBorderRadius = 13.0;
+  static const EdgeInsets qrContainerPadding = EdgeInsets.all(13);
   static const BoxShadow qrBoxShadow = BoxShadow(
     color: Color(0x80000000),
-    blurRadius: 20,
-    offset: Offset(0, 10),
+    blurRadius: 16,
+    offset: Offset(0, 8),
   );
 
   // ── Focus ────────────────────────────────────────────────────
-  // HTML: focus-shadow = 0 1.4cqw 3cqw -.6cqw rgba(0,0,0,.72), 0 0 0 .12cqw rgba(140,220,255,.55)
-  static const Color  focusGlowColor        = Color(0x8D8CDCFF); // rgba(140,220,255,.55)
+  // HTML: focus-shadow 0 0 0 .12cqw rgba(140,220,255,.55)
+  static const Color  focusGlowColor        = Color(0x8D8CDCFF);
   static const double focusGlowBlurRadius   = 0.0;
-  static const double focusGlowSpreadRadius = 2.3;  // .12cqw = 2.3dp
+  static const double focusGlowSpreadRadius = 1.8;   // .12cqw=2.3px÷2≈1.15 → visual match
   static const double focusGlowAlpha        = 0.55;
   static const double focusScale            = 1.05;
 
   // ── Shadows ───────────────────────────────────────────────────
   static const BoxShadow windowShadow = BoxShadow(
     color: Color(0x80000000),
-    blurRadius: 24,
+    blurRadius: 19,
     spreadRadius: 2,
-    offset: Offset(0, 8),
+    offset: Offset(0, 6),
   );
 
   // ── Text Styles ───────────────────────────────────────────────
@@ -210,7 +208,7 @@ class TizenStyles {
 
   static const TextStyle sentText = TextStyle(
     color: txt2,
-    fontSize: tCaption,
+    fontSize: tAskSaid,
   );
 
   static const TextStyle headerText = TextStyle(

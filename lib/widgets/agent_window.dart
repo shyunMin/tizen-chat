@@ -41,9 +41,7 @@ class AgentWindowState extends State<AgentWindow> {
   FocusNode get _scrollFocusNode =>
       widget.focusNode ?? (_internalFocusNode ??= FocusNode());
 
-  static const double _scrollStep = 120.0;
-
-
+  static const double _scrollStep = 96.0;
 
   void scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,103 +123,111 @@ class AgentWindowState extends State<AgentWindow> {
       onKeyEvent: _handleKeyEvent,
       child: Align(
         alignment: Alignment.centerLeft,
+        heightFactor: 1.0, // Force Align to shrink-wrap vertically
+        widthFactor: 1.0,  // Force Align to shrink-wrap horizontally
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: screenWidth / 2,
-            maxHeight: screenHeight / 2,
-          ),
-          child: AgentBackgroundEffects(
-            isProcessing: widget.isThreadInFlight,
-            borderRadius: TizenStyles.windowCardRadius,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
-                boxShadow: const [TizenStyles.windowShadow],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 17.0, sigmaY: 17.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141822).withValues(alpha: 0.6),
-                    ),
-                    child: AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.bottomLeft,
-                clipBehavior: Clip.hardEdge,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 20),
-                    Flexible(
-                      child: widget.isThreadInFlight
-                          ? _LoadingItem(
-                              label: widget.typingLabel ?? '생각 중',
-                              startTime: widget.requestStartTime ?? DateTime.now(),
-                            )
-                          : widget.isConnecting
-                              ? const _ConnectingItem()
-                              : widget.messages.isEmpty
-                                  ? const _WelcomeItem()
-                                  : SingleChildScrollView(
-                                      controller: _scrollController,
-                                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: List.generate(
-                                          widget.messages.length,
-                                          (index) {
-                                            final message = widget.messages[index];
-                                            final Widget messageWidget;
-
-                                            switch (message.type) {
-                                              case MessageType.sent:
-                                                messageWidget = SentMessage(
-                                                  text: message.text,
-                                                  isWaiting: message.isWaiting,
-                                                );
-                                                break;
-                                              case MessageType.received:
-                                                messageWidget = ReceivedMessage(
-                                                  text: message.text,
-                                                  isWaiting: message.isWaiting,
-                                                  displayType: message.displayType,
-                                                  phaseTitle: message.phaseTitle,
-                                                  tools: message.tools,
-                                                  validationPassed: message.validationPassed,
-                                                  currentToolIndicator:
-                                                      message.currentToolIndicator,
-                                                  elapsedSeconds: message.elapsedSeconds,
-                                                );
-                                                break;
-                                            }
-
-                                            final isLast = index == widget.messages.length - 1;
-                                            return Padding(
-                                              padding: EdgeInsets.only(
-                                                bottom: isLast ? 0.0 : TizenStyles.messageSpacing,
-                                              ),
-                                              child: messageWidget,
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                    ),
-                  ],
+          constraints: BoxConstraints(maxWidth: screenWidth / 2),
+          child: AgentVisibilityShadow(
+            type: VisibilityShadowType.window,
+            child: AgentBackgroundEffects(
+              isProcessing: widget.isThreadInFlight,
+              borderRadius: TizenStyles.windowCardRadius,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    TizenStyles.windowCardRadius,
+                  ),
+                  boxShadow: const [TizenStyles.windowShadow],
                 ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    TizenStyles.windowCardRadius,
+                  ),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 17.0, sigmaY: 17.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141822).withValues(alpha: 0.6),
+                      ),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.bottomLeft,
+                        clipBehavior: Clip.hardEdge,
+                        child: widget.isThreadInFlight
+                            ? _LoadingItem(
+                                label: widget.typingLabel ?? '생각 중',
+                                startTime:
+                                    widget.requestStartTime ?? DateTime.now(),
+                              )
+                            : widget.isConnecting
+                            ? const _ConnectingItem()
+                            : widget.messages.isEmpty
+                            ? const _WelcomeItem()
+                            : IntrinsicHeight(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 11.5),
+                                  child: SingleChildScrollView(
+                                    controller: _scrollController,
+                                    padding: const EdgeInsets.symmetric(horizontal: 22.0),
+                                    child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: List.generate(
+                                      widget.messages.length,
+                                      (index) {
+                                        final message = widget.messages[index];
+                                        final Widget messageWidget;
+  
+                                        switch (message.type) {
+                                          case MessageType.sent:
+                                            messageWidget = SentMessage(
+                                              text: message.text,
+                                              isWaiting: message.isWaiting,
+                                            );
+                                            break;
+                                          case MessageType.received:
+                                            messageWidget = ReceivedMessage(
+                                              text: message.text,
+                                              isWaiting: message.isWaiting,
+                                              displayType: message.displayType,
+                                              phaseTitle: message.phaseTitle,
+                                              tools: message.tools,
+                                              validationPassed:
+                                                  message.validationPassed,
+                                              currentToolIndicator:
+                                                  message.currentToolIndicator,
+                                              elapsedSeconds:
+                                                  message.elapsedSeconds,
+                                            );
+                                            break;
+                                        }
+  
+                                        final isLast =
+                                            index == widget.messages.length - 1;
+                                        return Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: isLast
+                                                ? 0.0
+                                                : TizenStyles.messageSpacing,
+                                          ),
+                                          child: messageWidget,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ),
-    ),
     );
   }
 }
@@ -279,20 +285,28 @@ class _LoadingItemState extends State<_LoadingItem> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
+    return Container(
+      height: 49.0,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (_showLabel)
             Text(
               widget.label,
               style: TizenStyles.bodyText.copyWith(
                 color: const Color(0xFF8F8F8F),
+                fontSize: TizenStyles.tProcBusy,
               ),
             )
           else ...[
-            const Text('\u200b', style: TizenStyles.bodyText), // 높이 고정용 Zero-width space
+            Text(
+              '\u200b',
+              style: TizenStyles.bodyText.copyWith(
+                fontSize: TizenStyles.tProcBusy,
+              ),
+            ), // 높이 고정용 Zero-width space
             const TypingDotsIndicator(),
           ],
         ],
@@ -311,11 +325,21 @@ class _ConnectingItem extends StatefulWidget {
 class _ConnectingItemState extends State<_ConnectingItem> {
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-      child: Text(
-        '연결 중',
-        style: TizenStyles.bodyText.copyWith(color: Colors.white.withValues(alpha: 0.7)),
+    return Container(
+      height: 49.0,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            '연결 중',
+            style: TizenStyles.bodyText.copyWith(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: TizenStyles.tProcBusy,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -326,13 +350,20 @@ class _WelcomeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-      child: Text(
-        '무엇을 도와 드릴까요?',
-        style: TizenStyles.bodyText.copyWith(
-          color: Colors.white.withValues(alpha: 0.6),
-        ),
+    return Container(
+      height: 49.0,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            '무엇을 도와 드릴까요?',
+            style: TizenStyles.bodyText.copyWith(
+              color: Colors.white.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }

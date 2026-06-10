@@ -58,7 +58,7 @@ namespace Runner
             // It is disabled here to allow fine-grained layer control via SetTopLevelWindow().
             // IsTopLevel = true;
             IsWindowFocusable = false;
-            UserPixelRatio = 1.6;
+            UserPixelRatio = 2.0;
 
             base.OnCreate();
 

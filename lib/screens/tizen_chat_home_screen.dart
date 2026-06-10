@@ -1137,8 +1137,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
             children: [
               if (_hasChatStarted)
                 Positioned(
-                  bottom: 30.0,
-                  left: 20.0,
+                  bottom: TizenStyles.safeB,
+                  left: TizenStyles.safeX,
                   right: 0,
                   child: SpeechVisibilityAnimator(
                     isVisible: _isSpeechPanelVisible,

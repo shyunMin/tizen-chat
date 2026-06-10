@@ -233,7 +233,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                     ),
                   Text(_url!, style: TizenStyles.bodyText),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     '${_formatTime(_secondsLeft)} 후에 종료됩니다',
                     style: TizenStyles.bodyText.copyWith(

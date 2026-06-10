@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/tizen_styles.dart';
 
 enum BorderPhase { idle, busy, slowing, cont }
 
@@ -678,3 +679,126 @@ class _BorderStrokePainter extends CustomPainter {
       burstProgress != old.burstProgress ||
       progress != old.progress;
 }
+
+// ────────────────────────────────────────────────────────────
+// 4. Visibility Shadow Pads (Background contrast enhancement)
+// ────────────────────────────────────────────────────────────
+/*
+  HTML CSS 분석 (design_03.html):
+  밝은 배경에서 에이전트 위젯들의 가시성을 확보하기 위해 각각 고유한 검은색 그림자(Pad/Puddle)를 사용합니다.
+  1cqw = 19.2px (1920 기준)
+
+  1. 사용자 질의 텍스트 (.ask-said::before)
+     - inset: -0.9cqw (-17.3px) 상하, -1.8cqw (-34.6px) 좌우
+     - border-radius: 2.6cqw (49.9px)
+     - background: rgba(0,0,0, 0.82)
+     - filter: blur(2.6cqw) -> blur(49.9px)
+     => 텍스트 덩어리 주변을 감싸는 진하고 흐릿한 캡슐형 그림자.
+
+  2. 에이전트 답변 창 (.awrap::before)
+     - inset: -4cqw (-76.8px) 사방
+     - background: radial-gradient(closest-side, rgba(0,0,0,.6) 0%, rgba(0,0,0,.5) 36%, rgba(0,0,0,.26) 62%, transparent 82%)
+     - filter: blur(8px)
+     => 카드 전체를 넓게 감싸는 부드러운 방사형 퍼짐 그림자.
+*/
+
+enum VisibilityShadowType { text, window, button }
+
+class AgentVisibilityShadow extends StatelessWidget {
+  final VisibilityShadowType type;
+  final Widget child;
+
+  const AgentVisibilityShadow({
+    super.key,
+    required this.type,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (type == VisibilityShadowType.text) {
+      return Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.centerLeft,
+        children: [
+          Positioned(
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6), // Increased from 0.35
+                    blurRadius: 16.0,
+                    spreadRadius: 4.0,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child,
+        ],
+      );
+    } else if (type == VisibilityShadowType.button) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6), // Increased from 0.35
+                      blurRadius: 16.0,
+                      spreadRadius: 4.0,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      );
+    } else {
+      // type == VisibilityShadowType.window
+      // Move the shadow inward to prevent scattering
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: 4,
+            bottom: 4,
+            left: 4,
+            right: 4,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.65), // Increased from 0.45
+                      blurRadius: 36.0,
+                      spreadRadius: 8.0,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      );
+    }
+  }
+}
+
