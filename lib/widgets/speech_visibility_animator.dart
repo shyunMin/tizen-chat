@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class SpeechVisibilityAnimator extends StatefulWidget {
   final bool isVisible;
   final double slideDistance;
-  final Widget Function(BuildContext context, double opacity, double slideOffset) builder;
+  final Widget? child;
+  final Widget Function(BuildContext context, double opacity, double slideOffset, Widget? child) builder;
 
   const SpeechVisibilityAnimator({
     super.key,
     required this.isVisible,
     required this.slideDistance,
+    this.child,
     required this.builder,
   });
 
@@ -24,10 +26,19 @@ class _SpeechVisibilityAnimatorState extends State<SpeechVisibilityAnimator>
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-        vsync: this, value: widget.isVisible ? 1.0 : 0.0);
+    // 항상 투명도 0.0에서 시작하여 처음 등장 시 페이드 인 효과 적용
+    _fadeController = AnimationController(vsync: this, value: 0.0);
+    // 첫 등장 시 슬라이딩은 생략하고 제자리(0.0)에서 페이드 인만 수행
     _slideController = AnimationController(
         vsync: this, value: widget.isVisible ? 0.0 : 1.0);
+
+    if (widget.isVisible) {
+      _fadeController.animateTo(
+        1.0,
+        duration: _fadeDuration,
+        curve: _designCurve,
+      );
+    }
   }
 
   @override
@@ -42,29 +53,35 @@ class _SpeechVisibilityAnimatorState extends State<SpeechVisibilityAnimator>
     }
   }
 
-  void _hide() {
-    _slideController.animateTo(
+  static const Curve _designCurve = Cubic(0.22, 0.61, 0.36, 1.0);
+  static const Duration _slideDuration = Duration(milliseconds: 200);
+  static const Duration _fadeDuration = Duration(milliseconds: 150);
+
+  Future<void> _hide() async {
+    await _slideController.animateTo(
       1.0,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+      duration: _slideDuration,
+      curve: _designCurve,
     );
-    _fadeController.animateTo(
+    if (!mounted || widget.isVisible) return;
+    await _fadeController.animateTo(
       0.0,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+      duration: _fadeDuration,
+      curve: _designCurve,
     );
   }
 
-  void _show() {
-    _fadeController.animateTo(
+  Future<void> _show() async {
+    await _fadeController.animateTo(
       1.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeIn,
+      duration: _fadeDuration,
+      curve: _designCurve,
     );
-    _slideController.animateTo(
+    if (!mounted || !widget.isVisible) return;
+    await _slideController.animateTo(
       0.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeIn,
+      duration: _slideDuration,
+      curve: _designCurve,
     );
   }
 
@@ -79,10 +96,11 @@ class _SpeechVisibilityAnimatorState extends State<SpeechVisibilityAnimator>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: Listenable.merge([_fadeController, _slideController]),
+      child: widget.child,
       builder: (context, child) {
         // slide offset: when slideController is 1.0, it moves UP by slideDistance (negative offset)
         final slideOffset = -_slideController.value * widget.slideDistance;
-        return widget.builder(context, _fadeController.value, slideOffset);
+        return widget.builder(context, _fadeController.value, slideOffset, child);
       },
     );
   }

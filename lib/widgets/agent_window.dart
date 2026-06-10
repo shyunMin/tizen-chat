@@ -1,13 +1,14 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../utils/elapsed_timer.dart';
 import '../models/chat_message.dart';
 import '../theme/tizen_styles.dart';
 import 'agent_effects.dart';
 import 'received_message.dart';
 import 'sent_message.dart';
+import 'typing_dots_indicator.dart';
 
 class AgentWindow extends StatefulWidget {
   final List<ChatMessage> messages;
@@ -127,79 +128,100 @@ class AgentWindowState extends State<AgentWindow> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: screenWidth / 2,
-            maxHeight: screenHeight - TizenStyles.agentWindowHeightReserved,
+            maxHeight: screenHeight / 2,
           ),
           child: AgentBackgroundEffects(
             isProcessing: widget.isThreadInFlight,
             borderRadius: TizenStyles.windowCardRadius,
             child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
-                  boxShadow: const [TizenStyles.windowShadow],
-                ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
+                boxShadow: const [TizenStyles.windowShadow],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(TizenStyles.windowCardRadius),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 17.0, sigmaY: 17.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141822).withValues(alpha: 0.6),
+                    ),
+                    child: AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomLeft,
+                clipBehavior: Clip.hardEdge,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
                     Flexible(
                       child: widget.isThreadInFlight
                           ? _LoadingItem(
-                              label: widget.typingLabel ?? '생각 중이에요...',
+                              label: widget.typingLabel ?? '생각 중',
                               startTime: widget.requestStartTime ?? DateTime.now(),
                             )
                           : widget.isConnecting
                               ? const _ConnectingItem()
                               : widget.messages.isEmpty
                                   ? const _WelcomeItem()
-                                  : ListView.builder(
-                                      shrinkWrap: true,
+                                  : SingleChildScrollView(
                                       controller: _scrollController,
                                       padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-                                      itemCount: widget.messages.length,
-                                      itemBuilder: (context, index) {
-                                    final message = widget.messages[index];
-                                final Widget messageWidget;
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: List.generate(
+                                          widget.messages.length,
+                                          (index) {
+                                            final message = widget.messages[index];
+                                            final Widget messageWidget;
 
-                                switch (message.type) {
-                                  case MessageType.sent:
-                                    messageWidget = SentMessage(
-                                      text: message.text,
-                                      isWaiting: message.isWaiting,
-                                    );
-                                    break;
-                                  case MessageType.received:
-                                    messageWidget = ReceivedMessage(
-                                      text: message.text,
-                                      isWaiting: message.isWaiting,
-                                      displayType: message.displayType,
-                                      phaseTitle: message.phaseTitle,
-                                      tools: message.tools,
-                                      validationPassed: message.validationPassed,
-                                      currentToolIndicator:
-                                          message.currentToolIndicator,
-                                      elapsedSeconds: message.elapsedSeconds,
-                                    );
-                                    break;
-                                }
+                                            switch (message.type) {
+                                              case MessageType.sent:
+                                                messageWidget = SentMessage(
+                                                  text: message.text,
+                                                  isWaiting: message.isWaiting,
+                                                );
+                                                break;
+                                              case MessageType.received:
+                                                messageWidget = ReceivedMessage(
+                                                  text: message.text,
+                                                  isWaiting: message.isWaiting,
+                                                  displayType: message.displayType,
+                                                  phaseTitle: message.phaseTitle,
+                                                  tools: message.tools,
+                                                  validationPassed: message.validationPassed,
+                                                  currentToolIndicator:
+                                                      message.currentToolIndicator,
+                                                  elapsedSeconds: message.elapsedSeconds,
+                                                );
+                                                break;
+                                            }
 
-                                final isLast = index == widget.messages.length - 1;
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: isLast ? 0.0 : TizenStyles.messageSpacing,
-                                  ),
-                                  child: messageWidget,
-                                );
-                              },
+                                            final isLast = index == widget.messages.length - 1;
+                                            return Padding(
+                                              padding: EdgeInsets.only(
+                                                bottom: isLast ? 0.0 : TizenStyles.messageSpacing,
+                                              ),
+                                              child: messageWidget,
+                                            );
+                                          },
+                                        ),
                                       ),
+                                    ),
                     ),
                   ],
                 ),
+                ),
               ),
+            ),
           ),
         ),
       ),
+    ),
+    ),
     );
   }
 }
@@ -215,19 +237,43 @@ class _LoadingItem extends StatefulWidget {
 }
 
 class _LoadingItemState extends State<_LoadingItem> {
-  Timer? _ticker;
+  Timer? _timer;
+  bool _showLabel = false;
 
   @override
   void initState() {
     super.initState();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+    _checkElapsedTime();
+  }
+
+  void _checkElapsedTime() {
+    final elapsed = DateTime.now().difference(widget.startTime);
+    if (elapsed.inSeconds >= 5) {
+      _showLabel = true;
+    } else {
+      _timer = Timer(const Duration(seconds: 5) - elapsed, () {
+        if (mounted) {
+          setState(() {
+            _showLabel = true;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _LoadingItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.startTime != widget.startTime) {
+      _timer?.cancel();
+      _showLabel = false;
+      _checkElapsedTime();
+    }
   }
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -235,9 +281,21 @@ class _LoadingItemState extends State<_LoadingItem> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
-      child: Text(
-        '${widget.label}\nWorking · ${ElapsedTimer.format(widget.startTime)}',
-        style: TizenStyles.bodyText.copyWith(color: Colors.white.withValues(alpha: 0.5)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_showLabel)
+            Text(
+              widget.label,
+              style: TizenStyles.bodyText.copyWith(
+                color: const Color(0xFF8F8F8F),
+              ),
+            )
+          else ...[
+            const Text('\u200b', style: TizenStyles.bodyText), // 높이 고정용 Zero-width space
+            const TypingDotsIndicator(),
+          ],
+        ],
       ),
     );
   }
@@ -256,7 +314,7 @@ class _ConnectingItemState extends State<_ConnectingItem> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
       child: Text(
-        '연결 중이에요...',
+        '연결 중',
         style: TizenStyles.bodyText.copyWith(color: Colors.white.withValues(alpha: 0.7)),
       ),
     );

@@ -76,20 +76,26 @@ class ReceivedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasText = text.trim().isNotEmpty;
     final dimAlpha = _isIntermediatePhase ? 0.78 : 1.0;
     // ignore: avoid_print
     print(
       '[ReceivedMessage.build] phaseTitle=${phaseTitle ?? "(null)"} '
       'currentTool=${currentToolIndicator ?? "(null)"} '
-      'hasText=$hasText textLen=${text.length}',
+      'textLen=${text.length}',
     );
     final bodyStyle = TizenStyles.bodyText.copyWith(
       color: TizenStyles.bodyText.color?.withValues(alpha: dimAlpha),
     );
 
     final showMeta = !isWaiting && elapsedSeconds != null;
-    final markdownData = showMeta ? '$text ||$elapsedSeconds초 걸림||' : text;
+    
+    // 마크다운 코드 블록(```) 직후에 태그가 붙으면 파싱이 깨지므로 항상 줄바꿈(\n\n)을 추가하여 안전하게 분리
+    final safeText = text.trimRight();
+    final markdownData = showMeta 
+        ? (safeText.isEmpty ? '||$elapsedSeconds초 걸림||' : '$safeText\n\n||$elapsedSeconds초 걸림||') 
+        : text;
+
+    final hasContent = markdownData.trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,7 +104,7 @@ class ReceivedMessage extends StatelessWidget {
           _PhaseHeader(title: phaseTitle!),
           const SizedBox(height: 4),
         ],
-        if (hasText)
+        if (hasContent)
           MarkdownBody(
             data: markdownData,
             extensionSet: showMeta ? _elapsedExtensionSet : null,

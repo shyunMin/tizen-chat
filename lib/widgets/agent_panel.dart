@@ -22,7 +22,6 @@ class AgentPanel extends StatelessWidget {
   final GlobalKey<ActionButtonBarState> actionBarKey;
   final VoidCallback? onArrowUp;
   final VoidCallback? onArrowDown;
-  final double slideOffset;
 
   static const double _panelHorizontalMargin = TizenStyles.promptBarLeft;
   static const double _verticalGap = 15.0;
@@ -43,7 +42,6 @@ class AgentPanel extends StatelessWidget {
     required this.actionBarKey,
     this.onArrowUp,
     this.onArrowDown,
-    this.slideOffset = 0.0,
   });
 
   @override
@@ -53,11 +51,9 @@ class AgentPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Transform.translate(
-          offset: Offset(0, slideOffset),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: _panelHorizontalMargin),
-            child: Column(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _panelHorizontalMargin),
+          child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -93,7 +89,6 @@ class AgentPanel extends StatelessWidget {
             ],
           ),
         ),
-      ),
         if (showActionBar) ...[
           const SizedBox(height: _verticalGap),
           ActionButtonBar(

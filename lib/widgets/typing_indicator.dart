@@ -10,7 +10,7 @@ class TypingIndicator extends StatelessWidget {
     super.key,
     this.avatarInitial = 'T',
     this.showAvatar = true,
-    this.label = '생각 중이에요...',
+    this.label = '생각 중',
   });
 
   @override
@@ -18,7 +18,7 @@ class TypingIndicator extends StatelessWidget {
     final labelWidget = Text(
       label,
       style: TizenStyles.bodyText.copyWith(
-        color: Colors.white.withValues(alpha: 0.6),
+        color: const Color(0xFF8F8F8F),
       ),
     );
 

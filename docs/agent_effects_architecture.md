@@ -13,6 +13,20 @@
 
 ---
 
+## 레이아웃 및 마스킹 아키텍처 (Layout & Masking Architecture)
+
+에이전트 화면(`AgentWindow`)이 확장되거나 축소될 때 이펙트가 네모나게 잘리거나(Clipping) 부자연스럽게 확 커지는 현상을 방지하기 위해 엄격한 위젯 중첩(Nesting) 구조를 따릅니다.
+
+* **잘못된 구조 (과거):** `AnimatedSize` ➡️ `AgentBackgroundEffects` ➡️ `Container`
+  * `AnimatedSize`가 바깥에 있을 경우, 기본 속성인 `Clip.hardEdge`로 인해 이펙트(Glow, Bloom)의 빛 번짐 영역이 싹둑 잘려 사각형으로 나타났습니다.
+  * 마스킹 속성을 풀면(`Clip.none`), 확장될 때 안쪽의 텍스트가 크기 제약 없이 한 번에 튀어나와 애니메이션 없이 즉시 확 커지는 것처럼 보이는 문제가 발생합니다.
+* **올바른 구조 (현재):** `AgentBackgroundEffects` ➡️ `Container` ➡️ **`AnimatedSize`** ➡️ `내부 콘텐츠(Column)`
+  * 바깥쪽의 이펙트(`AgentBackgroundEffects`)와 `Container`는 내부 `AnimatedSize`의 크기 변화에 맞춰 매 프레임 자연스럽게 리사이징되며, **어떤 클리핑 제약도 받지 않아 빛 번짐이 완벽하게 렌더링**됩니다.
+  * 내부의 텍스트 영역(콘텐츠)에만 `AnimatedSize`(기본값 `Clip.hardEdge`)가 적용되어, **글자가 늘어나는 동안 영역 안에서만 부드럽게 마스킹되며 나타나는(Reveal) 효과**를 줍니다.
+  * 💡 **적용 효과:** "진행 중(점 애니메이션)" 상태에서 긴 텍스트의 "결과창"으로 전환될 때도, 텍스트가 바깥으로 즉시 튀어나오지 않고 0.3초의 애니메이션 시간 동안 부드럽게 마스킹되어 늘어나는 완벽한 트랜지션을 제공합니다.
+
+---
+
 ## 개별 이펙트 클래스 (Effect Components)
 
 시각적 역할에 따라 3개의 주요 컴포넌트로 완전히 분리되어 독립적인 애니메이션 컨트롤러와 Painter를 가집니다.

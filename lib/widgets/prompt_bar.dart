@@ -326,7 +326,7 @@ class _PromptBarState extends State<PromptBar>
                           ? Container(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '연결 중...',
+                                '연결 중',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.4),
                                   fontSize: TizenStyles.promptBarHintFontSize,

@@ -39,8 +39,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _hasChatStarted = false;
 
   bool _isSpeechPanelVisible = true;
-  static const double _speechSlideDistance =
-      TizenStyles.actionBarHeight + 15.0; // action bar height + _verticalGap
+  static const double _speechSlideDistance = 55.0;
   final List<ChatMessage> _messages = [];
   DateTime? _requestStartTime;
   final GlobalKey<AgentWindowState> _agentWindowKey =
@@ -209,22 +208,27 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           final referenceTime = _speechStartTimestamp;
           if (!initOk) {
             debugPrint('[AppControl] Onboarding incomplete — showing error');
-            if (mounted) {
-              setState(() {
-                _hasChatStarted = true;
-                _messages.add(
-                  ChatMessage(
-                    text:
-                        'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
-                    type: MessageType.received,
-                  ),
-                );
-              });
-              _scrollToBottom();
-            }
+            Future.delayed(const Duration(milliseconds: 50), () {
+              if (mounted) {
+                setState(() {
+                  _hasChatStarted = true;
+                  _messages.add(
+                    ChatMessage(
+                      text:
+                          'API 키 설정이 완료되지 않아 요청을 처리할 수 없습니다.\n설정을 완료한 후 다시 시도해 주세요.',
+                      type: MessageType.received,
+                    ),
+                  );
+                });
+                _scrollToBottom();
+              }
+            });
           } else {
             debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
-            if (mounted) _handleSend(messageText, referenceTime: referenceTime);
+            // UI 애니메이션(페이드/슬라이드)이 첫 프레임 드롭 없이 부드럽게 시작할 수 있도록 50ms 지연 부여
+            Future.delayed(const Duration(milliseconds: 50), () {
+              if (mounted) _handleSend(messageText!, referenceTime: referenceTime);
+            });
           }
         }
         // 메시지 없음(NO_SPEECH): 기준 시간은 유지, 별도 UI 처리 없음
@@ -502,8 +506,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // Indicator is derived from entry.tools (computed via
         // _computeIndicator), so _recordToolStart alone handles both
         // adding the entry and refreshing the indicator.
-        _activeToolName = toolName; // kept for legacy refresh-gate logic
-        _recordToolStart(toolCallId, toolName, argumentsJson);
+        // _activeToolName = toolName; // kept for legacy refresh-gate logic
+        // _recordToolStart(toolCallId, toolName, argumentsJson);
         break;
 
       case AgentToolResult(:final toolCallId, :final output, :final isError):
@@ -511,7 +515,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // _recordToolResult — once the matching entry's outputPreview
         // is populated, the next pending tool (if any) becomes the
         // active indicator, or null clears it.
-        _recordToolResult(toolCallId, output, isError);
+        // _recordToolResult(toolCallId, output, isError);
         break;
 
       case AgentAgentProgress():
@@ -855,12 +859,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// 다루지 않고, streaming / done / unspecified 도 이미 텍스트·완료 프레임으로
   /// 전달되므로 표시하지 않는다. summarizer narration(message)이 있으면 그게 우선.
   String? _progressLabel(AgentAgentProgress progress) {
+    if (progress.phase == 'tool_executing') return '답변 생성 중';
     if (progress.message.isNotEmpty) return progress.message;
     switch (progress.phase) {
       case 'thinking':
-        return '생각하는 중이에요…';
+        return '생각 중';
       case 'memory_retrieving':
-        return '기억을 살펴보는 중이에요…';
+        return '기억 확인 중';
       default:
         return null;
     }
@@ -1062,12 +1067,12 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     if (_currentProgressLabel != null) return _currentProgressLabel!;
     final phase = _currentPhase;
     if (phase is AgentTurnPhaseValidation || phase is AgentTurnPhaseUnknown) {
-      return '답변을 검토하는 중입니다.';
+      return '답변 검토 중';
     }
     if (phase is AgentTurnPhasePrompt) {
-      return '요청을 분석하는 중입니다.';
+      return '요청 분석 중';
     }
-    return '응답을 기다리는 중입니다.';
+    return '응답 대기 중';
   }
 
   void _appendElapsedToLastMessage() {
@@ -1138,27 +1143,30 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   child: SpeechVisibilityAnimator(
                     isVisible: _isSpeechPanelVisible,
                     slideDistance: _speechSlideDistance,
-                    builder: (context, opacity, slideOffset) => Opacity(
-                      opacity: opacity,
-                      child: AgentPanel(
-                        slideOffset: slideOffset,
-                        lastSentText: _lastSentText,
-                        agentWindowKey: _agentWindowKey,
-                        focusNode: _chatScrollFocusNode,
-                        onScrolledToBottomDown: () =>
-                            _actionBarKey.currentState?.focusFirstButton(),
-                        messages: _messages,
-                        isConnecting: !_isGrpcReady,
-                        isThreadInFlight: _isAgentBusy,
-                        typingLabel: _typingLabel,
-                        requestStartTime: _requestStartTime,
-                        actionButtons:
-                            showActionBar ? _currentActionButtons : const [],
-                        onSend: _handleSend,
-                        actionBarKey: _actionBarKey,
-                        onArrowUp: _focusAgentWindow,
-                        onArrowDown: _focusAgentWindow,
+                    builder: (context, opacity, slideOffset, child) => Transform.translate(
+                      offset: Offset(0, slideOffset),
+                      child: Opacity(
+                        opacity: opacity,
+                        child: child,
                       ),
+                    ),
+                    child: AgentPanel(
+                      lastSentText: _lastSentText,
+                      agentWindowKey: _agentWindowKey,
+                      focusNode: _chatScrollFocusNode,
+                      onScrolledToBottomDown: () =>
+                          _actionBarKey.currentState?.focusFirstButton(),
+                      messages: _messages,
+                      isConnecting: !_isGrpcReady,
+                      isThreadInFlight: _isAgentBusy,
+                      typingLabel: _typingLabel,
+                      requestStartTime: _requestStartTime,
+                      actionButtons:
+                          showActionBar ? _currentActionButtons : const [],
+                      onSend: _handleSend,
+                      actionBarKey: _actionBarKey,
+                      onArrowUp: _focusAgentWindow,
+                      onArrowDown: _focusAgentWindow,
                     ),
                   ),
                 ),
