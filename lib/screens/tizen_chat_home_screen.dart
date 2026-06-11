@@ -519,6 +519,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         // adding the entry and refreshing the indicator.
         // _activeToolName = toolName; // kept for legacy refresh-gate logic
         // _recordToolStart(toolCallId, toolName, argumentsJson);
+        setState(() => _currentProgressLabel = '작업 진행 중');
         break;
 
       case AgentToolResult(:final toolCallId, :final output, :final isError):

@@ -452,7 +452,7 @@ class ArgotGrpcService {
         ? '[reference_time: $epochMs]\n$text'
         : text;
 
-    final promptText = '$baseText\n\n[System: If it would be helpful or natural to recommend a follow-up action for the user, you may include it at the end of your response. Format it exactly like <a>Conversational Question or Request</a> (e.g. <a>Can you run the screen test?</a> or <a>앱 실행해줘</a>). Make the label sound like a natural, conversational question or request from the user, rather than a stiff command name. Avoid overusing this if the conversation is naturally concluding. Never expose raw commands inside the <a> tag. Answer in the same language the user speaks. Exception: If you have used a skill that displays UI or HUD elements on the screen in this turn, DO NOT append any <a> tags at the end of your response.]';
+    final promptText = '$baseText\n\n[System: If it would be helpful or natural to recommend a follow-up action for the user, you may include it at the end of your response. Format it exactly like <a>Conversational Question or Request</a> (e.g. <a>Can you run the screen test?</a> or <a>앱 실행해줘</a>). Make the label sound like a natural, conversational question or request from the user, rather than a stiff command name. Avoid overusing this if the conversation is naturally concluding. Never expose raw commands inside the <a> tag. Answer in the same language the user speaks. Exception: If you have used the \'hud\' skill in this turn, DO NOT append any <a> tags at the end of your response.]';
 
     _printChunked('[ArgotGrpc] sendPrompt content:\n$promptText');
 
