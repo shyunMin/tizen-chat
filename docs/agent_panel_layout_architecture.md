@@ -41,6 +41,7 @@ Column
 *   **레이아웃 특징 (최신 개선사항):**
     *   **유연한 높이 (`IntrinsicHeight` & `Align`):** `Align(heightFactor: 1.0)`과 `IntrinsicHeight`를 사용하여 내부 콘텐츠 길이에 맞춰 패널 크기가 자연스럽게 축소/확장되며, 화면의 절반을 강제로 차지하던 빈 여백 문제를 해결했습니다.
     *   **스크롤 마스킹 (고정 여백):** `SingleChildScrollView` 바깥에 상하 여백(`Padding(vertical: 11.5)`)을 배치하여, 사용자가 스크롤을 하더라도 텍스트가 유리창 끝 테두리에 닿아 잘려 보이지 않고 항상 안전한 여백을 두고 사라지도록(Fade/Clip) 최적화되었습니다.
+    *   **자동 스크롤 비활성화:** 새로운 텍스트 청크나 메시지가 도착하더라도 사용자가 읽고 있던 화면 위치가 멋대로 아래로 튀는 현상(읽기 방해)을 방지하기 위해 강제 하단 스크롤(Auto-scroll) 로직을 의도적으로 제거했습니다.
 
 ### C. 액션 버튼 바 (`ActionButtonBar`)
 사용자가 다음 행동으로 선택할 수 있는 추천 질문이나 액션들을 알약(Pill) 형태의 가로 스크롤 버튼 목록으로 제공하는 영역입니다.
@@ -78,5 +79,41 @@ Column
 | | **`SPEECH_START` 수신**<br>(완료 후 다시 말하기) | **숨김** (위로 슬라이드 후 페이드 아웃)<br>👉 *`SpeechVisibilityAnimator`<br>(위쪽(-Y)으로 55px 이동 후 투명도: 0.0)* | **숨김** (위로 슬라이드 후 페이드 아웃)<br>👉 *`SpeechVisibilityAnimator`<br>(위쪽(-Y)으로 55px 이동 후 투명도: 0.0)* | **숨김** (위로 슬라이드 후 페이드 아웃)<br>👉 *`SpeechVisibilityAnimator`<br>상속 효과* |
 | | **`SPEECH_END` 수신**<br>(다시 말하기 종료) | **노출** (페이드 인 후 아래로 슬라이드)<br>👉 *`SpeechVisibilityAnimator`<br>(투명도: 1.0 후 제자리(0)로 복귀)*<br>👉 *새로 인식된 내용으로 갱신* | **노출** (페이드 인 후 아래로 슬라이드)<br>👉 *`SpeechVisibilityAnimator`<br>(투명도: 1.0 후 제자리(0)로 복귀)*<br>👉 *'진행 상태'로 다시 전환* | **숨김** |
 
+---
+
+## 4. 상태별 키 입력 처리
+
+리모컨(방향키) 입력에 대해 각 상태·포커스 위치별로 어떤 동작이 발생하는지 정리한 표입니다.
+
+### 포커스 구조
+
+```
+AgentWindow (_chatScrollFocusNode)
+  ↕ ↓ 최하단 도달 시 → ActionButtonBar 첫 번째 버튼으로 이동
+  ↕ ↑ ActionButtonBar에서 → AgentWindow로 복귀
+ActionButtonBar (_focusNodes[0..N])
+  ↔ ← / → 버튼 간 이동
+```
+
+### 상태별 키 입력 처리 (grab 키만 표기)
+
+| 에이전트 상태 | 입력 받는 키 | 키에 대한 동작 |
+| :--- | :---: | :--- |
+| **대기 상태** (Idle) | 없음 | 모든 키 `ignored` — 키 소비 없음 |
+| **요청 진행 상태** (Busy) | 없음 | 모든 키 `ignored` — 키 소비 없음 |
+| **요청 완료 상태** (Cont) | ↑ | AgentWindow 스크롤 중 (offset > 0) → 96dp 위로 스크롤 |
+| | ↑ | ActionButtonBar 포커스 → AgentWindow로 포커스 이동 |
+| | ↓ | AgentWindow 스크롤 중 → 96dp 아래로 스크롤 |
+| | ↓ | AgentWindow 최하단 + 액션 버튼 있음 → ActionButtonBar 첫 번째 버튼으로 포커스 이동 |
+| | ↓ | AgentWindow 최하단 + 액션 버튼 없음 → 이동 없음 (소비) |
+| | ↓ | ActionButtonBar 포커스 → 이동 없음 (소비) |
+| | ← | ActionButtonBar 중간 · 마지막 버튼 → 이전 버튼으로 포커스 이동 |
+| | ← | ActionButtonBar 첫 번째 버튼 → 이동 없음 (소비) |
+| | → | ActionButtonBar 첫 · 중간 버튼 → 다음 버튼으로 포커스 이동 |
+| | → | ActionButtonBar 마지막 버튼 → 이동 없음 (소비) |
+| | Select / Enter | ActionButtonBar 포커스 → 해당 버튼 텍스트를 메시지로 전송 |
+
 ### 💡 패널(Panel) 슬라이드 애니메이션의 목적
-`SPEECH_START`가 발생할 때 하단의 액션 버튼 바를 포함한 모든 패널 컴포넌트(사용자 텍스트, 에이전트 화면)는 화면 **위로 55px 밀려 올라가며(`Slide Up`) 사라집니다(`Fade Out`)**. 이렇게 패널이 허공으로 증발하듯 화면에서 퇴장하도록 연출하는 이유는, TV 시스템의 자체 음성 인식 UI(Voice Overlay)가 나타날 때 시각적인 간섭과 충돌을 최소화하기 위함입니다. 인식이 끝나면(`SPEECH_END`) 본체 전체가 다시 **아래로 내려오면서(`Slide Down`) 페이드 인(`Fade In`)** 되어 새로운 텍스트와 이펙트를 보여줍니다.
+`SPEECH_START`가 발생할 때 하단의 액션 버튼 바를 포함한 모든 패널 컴포넌트(사용자 텍스트, 에이전트 화면)는 화면 **위로 55px(물리 픽셀 기준, 27.5dp) 밀려 올라감(`Slide Up`)과 동시에 사라집니다(`Fade Out`)**. 
+두 애니메이션이 **동시에(Simultaneously)** 진행되도록 최적화되어 있어 지연이나 버벅임 없이 즉각적으로 퇴장합니다. 이렇게 패널이 허공으로 증발하듯 화면에서 퇴장하도록 연출하는 이유는, TV 시스템의 자체 음성 인식 UI(Voice Overlay)가 나타날 때 시각적인 간섭과 충돌을 최소화하기 위함입니다. 
+인식이 끝나면(`SPEECH_END`) 본체 전체가 다시 **아래로 내려오면서(`Slide Down`) 페이드 인(`Fade In`)** 되어 새로운 텍스트와 이펙트를 보여줍니다. 이 때 무거운 컴포넌트(`AgentPanel`)는 재빌드(Rebuild)되지 않고 캐싱된 `child` 상태로 Transform만 수행되므로 병목 현상이 발생하지 않습니다.

@@ -39,7 +39,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   bool _hasChatStarted = false;
 
   bool _isSpeechPanelVisible = true;
-  static const double _speechSlideDistance = 55.0;
+  static const double _speechSlideDistance = 27.5; // 55 physical pixels
   final List<ChatMessage> _messages = [];
   DateTime? _requestStartTime;
   final GlobalKey<AgentWindowState> _agentWindowKey =
@@ -128,7 +128,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && !_hasPendingAppControl) {
-          unawaited(WindowFocusService.grabNavigationKeys());
+          unawaited(WindowFocusService.ungrabNavigationKeys());
         }
       });
     });
@@ -220,14 +220,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     ),
                   );
                 });
-                _scrollToBottom();
+
               }
             });
           } else {
             debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
             // UI 애니메이션(페이드/슬라이드)이 첫 프레임 드롭 없이 부드럽게 시작할 수 있도록 50ms 지연 부여
             Future.delayed(const Duration(milliseconds: 50), () {
-              if (mounted) _handleSend(messageText!, referenceTime: referenceTime);
+              if (mounted)
+                _handleSend(messageText!, referenceTime: referenceTime);
             });
           }
         }
@@ -260,9 +261,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       // 4. 연결 완료
       if (mounted) {
         setState(() => _isGrpcReady = true);
-        if (!_hasPendingAppControl) {
-          unawaited(WindowFocusService.grabNavigationKeys());
-        }
       }
 
       if (!_initCompleter.isCompleted) _initCompleter.complete(onboardingOk);
@@ -270,9 +268,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       debugPrint('[Init] Error: $e');
       if (mounted) {
         setState(() => _isGrpcReady = true);
-        if (!_hasPendingAppControl) {
-          unawaited(WindowFocusService.grabNavigationKeys());
-        }
       }
       if (!_initCompleter.isCompleted) _initCompleter.complete(false);
     }
@@ -423,7 +418,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         ),
       );
     });
-    _scrollToBottom();
+
     unawaited(WindowFocusService.grabNavigationKeys());
     _focusAgentWindow();
   }
@@ -481,7 +476,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _appendElapsedToLastMessage();
     _speechStartTimestamp = null;
     setState(() => _isAgentBusy = false);
-    _scrollToBottom();
+
     unawaited(WindowFocusService.grabNavigationKeys());
     _focusAgentWindow();
   }
@@ -648,7 +643,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           _speechStartTimestamp = null;
           setState(() => _isAgentBusy = false);
         }
-        unawaited(WindowFocusService.grabNavigationKeys());
+        unawaited(WindowFocusService.ungrabNavigationKeys());
         _grpcService.reconnect();
         break;
 
@@ -703,7 +698,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         currentToolIndicator: _computeIndicator(old.tools),
       );
     });
-    _scrollToBottom();
+
   }
 
   /// Pick the indicator string from a turn's tool list:
@@ -863,9 +858,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     if (progress.message.isNotEmpty) return progress.message;
     switch (progress.phase) {
       case 'thinking':
-        return '생각 중';
+        return '분석 중';
       case 'memory_retrieving':
-        return '기억 확인 중';
+        return '히스토리 확인 중';
       default:
         return null;
     }
@@ -928,7 +923,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _currentProgressLabel = null;
     _activeReplyIndex = null;
     _currentSegmentText = '';
-    _scrollToBottom();
+
   }
 
   Future<void> _handleAgentError(
@@ -944,7 +939,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       return;
     }
 
-    unawaited(WindowFocusService.grabNavigationKeys());
+    unawaited(WindowFocusService.ungrabNavigationKeys());
 
     setState(() {
       final displayMessage = '[$code] $message';
@@ -986,7 +981,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       }
     });
 
-    _scrollToBottom();
+
     _focusAgentWindow();
 
     if ((fatal && code != 'cancelled') || code == 'NO_SESSION') {
@@ -994,9 +989,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     }
   }
 
-  void _scrollToBottom() {
-    _agentWindowKey.currentState?.scrollToBottom();
-  }
+
 
   void _focusAgentWindow() {
     if (!_hasChatStarted) return;
@@ -1034,10 +1027,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       await onboardingService.disconnect();
     }
   }
-
-
-
-
 
   @override
   void dispose() {
@@ -1110,7 +1099,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final bool showActionBar = !_isAgentBusy && _currentActionButtons.isNotEmpty;
+    final bool showActionBar =
+        !_isAgentBusy && _currentActionButtons.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1143,13 +1133,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                   child: SpeechVisibilityAnimator(
                     isVisible: _isSpeechPanelVisible,
                     slideDistance: _speechSlideDistance,
-                    builder: (context, opacity, slideOffset, child) => Transform.translate(
-                      offset: Offset(0, slideOffset),
-                      child: Opacity(
-                        opacity: opacity,
-                        child: child,
-                      ),
-                    ),
+                    builder: (context, opacity, slideOffset, child) =>
+                        Transform.translate(
+                          offset: Offset(0, slideOffset),
+                          child: Opacity(opacity: opacity, child: child),
+                        ),
                     child: AgentPanel(
                       lastSentText: _lastSentText,
                       agentWindowKey: _agentWindowKey,
@@ -1161,12 +1149,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                       isThreadInFlight: _isAgentBusy,
                       typingLabel: _typingLabel,
                       requestStartTime: _requestStartTime,
-                      actionButtons:
-                          showActionBar ? _currentActionButtons : const [],
+                      actionButtons: showActionBar
+                          ? _currentActionButtons
+                          : const [],
                       onSend: _handleSend,
                       actionBarKey: _actionBarKey,
                       onArrowUp: _focusAgentWindow,
-                      onArrowDown: _focusAgentWindow,
+                      onArrowDown: null,
                     ),
                   ),
                 ),

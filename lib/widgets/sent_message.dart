@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../theme/tizen_styles.dart';
 
 class SentMessage extends StatelessWidget {
@@ -39,32 +38,26 @@ class SentMessage extends StatelessWidget {
               bottomLeft: Radius.circular(TizenStyles.windowBorderRadius),
               bottomRight: Radius.circular(TizenStyles.messageTailRadius),
             ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: TizenStyles.backdropBlurSigma, sigmaY: TizenStyles.backdropBlurSigma),
-              child: Container(
-                padding: TizenStyles.messagePadding,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: gradientColors,
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(TizenStyles.windowBorderRadius),
-                    topRight: Radius.circular(TizenStyles.windowBorderRadius),
-                    bottomLeft: Radius.circular(TizenStyles.windowBorderRadius),
-                    bottomRight: Radius.circular(TizenStyles.messageTailRadius),
-                  ),
-                  border: Border.all(
-                    color: borderColor,
-                    width: isWaiting ? 1.5 : 1.0,
-                  ),
+            child: Container(
+              padding: TizenStyles.messagePadding,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: gradientColors,
                 ),
-                child: Text(
-                  text,
-                  style: TizenStyles.sentText,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(TizenStyles.windowBorderRadius),
+                  topRight: Radius.circular(TizenStyles.windowBorderRadius),
+                  bottomLeft: Radius.circular(TizenStyles.windowBorderRadius),
+                  bottomRight: Radius.circular(TizenStyles.messageTailRadius),
+                ),
+                border: Border.all(
+                  color: borderColor,
+                  width: isWaiting ? 1.5 : 1.0,
                 ),
               ),
+              child: Text(text, style: TizenStyles.sentText),
             ),
           ),
         ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../theme/tizen_styles.dart';
 
 class ChipBackgroundEffects extends StatefulWidget {
@@ -68,15 +67,22 @@ class _ChipBackgroundEffectsState extends State<ChipBackgroundEffects>
                 curve: Curves.easeInOut,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
+                    borderRadius: BorderRadius.circular(
+                      TizenStyles.actionButtonBorderRadius,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withValues(alpha: 0.18 * auraOpacity),
-                        blurRadius: 12.0, // Increased for a softer, wider smudge
+                        color: Colors.white.withValues(
+                          alpha: 0.18 * auraOpacity,
+                        ),
+                        blurRadius:
+                            12.0, // Increased for a softer, wider smudge
                         spreadRadius: 2.0, // Spread the glow further
                       ),
                       BoxShadow(
-                        color: const Color(0xFFDCEBFF).withValues(alpha: 0.10 * auraOpacity),
+                        color: const Color(
+                          0xFFDCEBFF,
+                        ).withValues(alpha: 0.10 * auraOpacity),
                         blurRadius: 24.0, // Huge soft blur for the outer aura
                         spreadRadius: 4.0, // Spread further to create a halo
                       ),
@@ -88,26 +94,29 @@ class _ChipBackgroundEffectsState extends State<ChipBackgroundEffects>
 
             // Base frosted glass and border
             ClipRRect(
-              borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 24.0, sigmaY: 24.0), // Increased from 12.0 to 24.0 to heavily smudge the background
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  curve: Curves.easeInOut,
-                  decoration: BoxDecoration(
-                    color: widget.isFocused
-                        ? const Color(0xFF555555).withValues(alpha: 0.6) // Semi-transparent gray for better text legibility
-                        : TizenStyles.matThin,
-                    borderRadius: BorderRadius.circular(TizenStyles.actionButtonBorderRadius),
-                    border: Border.all(
-                      color: widget.isFocused
-                          ? Colors.white.withValues(alpha: 0.95)
-                          : Colors.white.withValues(alpha: 0.25),
-                      width: widget.isFocused ? 0.75 : 0.5,
-                    ),
+              borderRadius: BorderRadius.circular(
+                TizenStyles.actionButtonBorderRadius,
+              ),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 100),
+                curve: Curves.easeInOut,
+                decoration: BoxDecoration(
+                  color: widget.isFocused
+                      ? const Color(0xFF555555).withValues(
+                          alpha: 0.6,
+                        ) // Semi-transparent gray for better text legibility
+                      : TizenStyles.matThin,
+                  borderRadius: BorderRadius.circular(
+                    TizenStyles.actionButtonBorderRadius,
                   ),
-                  child: widget.child,
+                  border: Border.all(
+                    color: widget.isFocused
+                        ? Colors.white.withValues(alpha: 0.95)
+                        : Colors.white.withValues(alpha: 0.25),
+                    width: widget.isFocused ? 0.75 : 0.5,
+                  ),
                 ),
+                child: widget.child,
               ),
             ),
           ],

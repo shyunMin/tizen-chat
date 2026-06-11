@@ -58,31 +58,39 @@ class _SpeechVisibilityAnimatorState extends State<SpeechVisibilityAnimator>
   static const Duration _fadeDuration = Duration(milliseconds: 150);
 
   Future<void> _hide() async {
-    await _slideController.animateTo(
-      1.0,
-      duration: _slideDuration,
-      curve: _designCurve,
-    );
-    if (!mounted || widget.isVisible) return;
-    await _fadeController.animateTo(
-      0.0,
-      duration: _fadeDuration,
-      curve: _designCurve,
-    );
+    await Future.wait<dynamic>([
+      _slideController.animateTo(
+        1.0,
+        duration: _slideDuration,
+        curve: _designCurve,
+      ),
+      Future.delayed(const Duration(milliseconds: 50), () async {
+        if (!mounted || widget.isVisible) return;
+        await _fadeController.animateTo(
+          0.0,
+          duration: _fadeDuration,
+          curve: _designCurve,
+        );
+      }),
+    ]);
   }
 
   Future<void> _show() async {
-    await _fadeController.animateTo(
-      1.0,
-      duration: _fadeDuration,
-      curve: _designCurve,
-    );
-    if (!mounted || !widget.isVisible) return;
-    await _slideController.animateTo(
-      0.0,
-      duration: _slideDuration,
-      curve: _designCurve,
-    );
+    await Future.wait<dynamic>([
+      _fadeController.animateTo(
+        1.0,
+        duration: _fadeDuration,
+        curve: _designCurve,
+      ),
+      Future.delayed(const Duration(milliseconds: 50), () async {
+        if (!mounted || !widget.isVisible) return;
+        await _slideController.animateTo(
+          0.0,
+          duration: _slideDuration,
+          curve: _designCurve,
+        );
+      }),
+    ]);
   }
 
   @override

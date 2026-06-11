@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,17 +42,7 @@ class AgentWindowState extends State<AgentWindow> {
 
   static const double _scrollStep = 96.0;
 
-  void scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
+
 
   void _scrollUp() {
     if (!_scrollController.hasClients) return;
@@ -87,8 +76,9 @@ class AgentWindowState extends State<AgentWindow> {
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       if (_scrollController.hasClients && _scrollController.offset > 0.0) {
         _scrollUp();
+        return KeyEventResult.handled;
       }
-      return KeyEventResult.handled;
+      return KeyEventResult.ignored;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
@@ -99,8 +89,9 @@ class AgentWindowState extends State<AgentWindow> {
         } else {
           _scrollDown();
         }
+        return KeyEventResult.handled;
       }
-      return KeyEventResult.handled;
+      return KeyEventResult.ignored;
     }
 
     return KeyEventResult.ignored;
@@ -115,18 +106,15 @@ class AgentWindowState extends State<AgentWindow> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Focus(
       focusNode: _scrollFocusNode,
       onKeyEvent: _handleKeyEvent,
       child: Align(
         alignment: Alignment.centerLeft,
         heightFactor: 1.0, // Force Align to shrink-wrap vertically
-        widthFactor: 1.0,  // Force Align to shrink-wrap horizontally
+        widthFactor: 1.0, // Force Align to shrink-wrap horizontally
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: screenWidth / 2),
+          constraints: BoxConstraints(maxWidth: TizenStyles.colMax),
           child: AgentVisibilityShadow(
             type: VisibilityShadowType.window,
             child: AgentBackgroundEffects(
@@ -143,42 +131,45 @@ class AgentWindowState extends State<AgentWindow> {
                   borderRadius: BorderRadius.circular(
                     TizenStyles.windowCardRadius,
                   ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 17.0, sigmaY: 17.0),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141822).withValues(alpha: 0.6),
-                      ),
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.bottomLeft,
-                        clipBehavior: Clip.hardEdge,
-                        child: widget.isThreadInFlight
-                            ? _LoadingItem(
-                                label: widget.typingLabel ?? '생각 중',
-                                startTime:
-                                    widget.requestStartTime ?? DateTime.now(),
-                              )
-                            : widget.isConnecting
-                            ? const _ConnectingItem()
-                            : widget.messages.isEmpty
-                            ? const _WelcomeItem()
-                            : IntrinsicHeight(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 11.5),
-                                  child: SingleChildScrollView(
-                                    controller: _scrollController,
-                                    padding: const EdgeInsets.symmetric(horizontal: 22.0),
-                                    child: Column(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141822).withValues(alpha: 0.6),
+                    ),
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.bottomLeft,
+                      clipBehavior: Clip.hardEdge,
+                      child: widget.isThreadInFlight
+                          ? _LoadingItem(
+                              label: widget.typingLabel ?? '분석 중',
+                              startTime:
+                                  widget.requestStartTime ?? DateTime.now(),
+                            )
+                          : widget.isConnecting
+                          ? const _ConnectingItem()
+                          : widget.messages.isEmpty
+                          ? const _WelcomeItem()
+                          : IntrinsicHeight(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 11.5,
+                                ),
+                                child: SingleChildScrollView(
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 22.0,
+                                  ),
+                                  child: Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: List.generate(
                                       widget.messages.length,
                                       (index) {
                                         final message = widget.messages[index];
                                         final Widget messageWidget;
-  
+
                                         switch (message.type) {
                                           case MessageType.sent:
                                             messageWidget = SentMessage(
@@ -202,7 +193,7 @@ class AgentWindowState extends State<AgentWindow> {
                                             );
                                             break;
                                         }
-  
+
                                         final isLast =
                                             index == widget.messages.length - 1;
                                         return Padding(
@@ -219,7 +210,6 @@ class AgentWindowState extends State<AgentWindow> {
                                 ),
                               ),
                             ),
-                      ),
                     ),
                   ),
                 ),

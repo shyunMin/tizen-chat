@@ -10,7 +10,7 @@ class TypingIndicator extends StatelessWidget {
     super.key,
     this.avatarInitial = 'T',
     this.showAvatar = true,
-    this.label = '생각 중',
+    this.label = '분석 중',
   });
 
   @override
