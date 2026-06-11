@@ -15,7 +15,7 @@ class AgentResponse {
 }
 
 class AgentResponseParser {
-  static final _anchorRegex = RegExp(r'<a>(.*?)</a>');
+  static final _anchorRegex = RegExp(r'<a>(.*?)</a>', dotAll: true);
 
   static AgentResponse parse(String rawText) {
     final RegExp fenceRegex = RegExp(r'```json\s*([\s\S]*?)\s*```');

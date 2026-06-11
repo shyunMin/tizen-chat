@@ -94,7 +94,7 @@ class ReceivedMessage extends StatelessWidget {
     final markdownData = showMeta 
         ? (safeText.isEmpty 
             ? '||$timeStr||' 
-            : '$safeText\n\n||$timeStr||') 
+            : '||$timeStr||\n\n$safeText') 
         : text;
 
     final hasContent = markdownData.trim().isNotEmpty;

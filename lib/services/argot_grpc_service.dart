@@ -448,9 +448,11 @@ class ArgotGrpcService {
 
     // referenceTime이 있으면 epoch ms를 프롬프트 첫 줄에 삽입해 에이전트가 시간 맥락을 인식하게 한다.
     final epochMs = referenceTime?.millisecondsSinceEpoch;
-    final promptText = epochMs != null
+    final baseText = epochMs != null
         ? '[reference_time: $epochMs]\n$text'
         : text;
+
+    final promptText = '$baseText\n\n[System: If it would be helpful or natural to recommend a follow-up action for the user, you may include it at the end of your response. Format it exactly like <a>Conversational Question or Request</a> (e.g. <a>Can you run the screen test?</a> or <a>앱 실행해줘</a>). Make the label sound like a natural, conversational question or request from the user, rather than a stiff command name. Avoid overusing this if the conversation is naturally concluding. Never expose raw commands inside the <a> tag. Answer in the same language the user speaks.]';
 
     _printChunked('[ArgotGrpc] sendPrompt content:\n$promptText');
 
