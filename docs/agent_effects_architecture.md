@@ -61,5 +61,7 @@
 ## 향후 확장 및 유지보수 가이드
 
 * **새로운 시각 효과를 추가할 때:** 기존의 클래스를 무리하게 수정하지 말고, 빛 번짐인지(Blur), 테두리 선인지(Stroke) 역할에 따라 `AgentOuterGlow`나 `AgentBorderStroke`에 로직을 추가하거나, 완전히 다른 텍스처라면 제 4의 이펙트 위젯을 `AgentBackgroundEffects`의 `Stack` 내에 추가하세요.
-* **성능 튜닝 (Performance):** 모든 Painter는 `shouldRepaint`를 통해 필요한 순간에만 렌더링되도록 최적화되어 있습니다. 애니메이션 프레임 드랍이 발생할 경우, 각 Painter의 복잡도(예: `BorderStroke`의 step 수 또는 `MaskFilter`의 반경)를 조절하세요.
+* **성능 튜닝 (Performance):** 
+  * 모든 Painter는 `shouldRepaint`를 통해 필요한 순간에만 렌더링되도록 최적화되어 있습니다. 애니메이션 프레임 드랍이 발생할 경우, 각 Painter의 복잡도(예: `BorderStroke`의 step 수 또는 `MaskFilter`의 반경)를 조절하세요.
+  * **중요:** UI 컴포넌트(말풍선, 패널, 버튼 등) 배경에 사용되던 고비용의 `BackdropFilter(ImageFilter.blur)`는 라즈베리 파이 등 저사양 타겟 디바이스의 GPU 부하를 줄이고 60fps 애니메이션 방어를 위해 모두 **제거(반투명 단색 배경으로 대체)**되었습니다. 향후 추가 컴포넌트 설계 시에도 과도한 실시간 블러 연산은 지양해야 합니다.
 * **상태 흐름 변경:** "진행 중" ➡️ "완료" 사이의 트랜지션 타이밍을 변경하려면 `AgentBackgroundEffects`의 `_startCompletionSequence()` 내의 Timer 값(현 650ms, 450ms)을 수정해야 합니다.

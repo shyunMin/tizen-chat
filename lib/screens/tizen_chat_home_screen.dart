@@ -138,20 +138,21 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     _hasPendingAppControl = true;
     final initOk = await _initCompleter.future;
     debugPrint('[AppControl] Received! caller: ${appControl.callerAppId}');
-    debugPrint('[AppControl] extraData: ${appControl.extraData}');
 
+    // ── 1단계: eventType + timestamp 파싱 ──────────────────────────────
+    String? eventType;
+    Map<dynamic, dynamic>? extraData;
+    DateTime? tsDateTime;
     try {
-      final extraData = appControl.extraData;
+      extraData = appControl.extraData;
+      debugPrint('[AppControl] extraData: $extraData');
 
-      // eventType으로 이벤트 구분
       final eventTypeRaw = extraData['eventType'];
-      final eventType = eventTypeRaw is List && eventTypeRaw.isNotEmpty
+      eventType = eventTypeRaw is List && eventTypeRaw.isNotEmpty
           ? eventTypeRaw.first.toString()
           : eventTypeRaw?.toString();
       debugPrint('[AppControl] eventType=$eventType');
 
-      // timestamp 파싱
-      DateTime? tsDateTime;
       if (extraData.containsKey('timestamp')) {
         final ts = extraData['timestamp'];
         final tsStr = ts is List && ts.isNotEmpty
@@ -165,34 +166,33 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           '[AppControl] timestamp=$tsStr / ${tsDateTime?.toIso8601String()}',
         );
       }
+    } catch (e) {
+      debugPrint('[AppControl] Error parsing extraData: $e');
+    }
 
-      if (eventType == 'SPEECH_START') {
-        // Turn 내 최초 SPEECH_START만 기준 시간으로 저장
-        if (_speechStartTimestamp == null) {
-          _speechStartTimestamp = tsDateTime;
-          debugPrint(
-            '[AppControl] SPEECH_START — turn reference time set: $_speechStartTimestamp',
-          );
-        } else {
-          debugPrint(
-            '[AppControl] SPEECH_START — reference time kept: $_speechStartTimestamp',
-          );
-        }
-        if (mounted) {
-          unawaited(WindowFocusService.setFocusable(false));
-          setState(() {
-            _isSpeechPanelVisible = false;
-          });
-        }
-      } else if (eventType == 'SPEECH_END') {
-        if (mounted) {
-          setState(() {
-            _isSpeechPanelVisible = true;
-          });
-        }
-        // message 추출
+    // ── 2단계: 이벤트 처리 ────────────────────────────────────────────
+    if (eventType == 'SPEECH_START') {
+      if (_speechStartTimestamp == null) {
+        _speechStartTimestamp = tsDateTime;
+        debugPrint(
+          '[AppControl] SPEECH_START — turn reference time set: $_speechStartTimestamp',
+        );
+      } else {
+        debugPrint(
+          '[AppControl] SPEECH_START — reference time kept: $_speechStartTimestamp',
+        );
+      }
+      if (mounted) {
+        unawaited(WindowFocusService.setFocusable(false));
+        setState(() => _isSpeechPanelVisible = false);
+      }
+    } else if (eventType == 'SPEECH_END') {
+      // 패널 복구는 메시지 파싱 오류와 무관하게 가장 먼저 보장
+      if (mounted) setState(() => _isSpeechPanelVisible = true);
+
+      try {
         String? messageText;
-        if (extraData.containsKey('message')) {
+        if (extraData != null && extraData.containsKey('message')) {
           final msg = extraData['message'];
           final raw = msg is List && msg.isNotEmpty
               ? msg.first.toString()
@@ -204,7 +204,6 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         );
 
         if (messageText != null) {
-          // 실제 메시지 → 요청 전달 (기준 시간 포함, 완료 시 초기화)
           final referenceTime = _speechStartTimestamp;
           if (!initOk) {
             debugPrint('[AppControl] Onboarding incomplete — showing error');
@@ -220,12 +219,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
                     ),
                   );
                 });
-
               }
             });
           } else {
             debugPrint('[AppControl] Proceeding to _handleSend: $messageText');
-            // UI 애니메이션(페이드/슬라이드)이 첫 프레임 드롭 없이 부드럽게 시작할 수 있도록 50ms 지연 부여
+            // UI 애니메이션이 첫 프레임 드롭 없이 부드럽게 시작하도록 50ms 지연
             Future.delayed(const Duration(milliseconds: 50), () {
               if (mounted)
                 _handleSend(messageText!, referenceTime: referenceTime);
@@ -233,11 +231,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
           }
         }
         // 메시지 없음(NO_SPEECH): 기준 시간은 유지, 별도 UI 처리 없음
-      } else {
-        debugPrint('[AppControl] Unknown or missing eventType, ignoring.');
+      } catch (e) {
+        debugPrint('[AppControl] SPEECH_END message processing error: $e');
       }
-    } catch (e) {
-      debugPrint('[AppControl] Error processing extraData: $e');
+    } else {
+      debugPrint('[AppControl] Unknown or missing eventType, ignoring.');
     }
   }
 
@@ -353,13 +351,15 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
       _logUserMessage = text;
       _logRequestSentTime = _requestStartTime;
     }
-    setState(() => _isAgentBusy = true);
+    setState(() {
+      _lastSentText = text;
+      _isAgentBusy = true;
+    });
     _focusAgentWindow();
 
     if (!turnBusy) {
       // Idle daemon: clear immediately and start fresh.
       setState(() {
-        _lastSentText = text;
         _messages.clear();
         _activeReplyIndex = null;
         _currentSegmentText = '';
