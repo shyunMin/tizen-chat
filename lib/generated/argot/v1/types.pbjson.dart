@@ -15,6 +15,23 @@ import 'dart:convert' as $convert;
 import 'dart:core' as $core;
 import 'dart:typed_data' as $typed_data;
 
+@$core.Deprecated('Use toolDetailDescriptor instead')
+const ToolDetail$json = {
+  '1': 'ToolDetail',
+  '2': [
+    {'1': 'TOOL_DETAIL_UNSPECIFIED', '2': 0},
+    {'1': 'TOOL_DETAIL_FULL', '2': 1},
+    {'1': 'TOOL_DETAIL_CAPPED', '2': 2},
+    {'1': 'TOOL_DETAIL_OUTCOME', '2': 3},
+  ],
+};
+
+/// Descriptor for `ToolDetail`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List toolDetailDescriptor = $convert.base64Decode(
+    'CgpUb29sRGV0YWlsEhsKF1RPT0xfREVUQUlMX1VOU1BFQ0lGSUVEEAASFAoQVE9PTF9ERVRBSU'
+    'xfRlVMTBABEhYKElRPT0xfREVUQUlMX0NBUFBFRBACEhcKE1RPT0xfREVUQUlMX09VVENPTUUQ'
+    'Aw==');
+
 @$core.Deprecated('Use stopReasonDescriptor instead')
 const StopReason$json = {
   '1': 'StopReason',
@@ -227,13 +244,18 @@ const ToolResult$json = {
     {'1': 'call_id', '3': 1, '4': 1, '5': 9, '10': 'callId'},
     {'1': 'output_json', '3': 2, '4': 1, '5': 9, '10': 'outputJson'},
     {'1': 'is_error', '3': 3, '4': 1, '5': 8, '10': 'isError'},
+    {'1': 'name', '3': 4, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'output_bytes', '3': 5, '4': 1, '5': 4, '10': 'outputBytes'},
+    {'1': 'output_truncated', '3': 6, '4': 1, '5': 8, '10': 'outputTruncated'},
   ],
 };
 
 /// Descriptor for `ToolResult`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List toolResultDescriptor = $convert.base64Decode(
     'CgpUb29sUmVzdWx0EhcKB2NhbGxfaWQYASABKAlSBmNhbGxJZBIfCgtvdXRwdXRfanNvbhgCIA'
-    'EoCVIKb3V0cHV0SnNvbhIZCghpc19lcnJvchgDIAEoCFIHaXNFcnJvcg==');
+    'EoCVIKb3V0cHV0SnNvbhIZCghpc19lcnJvchgDIAEoCFIHaXNFcnJvchISCgRuYW1lGAQgASgJ'
+    'UgRuYW1lEiEKDG91dHB1dF9ieXRlcxgFIAEoBFILb3V0cHV0Qnl0ZXMSKQoQb3V0cHV0X3RydW'
+    '5jYXRlZBgGIAEoCFIPb3V0cHV0VHJ1bmNhdGVk');
 
 @$core.Deprecated('Use completedDescriptor instead')
 const Completed$json = {

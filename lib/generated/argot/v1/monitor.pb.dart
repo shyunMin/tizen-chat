@@ -178,10 +178,12 @@ class WatchRequest extends $pb.GeneratedMessage {
   factory WatchRequest({
     $core.String? conversationId,
     $core.Iterable<EventCategory>? categories,
+    $1.ToolDetail? toolDetail,
   }) {
     final result = create();
     if (conversationId != null) result.conversationId = conversationId;
     if (categories != null) result.categories.addAll(categories);
+    if (toolDetail != null) result.toolDetail = toolDetail;
     return result;
   }
 
@@ -204,6 +206,8 @@ class WatchRequest extends $pb.GeneratedMessage {
         valueOf: EventCategory.valueOf,
         enumValues: EventCategory.values,
         defaultEnumValue: EventCategory.EVENT_CATEGORY_UNSPECIFIED)
+    ..aE<$1.ToolDetail>(3, _omitFieldNames ? '' : 'toolDetail',
+        enumValues: $1.ToolDetail.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -238,6 +242,18 @@ class WatchRequest extends $pb.GeneratedMessage {
   /// this set before streaming (empty ⇒ all).
   @$pb.TagNumber(2)
   $pb.PbList<EventCategory> get categories => $_getList(1);
+
+  /// How much tool-result output this subscriber receives. Unset
+  /// (TOOL_DETAIL_UNSPECIFIED) means FULL; applied per subscriber — the
+  /// observation bus itself keeps full-fidelity events. See types.proto.
+  @$pb.TagNumber(3)
+  $1.ToolDetail get toolDetail => $_getN(2);
+  @$pb.TagNumber(3)
+  set toolDetail($1.ToolDetail value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasToolDetail() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearToolDetail() => $_clearField(3);
 }
 
 enum SystemEvent_Event {
@@ -405,8 +421,9 @@ class SystemEvent extends $pb.GeneratedMessage {
   TurnStarted ensureTurnStarted() => $_ensure(5);
 
   /// The same ChatEvent shape carried on ChatService.Chat, re-emitted on
-  /// the observation bus: MessageDelta / ToolCall / ToolResult plus the
-  /// terminal Completed / Failed / Stopped.
+  /// the observation bus: MessageDelta / ToolCall / ToolResult /
+  /// AgentProgress plus the terminal Completed / Failed. (Stopped exists
+  /// in the schema but is not emitted today.)
   @$pb.TagNumber(11)
   $1.ChatEvent get chatEvent => $_getN(6);
   @$pb.TagNumber(11)

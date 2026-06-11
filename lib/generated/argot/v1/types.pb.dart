@@ -440,11 +440,17 @@ class ToolResult extends $pb.GeneratedMessage {
     $core.String? callId,
     $core.String? outputJson,
     $core.bool? isError,
+    $core.String? name,
+    $fixnum.Int64? outputBytes,
+    $core.bool? outputTruncated,
   }) {
     final result = create();
     if (callId != null) result.callId = callId;
     if (outputJson != null) result.outputJson = outputJson;
     if (isError != null) result.isError = isError;
+    if (name != null) result.name = name;
+    if (outputBytes != null) result.outputBytes = outputBytes;
+    if (outputTruncated != null) result.outputTruncated = outputTruncated;
     return result;
   }
 
@@ -464,6 +470,11 @@ class ToolResult extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'callId')
     ..aOS(2, _omitFieldNames ? '' : 'outputJson')
     ..aOB(3, _omitFieldNames ? '' : 'isError')
+    ..aOS(4, _omitFieldNames ? '' : 'name')
+    ..a<$fixnum.Int64>(
+        5, _omitFieldNames ? '' : 'outputBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOB(6, _omitFieldNames ? '' : 'outputTruncated')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -493,6 +504,9 @@ class ToolResult extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearCallId() => $_clearField(1);
 
+  /// Output payload, populated per the stream's negotiated ToolDetail (see
+  /// ToolDetail). The canonical full-fidelity record is GetHistory; a capped
+  /// or outcome client refetches there when it needs the entire output.
   @$pb.TagNumber(2)
   $core.String get outputJson => $_getSZ(1);
   @$pb.TagNumber(2)
@@ -510,11 +524,46 @@ class ToolResult extends $pb.GeneratedMessage {
   $core.bool hasIsError() => $_has(2);
   @$pb.TagNumber(3)
   void clearIsError() => $_clearField(3);
+
+  /// Tool wire-name, repeated from the originating ToolCall so the result
+  /// renders without buffering the call.
+  @$pb.TagNumber(4)
+  $core.String get name => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set name($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearName() => $_clearField(4);
+
+  /// True pre-reduction output size in bytes. Always populated.
+  @$pb.TagNumber(5)
+  $fixnum.Int64 get outputBytes => $_getI64(4);
+  @$pb.TagNumber(5)
+  set outputBytes($fixnum.Int64 value) => $_setInt64(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOutputBytes() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearOutputBytes() => $_clearField(5);
+
+  /// True whenever output_json is not the verbatim runtime output (capped
+  /// truncation, outcome success omission, or oversize downgrade).
+  @$pb.TagNumber(6)
+  $core.bool get outputTruncated => $_getBF(5);
+  @$pb.TagNumber(6)
+  set outputTruncated($core.bool value) => $_setBool(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOutputTruncated() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOutputTruncated() => $_clearField(6);
 }
 
 /// Terminal event for a successful turn. `text` is the aggregated assistant
-/// reply; counters are advisory. Clients can ignore `text` if they already
-/// reassembled from `MessageDelta` events.
+/// reply; clients can ignore it if they already reassembled from
+/// `MessageDelta` events. `tool_calls` is populated (the count of tool-call
+/// events the turn emitted). `turns` is advisory and currently zero: the
+/// runtime tracks iterations, but its turn-output seam does not carry the
+/// tally to the transport.
 class Completed extends $pb.GeneratedMessage {
   factory Completed({
     $core.String? text,
@@ -728,10 +777,12 @@ class Stopped extends $pb.GeneratedMessage {
 }
 
 /// A user-safe activity signal for the active turn, so a chat UI / CLI can show
-/// "what the agent is doing" (Thinking, Running bash, Searching memory) without
-/// rendering the raw tool_call / tool_result stream. NOT assistant content and
-/// NOT reasoning / chain-of-thought. Live-only: never written to history, so
-/// GetHistory never replays it. Clients may dedupe consecutive identical events.
+/// "what the agent is doing" (Thinking, Searching memory) for lifecycle
+/// transitions that transcript events do not announce. Tool execution is NOT a
+/// progress phase: the ToolCall event itself is the running-tool signal. NOT
+/// assistant content and NOT reasoning / chain-of-thought. Live-only: never
+/// written to history, so GetHistory never replays it. Clients may dedupe
+/// consecutive identical events.
 class AgentProgress extends $pb.GeneratedMessage {
   factory AgentProgress({
     Phase? phase,
@@ -793,8 +844,11 @@ class AgentProgress extends $pb.GeneratedMessage {
   static AgentProgress? _defaultInstance;
 
   /// Coarse lifecycle phase. The daemon emits only the phases tinicore's agent
-  /// loop actually fires (thinking → memory_retrieving → streaming →
-  /// tool_executing → done); `summary` is the optional periodic narration.
+  /// loop actually fires on the normal turn path (thinking →
+  /// memory_retrieving → streaming → done); `summary` is the optional
+  /// periodic narration. PHASE_TOOL_EXECUTING is reserved for the legacy
+  /// direct-tool command path and never accompanies a ToolCall on a normal
+  /// agent turn.
   @$pb.TagNumber(1)
   Phase get phase => $_getN(0);
   @$pb.TagNumber(1)
@@ -815,7 +869,8 @@ class AgentProgress extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearStatusId() => $_clearField(2);
 
-  /// Tool wire-name for tool_executing (e.g. "bash_run"); empty otherwise.
+  /// Tool wire-name when a phase names a tool (legacy direct-tool path
+  /// only); empty on normal turns.
   @$pb.TagNumber(3)
   $core.String get toolName => $_getSZ(2);
   @$pb.TagNumber(3)

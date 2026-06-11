@@ -29,12 +29,14 @@ class ChatRequest extends $pb.GeneratedMessage {
     NewConversation? new_2,
     EphemeralConversation? ephemeral,
     $core.Iterable<$1.MessagePart>? parts,
+    $1.ToolDetail? toolDetail,
   }) {
     final result = create();
     if (conversationId != null) result.conversationId = conversationId;
     if (new_2 != null) result.new_2 = new_2;
     if (ephemeral != null) result.ephemeral = ephemeral;
     if (parts != null) result.parts.addAll(parts);
+    if (toolDetail != null) result.toolDetail = toolDetail;
     return result;
   }
 
@@ -66,6 +68,8 @@ class ChatRequest extends $pb.GeneratedMessage {
         subBuilder: EphemeralConversation.create)
     ..pPM<$1.MessagePart>(4, _omitFieldNames ? '' : 'parts',
         subBuilder: $1.MessagePart.create)
+    ..aE<$1.ToolDetail>(5, _omitFieldNames ? '' : 'toolDetail',
+        enumValues: $1.ToolDetail.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -143,6 +147,17 @@ class ChatRequest extends $pb.GeneratedMessage {
   /// emits Opened, and runs no turn (see the Chat stream contract above).
   @$pb.TagNumber(4)
   $pb.PbList<$1.MessagePart> get parts => $_getList(3);
+
+  /// How much tool-result output this stream should carry. Unset
+  /// (TOOL_DETAIL_UNSPECIFIED) means FULL. See ToolDetail in types.proto.
+  @$pb.TagNumber(5)
+  $1.ToolDetail get toolDetail => $_getN(4);
+  @$pb.TagNumber(5)
+  set toolDetail($1.ToolDetail value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasToolDetail() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearToolDetail() => $_clearField(5);
 }
 
 class NewConversation extends $pb.GeneratedMessage {

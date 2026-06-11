@@ -91,6 +91,14 @@ const WatchRequest$json = {
       '6': '.argot.v1.EventCategory',
       '10': 'categories'
     },
+    {
+      '1': 'tool_detail',
+      '3': 3,
+      '4': 1,
+      '5': 14,
+      '6': '.argot.v1.ToolDetail',
+      '10': 'toolDetail'
+    },
   ],
   '8': [
     {'1': '_conversation_id'},
@@ -101,7 +109,8 @@ const WatchRequest$json = {
 final $typed_data.Uint8List watchRequestDescriptor = $convert.base64Decode(
     'CgxXYXRjaFJlcXVlc3QSLAoPY29udmVyc2F0aW9uX2lkGAEgASgJSABSDmNvbnZlcnNhdGlvbk'
     'lkiAEBEjcKCmNhdGVnb3JpZXMYAiADKA4yFy5hcmdvdC52MS5FdmVudENhdGVnb3J5UgpjYXRl'
-    'Z29yaWVzQhIKEF9jb252ZXJzYXRpb25faWQ=');
+    'Z29yaWVzEjUKC3Rvb2xfZGV0YWlsGAMgASgOMhQuYXJnb3QudjEuVG9vbERldGFpbFIKdG9vbE'
+    'RldGFpbEISChBfY29udmVyc2F0aW9uX2lk');
 
 @$core.Deprecated('Use systemEventDescriptor instead')
 const SystemEvent$json = {

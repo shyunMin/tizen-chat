@@ -14,6 +14,44 @@ import 'dart:core' as $core;
 
 import 'package:protobuf/protobuf.dart' as $pb;
 
+/// How much tool-result output a stream carries. Stated per chat request
+/// (ChatRequest.tool_detail) and per watch subscriber (WatchRequest.tool_detail);
+/// it governs only ToolResult.output_json — ToolCall.arguments_json is carried
+/// whole at every level. Reduction is signaled by output_truncated +
+/// output_bytes, never by in-band markers.
+class ToolDetail extends $pb.ProtobufEnum {
+  /// Proto3 zero value: an unstated level. The daemon treats it as FULL, so
+  /// clients predating this field keep today's wire.
+  static const ToolDetail TOOL_DETAIL_UNSPECIFIED =
+      ToolDetail._(0, _omitEnumNames ? '' : 'TOOL_DETAIL_UNSPECIFIED');
+
+  /// The complete output as the runtime produced it.
+  static const ToolDetail TOOL_DETAIL_FULL =
+      ToolDetail._(1, _omitEnumNames ? '' : 'TOOL_DETAIL_FULL');
+
+  /// Output truncated byte-safe at the 4096-byte wire cap.
+  static const ToolDetail TOOL_DETAIL_CAPPED =
+      ToolDetail._(2, _omitEnumNames ? '' : 'TOOL_DETAIL_CAPPED');
+
+  /// Empty on success; on failure the failure payload, up to the wire cap.
+  static const ToolDetail TOOL_DETAIL_OUTCOME =
+      ToolDetail._(3, _omitEnumNames ? '' : 'TOOL_DETAIL_OUTCOME');
+
+  static const $core.List<ToolDetail> values = <ToolDetail>[
+    TOOL_DETAIL_UNSPECIFIED,
+    TOOL_DETAIL_FULL,
+    TOOL_DETAIL_CAPPED,
+    TOOL_DETAIL_OUTCOME,
+  ];
+
+  static final $core.List<ToolDetail?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static ToolDetail? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const ToolDetail._(super.value, super.name);
+}
+
 /// Prefixed values — proto3 enum values are package-scoped, so they must be
 /// unique across all enums in argot.v1 (prost strips the prefix → StopReason::IterCap).
 class StopReason extends $pb.ProtobufEnum {

@@ -53,6 +53,14 @@ const ChatRequest$json = {
       '6': '.argot.v1.MessagePart',
       '10': 'parts'
     },
+    {
+      '1': 'tool_detail',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.argot.v1.ToolDetail',
+      '10': 'toolDetail'
+    },
   ],
   '8': [
     {'1': 'target'},
@@ -64,8 +72,9 @@ final $typed_data.Uint8List chatRequestDescriptor = $convert.base64Decode(
     'CgtDaGF0UmVxdWVzdBIpCg9jb252ZXJzYXRpb25faWQYASABKAlIAFIOY29udmVyc2F0aW9uSW'
     'QSLQoDbmV3GAIgASgLMhkuYXJnb3QudjEuTmV3Q29udmVyc2F0aW9uSABSA25ldxI/CgllcGhl'
     'bWVyYWwYAyABKAsyHy5hcmdvdC52MS5FcGhlbWVyYWxDb252ZXJzYXRpb25IAFIJZXBoZW1lcm'
-    'FsEisKBXBhcnRzGAQgAygLMhUuYXJnb3QudjEuTWVzc2FnZVBhcnRSBXBhcnRzQggKBnRhcmdl'
-    'dA==');
+    'FsEisKBXBhcnRzGAQgAygLMhUuYXJnb3QudjEuTWVzc2FnZVBhcnRSBXBhcnRzEjUKC3Rvb2xf'
+    'ZGV0YWlsGAUgASgOMhQuYXJnb3QudjEuVG9vbERldGFpbFIKdG9vbERldGFpbEIICgZ0YXJnZX'
+    'Q=');
 
 @$core.Deprecated('Use newConversationDescriptor instead')
 const NewConversation$json = {

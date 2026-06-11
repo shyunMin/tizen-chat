@@ -63,6 +63,11 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   String? _logUserMessage;
   DateTime? _logRequestSentTime;
 
+  // [디버그용] 이벤트 카운터
+  int _debugTurnCount = 0;
+  int _debugToolCount = 0;
+  int _debugProgressCount = 0;
+
   // ── 진행 중인 응답 추적 ───────────────────────────────────────
   // turn 한 번에 응답 항목도 한 개로 유지한다. 들어오는 모든 delta가
   // 하나의 항목에 누적된다. null = 진행 중인 응답 없음.
@@ -350,6 +355,9 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
     if (!_isAgentBusy) {
       _logUserMessage = text;
       _logRequestSentTime = _requestStartTime;
+      _debugTurnCount = 0;
+      _debugToolCount = 0;
+      _debugProgressCount = 0;
     }
     setState(() {
       _lastSentText = text;
@@ -462,6 +470,13 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   void _completeAgentRequest(String reason) {
     if (!_isAgentBusy) return;
     debugPrint('[Chat] completing agent request: $reason');
+    debugPrint('================================================');
+    debugPrint('[디버그] --- 요청 처리 완료 ---');
+    debugPrint('[디버그] 사용자 요청: "${_logUserMessage ?? "알 수 없음"}"');
+    debugPrint('[디버그] 총 걸린 Turn 횟수 (AgentTurnStarted): $_debugTurnCount회');
+    debugPrint('[디버그] 총 도구 호출 횟수 (AgentToolUseStart): $_debugToolCount회');
+    debugPrint('[디버그] 총 상태 변화 횟수 (AgentAgentProgress): $_debugProgressCount회');
+    debugPrint('================================================');
     final completeTime = DateTime.now();
     unawaited(
       _perfLogger.record(
@@ -498,6 +513,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         :final toolCallId,
         :final argumentsJson,
       ):
+        _debugToolCount++;
         // Indicator is derived from entry.tools (computed via
         // _computeIndicator), so _recordToolStart alone handles both
         // adding the entry and refreshing the indicator.
@@ -514,6 +530,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentAgentProgress():
+        _debugProgressCount++;
         // Live, ephemeral "what the agent is doing" signal. Surfaced in the
         // typing indicator (the only live-status affordance while the turn is
         // in flight); never written to a bubble since it isn't persisted.
@@ -553,6 +570,7 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
         break;
 
       case AgentTurnStarted(:final clientRequestId, :final phase):
+        _debugTurnCount++;
         if (_pending != null &&
             !_pending!.steer &&
             _pending!.reqId == clientRequestId) {
@@ -854,8 +872,8 @@ class _TizenChatHomeScreenState extends State<TizenChatHomeScreen>
   /// 다루지 않고, streaming / done / unspecified 도 이미 텍스트·완료 프레임으로
   /// 전달되므로 표시하지 않는다. summarizer narration(message)이 있으면 그게 우선.
   String? _progressLabel(AgentAgentProgress progress) {
-    if (progress.phase == 'tool_executing') return '답변 생성 중';
     if (progress.message.isNotEmpty) return progress.message;
+    if (progress.phase == 'tool_executing') return '답변 생성 중';
     switch (progress.phase) {
       case 'thinking':
         return '분석 중';
